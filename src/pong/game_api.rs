@@ -23,30 +23,42 @@ const PANEL_SLOW_DOWN_PER_TP: f64 = 0.1;
 
 
 pub struct Coordinate(f64, f64);
+
 pub struct Vector2d(f64, f64);
 
-trait Pong {
-    fn state() -> Rc<GameState>;
-    fn time_step(input: PlayerInput);
+pub trait Pong {
+    fn state(&self) -> Rc<GameState>;
+    fn time_step(&mut self, input: GameInput);
 }
 
 pub struct GameState {
     // x = 0 = left side; y = 0 = bottom
-    bricks: Vec<Brick>,
-    ball: Ball,
-    panel: Panel,
+    pub bricks: Vec<Brick>,
+    pub ball: Ball,
+    pub panel: Panel,
+    pub finished: bool,
 }
 
-pub enum PlayerInput {
-    Empty,
+pub struct GameInput {
+    pub control: PanelControl,
+}
+
+impl GameInput {
+    pub fn new() -> Self {
+        Self { control: PanelControl::None }
+    }
+}
+
+pub enum PanelControl {
+    None,
     AccelerateLeft,
-    AccelerateRight
+    AccelerateRight,
 }
 
 pub struct Brick {
     // 0,0 is in the lower left corner
     pub lower_left: Coordinate,
-    pub upper_right: Coordinate
+    pub upper_right: Coordinate,
 }
 
 /// A ball is a perfect round 2D structure
