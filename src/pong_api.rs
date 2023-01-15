@@ -1,14 +1,17 @@
-use std::f32::consts::PI;
-use std::intrinsics::{roundf64, sqrtf64};
+#![allow(unused)]
 
 const BOARD_DIM_X: usize = 30;
 const BOARD_DIM_Y: usize = 30;
+
+const PANEL_POS_Y: usize = 29;
+const PANEL_SIZE_IN_BLOCKS: usize = 3;
+const PANEL_MAX_SPEED: f64 = 3.0;
+
+const PANEL_MAX_SPEED_INCREASE_PER_SEC: f64 = 1.5;
 const PIXEL_PER_BLOCK_SCALE: usize = 3;
 const SCREEN_DIM_X: usize = BOARD_DIM_X * PIXEL_PER_BLOCK_SCALE;
 const SCREEN_DIM_Y: usize = BOARD_DIM_Y * PIXEL_PER_BLOCK_SCALE;
-const PANEL_SIZE_IN_BLOCKS: usize = 1;
-const PANEL_MAX_SPEED: f64 = 3.0;
-const PANEL_MAX_SPEED_INCREASE_PER_SEC: f64 = 1.5;
+
 
 pub struct Vector2d(isize, isize);
 
@@ -31,14 +34,12 @@ pub struct Ball {
 }
 
 pub struct Panel {
-    row_y: usize,
-    middle_pos_x: f64,
+    center_pos_x: usize,
     // in block / second
     speed: f64,
 }
 
 impl PongGame {
-    #[allow(unused)]
     pub fn new() -> Self {
         PongGame {
             bricks: Self::init_bricks(),
@@ -76,8 +77,7 @@ impl PongGame {
 
     fn init_panel() -> Panel {
         Panel {
-            row_y: 1,
-            middle_pos_x: BOARD_DIM_X as f64 / 2.0,
+            center_pos_x: (BOARD_DIM_X as f64 / 2.0).round() as usize,
             speed: 0.0,
         }
     }
@@ -101,22 +101,31 @@ impl PongGame {
             ((x.pow(2) + y.pow(2)) as f64).sqrt() <= radius
         }
 
-        let middle_pos = Vector2df(self.ball.0 * PIXEL_PER_BLOCK_SCALE, self.ball.pos.1 * PIXEL_PER_BLOCK_SCALE);
+        let middle_pos = Vector2df(self.ball.pos.0 * PIXEL_PER_BLOCK_SCALE as f64, self.ball.pos.1 * PIXEL_PER_BLOCK_SCALE as f64);
         let radius = self.ball.radius;
 
         let middle_pixel_pos = Vector2d(middle_pos.0.round() as isize, middle_pos.1.round() as isize);
-        let block_range = (radius * PIXEL_PER_BLOCK_SCALE).round() as isize;
+        let block_range = (radius * PIXEL_PER_BLOCK_SCALE as f64).round() as isize;
         for y in -block_range as isize..block_range {
             for x in -block_range..block_range {
                 if inside_circle(x, y, radius) {
                     let screen_x = middle_pixel_pos.0 + x;
                     let screen_y = middle_pixel_pos.1 + y;
-                    screen[screen_y][screen_x] = true;
+                    screen[screen_y as usize][screen_x as usize] = true;
                 }
             }
         }
     }
+
     fn draw_panel(&self, screen: &mut [[bool; SCREEN_DIM_X]; SCREEN_DIM_Y]) {
-        todo!()
+        let pixel_half_range_x = (PANEL_SIZE_IN_BLOCKS as f64 * 0.5 * PIXEL_PER_BLOCK_SCALE as f64).round() as isize;
+        for y in 0..PIXEL_PER_BLOCK_SCALE {
+            for x in -pixel_half_range_x..pixel_half_range_x {
+                let pixel_pos_y = PANEL_POS_Y * PANEL_SIZE_IN_BLOCKS + y;
+                assert!((self.panel.center_pos_x * PIXEL_PER_BLOCK_SCALE) as isize + x > 0);
+                let pixel_pos_x = ((self.panel.center_pos_x * PIXEL_PER_BLOCK_SCALE) as isize + x) as usize;
+                screen[pixel_pos_y][pixel_pos_x] = true;
+            }
+        }
     }
 }
