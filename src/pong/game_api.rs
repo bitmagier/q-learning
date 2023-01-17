@@ -1,6 +1,7 @@
 #![allow(unused)]
 
 use std::rc::Rc;
+use std::time::Duration;
 
 const BOARD_DIM_X: usize = 600;
 const BOARD_DIM_Y: usize = 800;
@@ -12,7 +13,7 @@ const BRICK_SPACING: usize = 1;
 const PANEL_SIZE_X: usize = 20;
 
 /// time portion (TP)
-const TIME_GRANULARITY_IN_MS: usize = 200;
+pub const TIME_GRANULARITY: Duration = Duration::from_millis(200);
 
 /// pixel per time portion
 const PANEL_MAX_SPEED_PER_TP: f64 = 1.0;
@@ -22,15 +23,16 @@ const PANEL_POSSIBLE_ACCELERATION_PER_TP: f64 = 0.1;
 const PANEL_SLOW_DOWN_PER_TP: f64 = 0.1;
 
 
-pub struct Coordinate(f64, f64);
-
-pub struct Vector2d(f64, f64);
+#[derive(Copy, Clone, Default)]
+pub struct Coordinate(pub f64, pub f64);
+#[derive(Copy, Clone, Default)]
+pub struct Vector2d(pub f64, pub f64);
 
 pub trait Pong {
-    fn state(&self) -> Rc<GameState>;
-    fn time_step(&mut self, input: GameInput);
+    fn time_step(&mut self, input: GameInput) -> GameState;
 }
 
+#[derive(Clone, Default)]
 pub struct GameState {
     // x = 0 = left side; y = 0 = bottom
     pub bricks: Vec<Brick>,
@@ -39,6 +41,7 @@ pub struct GameState {
     pub finished: bool,
 }
 
+#[derive(Copy, Clone)]
 pub struct GameInput {
     pub control: PanelControl,
 }
@@ -49,12 +52,14 @@ impl GameInput {
     }
 }
 
+#[derive(Copy, Clone)]
 pub enum PanelControl {
     None,
     AccelerateLeft,
     AccelerateRight,
 }
 
+#[derive(Clone, Default)]
 pub struct Brick {
     // 0,0 is in the lower left corner
     pub lower_left: Coordinate,
@@ -62,6 +67,7 @@ pub struct Brick {
 }
 
 /// A ball is a perfect round 2D structure
+#[derive(Clone, Default)]
 pub struct Ball {
     pub center: Coordinate,
     pub radius: f64,
@@ -69,6 +75,7 @@ pub struct Ball {
     speed: f64,
 }
 
+#[derive(Clone, Default)]
 pub struct Panel {
     pub center_pos_x: usize,
     speed: f64,

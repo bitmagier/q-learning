@@ -10,11 +10,7 @@ impl PongMechanics {
 }
 
 impl Pong for PongMechanics {
-    fn state(&self) -> Rc<GameState> {
-        todo!()
-    }
-
-    fn time_step(&mut self, input: GameInput) {
+    fn time_step(&mut self, input: GameInput) -> GameState {
         todo!()
     }
 }
