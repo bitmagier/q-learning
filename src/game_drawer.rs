@@ -1,5 +1,5 @@
-use egui::Color32;
-use egui::plot::Polygon;
+use egui::{Color32, Pos2, Stroke};
+use egui::epaint::PathShape;
 
 use crate::pong::game_api::{Brick, GameState};
 
@@ -14,23 +14,34 @@ impl GameDrawer {
         }
     }
 
-    pub fn polygons(&self) -> Vec<Polygon> {
+    pub fn shapes(&self) -> Vec<egui::Shape> {
         let mut result = Vec::with_capacity(self.game_state.bricks.len() + 2);
-
-        for brick in &self.game_state.bricks {
-            result.push(draw_brick(brick));
-        }
-
+        result.extend(self.bricks());
+        result.push(self.ball());
+        result.push(self.panel());
         result
+    }
+
+    fn bricks(&self) -> Vec<egui::Shape> {
+        todo!();
+    }
+    fn ball(&self) -> egui::Shape {
+        todo!()
+    }
+    fn panel(&self) -> egui::Shape {
+        todo!()
     }
 }
 
-fn draw_brick(brick: &Brick) -> Polygon {
-    let mut points: Vec<[f64; 2]> = vec![];
-    points.push([brick.lower_left.0, brick.lower_left.1]);
-    points.push([brick.lower_left.0, brick.upper_right.1]);
-    points.push([brick.upper_right.0, brick.upper_right.1]);
-    points.push([brick.upper_right.0, brick.lower_left.1]);
-    Polygon::new(points)
-        .color(Color32::GRAY)
+fn draw_brick(brick: &Brick) -> impl Into<egui::Shape> {
+    PathShape::convex_polygon(
+        vec![
+            Pos2::new(brick.lower_left.x, brick.lower_left.y),
+            Pos2::new(brick.lower_left.x, brick.upper_right.y),
+            Pos2::new(brick.upper_right.x, brick.upper_right.y),
+            Pos2::new(brick.upper_right.x, brick.lower_left.y)
+        ],
+        Color32::DARK_GRAY,
+        Stroke::new(1.0, Color32::LIGHT_GRAY)
+    )
 }
