@@ -1,18 +1,35 @@
-use egui::{Color32, Pos2, Stroke};
-use egui::epaint::PathShape;
+use eframe::epaint::{CircleShape, Shape};
+use egui::{Color32, Pos2, Rect, Rounding, Stroke, Vec2};
+use egui::epaint::{PathShape, RectShape};
 
-use crate::pong::game_api::{Brick, GameState};
+use crate::pong::game_api::{Assert, Ball, Brick, Coordinate, GameState, MODEL_LEN_X, MODEL_LEN_Y, Panel};
 
 pub struct GameDrawer {
+    canvas_size: Vec2,
     game_state: GameState,
 }
 
 impl GameDrawer {
-    pub fn new(game_state: GameState) -> Self {
+    pub fn new(canvas_size: Vec2, game_state: GameState) -> Self {
         Self {
-            game_state
+            canvas_size,
+            game_state,
         }
     }
+
+    /// pos / MODEL_LEN = result / canvas_size
+    /// => result = pos * canvas_size / MODEL_LEN
+    fn scale(&self, pos: Coordinate) -> Pos2 {
+        Pos2::new(
+            pos.x * self.canvas_size.x / MODEL_LEN_X,
+            pos.y * self.canvas_size.y / MODEL_LEN_Y,
+        )
+    }
+
+    fn scale_x(&self, len_x: f32) -> f32 {
+        len_x * self.canvas_size.x / MODEL_LEN_X
+    }
+
 
     pub fn shapes(&self) -> Vec<egui::Shape> {
         let mut result = Vec::with_capacity(self.game_state.bricks.len() + 2);
@@ -23,25 +40,57 @@ impl GameDrawer {
     }
 
     fn bricks(&self) -> Vec<egui::Shape> {
-        todo!();
+        self.game_state.bricks.iter()
+            .map(|b| self.draw_brick(b))
+            .collect()
     }
-    fn ball(&self) -> egui::Shape {
-        todo!()
-    }
-    fn panel(&self) -> egui::Shape {
-        todo!()
-    }
-}
 
-fn draw_brick(brick: &Brick) -> impl Into<egui::Shape> {
-    PathShape::convex_polygon(
-        vec![
-            Pos2::new(brick.lower_left.x, brick.lower_left.y),
-            Pos2::new(brick.lower_left.x, brick.upper_right.y),
-            Pos2::new(brick.upper_right.x, brick.upper_right.y),
-            Pos2::new(brick.upper_right.x, brick.lower_left.y)
-        ],
-        Color32::DARK_GRAY,
-        Stroke::new(1.0, Color32::LIGHT_GRAY)
-    )
+    fn ball(&self) -> egui::Shape {
+        self.draw_ball(&self.game_state.ball)
+    }
+
+    fn draw_ball(&self, ball: &Ball) -> Shape {
+        ball.assert();
+        CircleShape::stroke(
+            self.scale(ball.center),
+            self.scale_x(ball.radius),
+            Stroke::new(2.0, Color32::YELLOW),
+        ).into()
+    }
+
+
+    fn panel(&self) -> egui::Shape {
+        self.draw_panel(&self.game_state.panel)
+    }
+
+    fn draw_panel(&self, panel: &Panel) -> Shape {
+        panel.assert();
+        RectShape::filled(
+            Rect::from_two_pos(
+                self.scale(
+                    Coordinate::new(
+                        panel.center_pos_x - panel.size_x / 2.0,
+                        panel.center_pos_y - panel.size_y / 2.0,
+                    )),
+                self.scale(Coordinate::new(
+                    panel.center_pos_x + panel.size_x / 2.0,
+                    panel.center_pos_y + panel.size_y / 2.0,
+                )),
+            ),
+            Rounding::none(),
+            Color32::WHITE,
+        ).into()
+    }
+
+
+    fn draw_brick(&self, brick: &Brick) -> egui::Shape {
+        RectShape::filled(
+            Rect::from_two_pos(
+                self.scale(brick.lower_left),
+                self.scale(brick.upper_right),
+            ),
+            Rounding::none(),
+            Color32::DARK_GRAY,
+        ).into()
+    }
 }

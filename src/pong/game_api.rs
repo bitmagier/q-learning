@@ -2,7 +2,13 @@
 
 use std::rc::Rc;
 use std::time::Duration;
+use egui::Vec2;
 use crate::pong::pong_mechanics::PongMechanics;
+
+
+pub const MODEL_LEN_X: f32 = 600.0;
+pub const MODEL_LEN_Y: f32 = 800.0;
+
 
 #[derive(Copy, Clone)]
 pub struct Vector2d {
@@ -96,5 +102,29 @@ pub struct Ball {
 #[derive(Clone)]
 pub struct Panel {
     pub center_pos_x: f32,
+    pub center_pos_y: f32,
+    pub size_x: f32,
+    pub size_y: f32,
     pub speed: f32,
+}
+
+
+pub trait Assert {
+    fn assert(&self);
+}
+impl Assert for Panel {
+    fn assert(&self) {
+        assert!(self.center_pos_x - self.size_x / 2.0 >= 0.0);
+        assert!(self.center_pos_x + self.size_x / 2.0 <= MODEL_LEN_X);
+        assert!(self.center_pos_y - self.size_y / 2.0 >= 0.0);
+        assert!(self.center_pos_y + self.size_y / 2.0 <= MODEL_LEN_Y);
+    }
+}
+impl Assert for Ball {
+    fn assert(&self) {
+        assert!(self.center.x - self.radius >= 0.0);
+        assert!(self.center.x + self.radius <= MODEL_LEN_X);
+        assert!(self.center.y - self.radius >= 0.0);
+        assert!(self.center.y + self.radius <= MODEL_LEN_Y);
+    }
 }
