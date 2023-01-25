@@ -5,22 +5,27 @@ use eframe::egui;
 use eframe::glow::Context;
 use egui::{CentralPanel, Frame, Id, LayerId, Order, Painter, plot, Sense, Vec2, Visuals};
 use egui::epaint::PathShape;
-use crate::game_drawer::GameDrawer;
 
-use crate::pong::game_api::{GameInput, GameState, PanelControl};
+use crate::game_drawer::GameDrawer;
+use crate::pong::game::{GameInput, GameState, PanelControl};
 
 pub struct PongApp<T> {
     game_input: Arc<RwLock<GameInput>>,
     game_state: Arc<RwLock<GameState>>,
-    mechanics_join_handle: JoinHandle<T>
+    mechanics_join_handle: JoinHandle<T>,
 }
 
 impl<T> PongApp<T> {
-    pub fn new(cc: &eframe::CreationContext<'_>, game_input: Arc<RwLock<GameInput>>, game_state: Arc<RwLock<GameState>>, mechanics_join_handle: JoinHandle<T>) -> Self {
+    pub fn new(
+        cc: &eframe::CreationContext<'_>,
+        game_input: Arc<RwLock<GameInput>>,
+        game_state: Arc<RwLock<GameState>>,
+        mechanics_join_handle: JoinHandle<T>
+    ) -> Self {
         Self {
             game_input,
             game_state,
-            mechanics_join_handle
+            mechanics_join_handle,
         }
     }
 
@@ -65,7 +70,7 @@ impl<T> eframe::App for PongApp<T> {
         let game_painter = ctx.layer_painter(LayerId::new(Order::Foreground, Id::new("game")));
         self.game_content(&game_painter);
     }
-    
+
     fn on_exit(&mut self, _gl: Option<&Context>) {
         *self.game_input.write().unwrap() = GameInput { control: PanelControl::Exit };
     }

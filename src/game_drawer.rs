@@ -2,7 +2,7 @@ use eframe::epaint::{CircleShape, Shape};
 use egui::{Color32, Pos2, Rect, Rounding, Stroke, Vec2};
 use egui::epaint::{PathShape, RectShape};
 
-use crate::pong::game_api::{Assert, Ball, Brick, Coordinate, GameState, MODEL_LEN_X, MODEL_LEN_Y, Panel};
+use crate::pong::game::{Assert, Ball, Brick, Coordinate, GameState, MODEL_GRID_LEN_X, MODEL_GRID_LEN_Y, Panel};
 
 pub struct GameDrawer {
     canvas_size: Vec2,
@@ -21,13 +21,13 @@ impl GameDrawer {
     /// => result = pos * canvas_size / MODEL_LEN
     fn scale(&self, pos: Coordinate) -> Pos2 {
         Pos2::new(
-            pos.x * self.canvas_size.x / MODEL_LEN_X,
-            pos.y * self.canvas_size.y / MODEL_LEN_Y,
+            pos.x * self.canvas_size.x / MODEL_GRID_LEN_X,
+            pos.y * self.canvas_size.y / MODEL_GRID_LEN_Y,
         )
     }
 
     fn scale_x(&self, len_x: f32) -> f32 {
-        len_x * self.canvas_size.x / MODEL_LEN_X
+        len_x * self.canvas_size.x / MODEL_GRID_LEN_X
     }
 
 
@@ -52,7 +52,7 @@ impl GameDrawer {
     fn draw_ball(&self, ball: &Ball) -> Shape {
         ball.assert();
         CircleShape::stroke(
-            self.scale(ball.center),
+            self.scale(ball.center_pos),
             self.scale_x(ball.radius),
             Stroke::new(2.0, Color32::YELLOW),
         ).into()

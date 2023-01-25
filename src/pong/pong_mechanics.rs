@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crate::pong::game_api::{Ball, Brick, Coordinate, GameInput, GameState, MODEL_LEN_X, MODEL_LEN_Y, Panel, Pong, Vector2d};
+use crate::pong::game::{Ball, Brick, Coordinate, GameInput, GameState, MODEL_GRID_LEN_X, MODEL_GRID_LEN_Y, Panel, Pong, Vector2d};
 
 /// 5 means 5x5 pixel
 const BRICK_EDGE_LEN: f32 = 25.0;
@@ -15,15 +15,8 @@ const PANEL_LEN_X: f32 = 40.0;
 const PANEL_LEN_Y: f32 = 10.0;
 const PANEL_CENTER_POS_Y: f32 = 770.0;
 
-/// time portion (TP)
-pub const TIME_GRANULARITY: Duration = Duration::from_millis(200);
-
-/// pixel per time portion
-const PANEL_MAX_SPEED_PER_TP: f32 = 1.0;
-/// pixel per TP per TP
-const PANEL_POSSIBLE_ACCELERATION_PER_TP: f32 = 0.1;
-/// slow down if not accelerated (+/-)
-const PANEL_SLOW_DOWN_PER_TP: f32 = 0.1;
+/// time portion (TP) / time granularity
+pub const MODEL_TIME_PORTION: Duration = Duration::from_millis(200);
 
 
 pub struct PongMechanics {
@@ -48,10 +41,10 @@ impl PongMechanics {
         let mut bricks = vec![];
         for row in 0..BRICK_ROWS {
             let mut left_x = 0.0;
-            let upper_y= FIRST_BRICK_ROW_TOP_Y + row as f32 * (BRICK_EDGE_LEN + BRICK_SPACING);
+            let upper_y = FIRST_BRICK_ROW_TOP_Y + row as f32 * (BRICK_EDGE_LEN + BRICK_SPACING);
             loop {
                 let brick = create_brick(left_x, upper_y);
-                if brick.upper_right.x >= MODEL_LEN_X {
+                if brick.upper_right.x >= MODEL_GRID_LEN_X {
                     break;
                 } else {
                     left_x = brick.upper_right.x + BRICK_SPACING;
@@ -64,7 +57,7 @@ impl PongMechanics {
 
     pub fn initial_ball() -> Ball {
         Ball {
-            center: Coordinate::from((MODEL_LEN_X / 2.0, MODEL_LEN_Y / 2.0)),
+            center_pos: Coordinate::from((MODEL_GRID_LEN_X / 2.0, MODEL_GRID_LEN_Y / 2.0)),
             radius: BALL_RADIUS,
             direction: Vector2d::from((-0.2, 1.0)),
             speed: BALL_SPEED_PER_TP,
@@ -73,18 +66,25 @@ impl PongMechanics {
 
     pub fn initial_panel() -> Panel {
         Panel {
-            center_pos_x: MODEL_LEN_X / 2.0,
+            center_pos_x: MODEL_GRID_LEN_X / 2.0,
             center_pos_y: PANEL_CENTER_POS_Y,
             size_x: PANEL_LEN_X,
             size_y: PANEL_LEN_Y,
-            speed: 0.0,
+            move_vector_x: 0.0,
         }
     }
 }
 
 impl Pong for PongMechanics {
-    fn time_step(&mut self, _input: GameInput) -> GameState {
-        // TODO
+    fn time_step(
+        &mut self,
+        input: GameInput,
+    ) -> GameState {
+        self.mechanic_state.panel.proceeed();
+        self.mechanic_state.ball.proceed(&self.mechanic_state.panel, &self.mechanic_state.bricks);
+        self.mechanic_state.panel.process_input(input);
         self.mechanic_state.clone()
     }
 }
+
+// TODO merge into game

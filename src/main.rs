@@ -8,8 +8,8 @@ use std::thread;
 use std::time::{Instant};
 
 use crate::app::PongApp;
-use crate::pong::game_api::{GameInput, GameState, Pong};
-use crate::pong::pong_mechanics::{PongMechanics, TIME_GRANULARITY};
+use crate::pong::game::{GameInput, GameState, Pong};
+use crate::pong::pong_mechanics::{PongMechanics, MODEL_TIME_PORTION};
 
 pub mod pong;
 mod app;
@@ -23,12 +23,13 @@ fn main() {
     let m_game_state = Arc::clone(&game_state);
     let mechanics_join_handle = thread::spawn(move || {
         let mut mechanics = PongMechanics::new();
-        let mut next_step_time = Instant::now().add(TIME_GRANULARITY);
-        let sleep_time_ms = TIME_GRANULARITY.div(5);
+        let mut next_step_time = Instant::now().add(MODEL_TIME_PORTION);
+        let sleep_time_ms = MODEL_TIME_PORTION.div(5);
         loop {
             if Instant::now().ge(&next_step_time) {
-                next_step_time = next_step_time.add(TIME_GRANULARITY);
-                let state = mechanics.time_step(m_game_input.read().unwrap().clone());
+                next_step_time = next_step_time.add(MODEL_TIME_PORTION);
+                let input = m_game_input.read().unwrap().clone();
+                let state = mechanics.time_step(input);
                 if state.finished {
                     break;
                 }

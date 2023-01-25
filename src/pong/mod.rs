@@ -1,2 +1,2 @@
-pub mod game_api;
+pub mod game;
 pub mod pong_mechanics;
