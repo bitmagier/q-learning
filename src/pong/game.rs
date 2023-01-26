@@ -20,6 +20,7 @@ const PANEL_CONTROL_ACCELERATION_LEN_PER_SQUARE_TP: f32 = 5.0;
 /// slow down if not accelerated
 const PANEL_SLOW_DOWN_ACCELERATION_LEN_PER_SQUARE_TP: f32 = 2.0;
 
+const SPACE_GRANULARITY: f32 = 0.001;
 
 #[derive(Copy, Clone)]
 pub struct Vector2d {
@@ -49,7 +50,7 @@ impl std::ops::Mul<f32> for Vector2d {
     fn mul(self, rhs: f32) -> Self::Output {
         Vector2d {
             x: self.x * rhs,
-            y: self.y * rhs
+            y: self.y * rhs,
         }
     }
 }
@@ -80,7 +81,7 @@ impl Add<Vector2d> for Coordinate {
     fn add(self, rhs: Vector2d) -> Self::Output {
         Coordinate {
             x: self.x + rhs.x,
-            y: self.y + rhs.y
+            y: self.y + rhs.y,
         }
     }
 }
@@ -145,92 +146,101 @@ pub struct Ball {
     pub speed: f32,
 }
 
-pub struct CollisionInfo {
-    reflection_at_x: Option<f32>,
-    reflection_at_y: Option<f32>,
+pub struct CollisionCandidates {
+    surfaces: Vec<CollisionSurface>,
 }
-impl CollisionInfo {
-    pub fn at_x(x: f32) -> Self {
-        CollisionInfo {
-            reflection_at_x: Some(x),
-            reflection_at_y: None
+
+#[derive(Copy, Clone)]
+pub struct CollisionSurface {
+    // pub point: Coordinate,
+    pub angle: f32,
+    // 0 - 180 °
+    pub distance: f32,
+}
+
+impl CollisionCandidates {
+    pub fn new() -> Self {
+        Self { surfaces: Vec::with_capacity(2) }
+    }
+
+    pub fn consider(&mut self, candidate: CollisionSurface) {
+        assert!(!candidate.distance.is_sign_negative());
+        if !self.surfaces.iter()
+            .any(|&e| (e.distance < candidate.distance - SPACE_GRANULARITY)) {
+            self.surfaces.push(candidate)
         }
     }
 
-    pub fn at_y(y: f32) -> Self {
-        CollisionInfo {
-            reflection_at_x: None,
-            reflection_at_y: Some(y),
-        }
-    }
+    pub fn effective_reflection(&self) -> Option<CollisionSurface> {
+        match self.surfaces.len() {
+            0 => None,
+            1 => Some(*self.surfaces.first().unwrap()),
+            _ => {
+                self.multiple_entries_plausibility_check();
+                let min_angle = min_f32(self.surfaces.iter().map(|e| e.angle));
+                let max_angle: f32 = max_f32(self.surfaces.iter().map(|e| e.angle));
 
-    pub fn merge_with(&self, other: &Self) -> Self {
-        fn merge(a: Option<f32>, b: Option<f32>) -> Option<f32> {
-            match (a, b) {
-                (x@Some(a), Some(b)) => {
-                    assert!(roughly_equals(a, b));
-                    x
-                },
-                (x@Some(a), None) => x,
-                (None, x@Some(b)) => x,
-                (None, None) => None
+                let effective_angle = (min_angle + max_angle) / 2.0;
+                Some(CollisionSurface {
+                    angle: effective_angle,
+                    distance: 0.0,
+                })
             }
         }
-        Self {
-            reflection_at_x: merge(self.reflection_at_x, other.reflection_at_x),
-            reflection_at_y: merge(self.reflection_at_y, other.reflection_at_y)
-        }
+    }
+
+    fn multiple_entries_plausibility_check(&self) {
+        let mut max_distance = max_f32(self.surfaces.iter().map(|e| e.distance));
+        let mut min_distance = min_f32(self.surfaces.iter().map(|e| e.distance));
+        assert!(max_distance - min_distance < SPACE_GRANULARITY);
     }
 }
-impl Default for CollisionInfo {
-    fn default() -> Self {
-        Self {
-            reflection_at_x: None,
-            reflection_at_y: None,
-        }
-    }
+
+fn min_f32<I>(iter: I) -> f32
+    where I: Iterator<Item = f32>
+{
+    let r = iter.fold(f32::INFINITY, |a, b| a.min(b));
+    assert!(r.is_finite());
+    r
 }
+
+fn max_f32<I>(iter: I) -> f32
+    where I: Iterator<Item = f32>
+{
+    let r = iter.fold(f32::NEG_INFINITY, |a, b| a.max(b));
+    assert!(r.is_finite());
+    r
+}
+
+
 
 impl Ball {
     /// physically move one time step forward
     /// TODO project new ball position and direction based on its old position, speed, direction and collisions with panel&panel-drag/left-wall/right-wall
-    pub fn proceed(&mut self, panel: &Panel, bricks: &Vec<Brick>) {
+    pub fn proceed(&mut self, panel: &Panel, bricks: &mut Vec<Brick>) {
         assert!(self.speed > 0.0);
         self.direction.normalize();
         let move_vector = self.direction * self.speed;
         self.proceed_with(move_vector, panel, bricks);
     }
 
-    fn proceed_with(&mut self, move_vector: Vector2d, panel: &Panel, bricks: &Vec<Brick>) {
-        let mut collision_info = CollisionInfo::default();
+    fn proceed_with(&mut self, move_vector: Vector2d, panel: &Panel, bricks: &mut Vec<Brick>) {
+        let mut collision_candidates = CollisionCandidates::new();
+        // TODO test collisions and keep the one(s) with shortest distance
+        // left + right wall
+        // bricks
+        // panel
 
-        if self.collision_with_left_wall(move_vector) {
-            collision_info = collision_info.merge_with(&CollisionInfo::at_x(0.0))
-        } else if self.collision_with_right_wall(move_vector) {
-            collision_info = collision_info.merge_with(&CollisionInfo::at_x(MODEL_GRID_LEN_X))
+        let collisions = collision_candidates;
+        // TODO remove brick(s), which has been really hit
+
+        if let Some(reflection) = collisions.effective_reflection() {
+            // TODO calc point of reflection (keep ball canter pos)
+            // TODO calc new ball move vector after reflection
+            // TODO recursive call of proceed_with() with new move vector (different angle) and of remaining move length for TP,
+        } else {
+            self.center_pos = self.center_pos + move_vector
         }
-
-        if let Some(collision) = self.collision_y_from_north() {
-            collision_info = collision_info.merge_with(&CollisionInfo::at_y(panel.upper_edge_y()));
-            // TODO add influence of move_vector to effective reflection angle
-        }
-
-        // TODO calc point of reflection (keep ball canter pos)
-        // TODO calc new ball move vector after reflection
-        // TODO recursive call of proceed_with() with new move vector (different angle) and of remaining move length for TP,
-    }
-    
-    fn collision_with_brick(&self, move_vector: Vector2d, brick: &Brick) -> Option<CollisionInfo> {
-        todo!()
-    }
-    fn collision_with_left_wall(&self, move_vector: Vector2d) -> bool {
-        todo!()
-    }
-    fn collision_with_right_wall(&self, move_vector: Vector2d) -> bool {
-        todo!()
-    }
-    fn collision_y_from_north(&self) -> Option<CollisionInfo> {
-        todo!()
     }
 }
 
@@ -266,7 +276,7 @@ impl Panel {
 
 impl Panel {
     /// physically move one time step forward; project new position according to movement
-    pub fn proceeed(&mut self) {
+    pub fn proceed(&mut self) {
         let most_left_center_pos_x = (self.size_x / 2.0).round();
         let most_right_center_pos_x = (MODEL_GRID_LEN_X - (self.size_x / 2.0)).round();
         let potential_pos_x = self.center_pos_x + self.move_vector_x;
@@ -312,7 +322,7 @@ fn roughly_equals(a: f32, b: f32) -> bool {
 fn granulate_coordinate(c: Coordinate) -> Coordinate {
     Coordinate {
         x: (c.x * 1000.0).round() / 1000.0,
-        y: (c.y * 1000.0).round() / 1000.0
+        y: (c.y * 1000.0).round() / 1000.0,
     }
 }
 

@@ -80,8 +80,8 @@ impl Pong for PongMechanics {
         &mut self,
         input: GameInput,
     ) -> GameState {
-        self.mechanic_state.panel.proceeed();
-        self.mechanic_state.ball.proceed(&self.mechanic_state.panel, &self.mechanic_state.bricks);
+        self.mechanic_state.panel.proceed();
+        self.mechanic_state.ball.proceed(&self.mechanic_state.panel, &mut self.mechanic_state.bricks);
         self.mechanic_state.panel.process_input(input);
         self.mechanic_state.clone()
     }
