@@ -1,10 +1,10 @@
 use std::sync::{Arc, RwLock};
 use std::thread::JoinHandle;
+use std::time::Duration;
 
 use eframe::egui;
 use eframe::glow::Context;
-use egui::{CentralPanel, Frame, Id, LayerId, Order, Painter, plot, Sense, Vec2, Visuals};
-use egui::epaint::PathShape;
+use egui::{Id, LayerId, Order, Painter, Vec2};
 
 use crate::game_drawer::GameDrawer;
 use crate::pong::game::{GameInput, GameState, PanelControl};
@@ -30,28 +30,42 @@ impl<T> PongApp<T> {
     }
 
     fn ui_control(&mut self, ctx: &egui::Context) {
-        let control = if ctx.input().key_down(egui::Key::ArrowLeft) && !ctx.input().key_down(egui::Key::ArrowRight) {
+        let control = if ctx.input().key_down(egui::Key::ArrowLeft) /*&& !ctx.input().key_down(egui::Key::ArrowRight)*/ {
             PanelControl::AccelerateLeft
-        } else if ctx.input().key_down(egui::Key::ArrowRight) && !ctx.input().key_down(egui::Key::ArrowLeft) {
+        } else if ctx.input().key_down(egui::Key::ArrowRight) /*&& !ctx.input().key_down(egui::Key::ArrowLeft)*/ {
             PanelControl::AccelerateRight
         } else if ctx.input().key_pressed(egui::Key::Escape) {
             PanelControl::Exit
         } else {
             PanelControl::None
         };
-        *self.game_input.write().unwrap() = GameInput { control };
+
+        self.write_game_input(GameInput { control });
     }
 
     fn game_content(&self, painter: &Painter) {
         let paint_offset = painter.clip_rect().min;
         let canvas_size = painter.clip_rect().size();
 
-        let game_state = self.game_state.read().unwrap().clone();
+        let game_state = self.read_game_state();
         let drawer = GameDrawer::new(canvas_size, game_state);
         for mut shape in drawer.shapes() {
             shape.translate(paint_offset.to_vec2());
             painter.add(shape);
         }
+    }
+
+    fn read_game_state(&self) -> GameState {
+        let read_handle = self.game_state.read().unwrap();
+        let game_state = read_handle.clone();
+        drop(read_handle);
+        game_state
+    }
+
+    fn write_game_input(&self, game_input: GameInput) {
+        let mut write_handle = self.game_input.write().unwrap();
+        *write_handle = game_input;
+        drop(write_handle);
     }
 }
 
@@ -69,6 +83,7 @@ impl<T> eframe::App for PongApp<T> {
         self.ui_control(ctx);
         let game_painter = ctx.layer_painter(LayerId::new(Order::Foreground, Id::new("game")));
         self.game_content(&game_painter);
+        ctx.request_repaint_after(Duration::from_millis(100));
     }
 
     fn on_exit(&mut self, _gl: Option<&Context>) {

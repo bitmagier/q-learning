@@ -1,6 +1,6 @@
 use eframe::epaint::{CircleShape, Shape};
 use egui::{Color32, Pos2, Rect, Rounding, Stroke, Vec2};
-use egui::epaint::{PathShape, RectShape};
+use egui::epaint::RectShape;
 
 use crate::pong::game::{Assert, Ball, Brick, Coordinate, GameState, MODEL_GRID_LEN_X, MODEL_GRID_LEN_Y, Panel};
 

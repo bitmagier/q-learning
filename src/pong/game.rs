@@ -122,7 +122,7 @@ impl GameInput {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub enum PanelControl {
     None,
     AccelerateLeft,
@@ -255,7 +255,7 @@ pub struct Panel {
 }
 
 impl Panel {
-    pub(crate) fn upper_edge_y(&self) -> f32 {
+    pub fn upper_edge_y(&self) -> f32 {
         self.center_pos_y + self.size_y / 2.0
     }
 }
@@ -264,12 +264,13 @@ impl Panel {
     /// calculate new panel move-vector based on input or slow-down
     pub fn process_input(&mut self, input: GameInput) {
         match input.control {
-            PanelControl::None => {
-                self.move_vector_x = decrease_speed(self.move_vector_x, PANEL_SLOW_DOWN_ACCELERATION_LEN_PER_SQUARE_TP);
-            }
-            PanelControl::AccelerateLeft => {
-                self.move_vector_x = accelerate(self.move_vector_x, PANEL_CONTROL_ACCELERATION_LEN_PER_SQUARE_TP, PANEL_MAX_SPEED_PER_TP);
-            } PanelControl::AccelerateRight => {} PanelControl::Exit => {}
+            PanelControl::None =>
+                self.move_vector_x = decrease_speed(self.move_vector_x, PANEL_SLOW_DOWN_ACCELERATION_LEN_PER_SQUARE_TP),
+            PanelControl::AccelerateLeft =>
+                self.move_vector_x = accelerate(self.move_vector_x, -PANEL_CONTROL_ACCELERATION_LEN_PER_SQUARE_TP, PANEL_MAX_SPEED_PER_TP),
+            PanelControl::AccelerateRight =>
+                self.move_vector_x = accelerate(self.move_vector_x, PANEL_CONTROL_ACCELERATION_LEN_PER_SQUARE_TP, PANEL_MAX_SPEED_PER_TP),
+            PanelControl::Exit => ()
         }
     }
 }
@@ -343,7 +344,7 @@ fn decrease_speed(speed: f32, break_acceleration: f32) -> f32 {
     }
 }
 
-/// positive or negative acceleration
+/// positive or negative speed and acceleration
 fn accelerate(speed: f32, acceleration: f32, speed_limit_abs: f32) -> f32 {
     assert!(!speed_limit_abs.is_sign_negative());
     let virtual_speed = speed + acceleration;
