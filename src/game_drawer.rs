@@ -1,7 +1,6 @@
 use eframe::epaint::{CircleShape, Shape};
 use egui::{Color32, Pos2, Rect, Rounding, Stroke, Vec2};
 use egui::epaint::RectShape;
-use crate::pong::Coordinate;
 
 use crate::pong::mechanics::{Assert, Ball, Brick, GameState, MODEL_GRID_LEN_X, MODEL_GRID_LEN_Y, Panel};
 
@@ -20,7 +19,7 @@ impl GameDrawer {
 
     /// pos / MODEL_LEN = result / canvas_size
     /// => result = pos * canvas_size / MODEL_LEN
-    fn scale(&self, pos: Coordinate) -> Pos2 {
+    fn scale(&self, pos: Pos2) -> Pos2 {
         Pos2::new(
             pos.x * self.canvas_size.x / MODEL_GRID_LEN_X,
             pos.y * self.canvas_size.y / MODEL_GRID_LEN_Y,
@@ -53,7 +52,7 @@ impl GameDrawer {
     fn draw_ball(&self, ball: &Ball) -> Shape {
         ball.assert();
         CircleShape::stroke(
-            self.scale(ball.center_pos),
+            self.scale(ball.center),
             self.scale_x(ball.radius),
             Stroke::new(2.0, Color32::YELLOW),
         ).into()
@@ -69,14 +68,11 @@ impl GameDrawer {
         RectShape::filled(
             Rect::from_two_pos(
                 self.scale(
-                    Coordinate::new(
-                        panel.center_pos_x - panel.size_x / 2.0,
-                        panel.center_pos_y - panel.size_y / 2.0,
-                    )),
-                self.scale(Coordinate::new(
-                    panel.center_pos_x + panel.size_x / 2.0,
-                    panel.center_pos_y + panel.size_y / 2.0,
-                )),
+                    panel.lower_left_pos()
+                ),
+                self.scale(
+                    panel.upper_right_pos()
+                ),
             ),
             Rounding::none(),
             Color32::WHITE,

@@ -5,7 +5,11 @@ edition = "2021"
 authors = ["Roman Krüger<bitmagier@mailbox.org>"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[dev-dependencies]
+rstest = "*"
+
 [dependencies]
+itertools = "*"
 # tensorflow = { version = "0", features = ["tensorflow_gpu"] }
-egui = "0"
-eframe = { version = "0", features = ["dark-light"] }
+egui = "*"
+eframe = { version = "*", features = ["dark-light"] }
