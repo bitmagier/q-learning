@@ -1,14 +1,12 @@
-use std::ops::Div;
 use std::sync::{Arc, RwLock};
 use std::thread::JoinHandle;
-use std::time::Duration;
 
 use eframe::egui;
 use eframe::glow::Context;
 use egui::{Id, LayerId, Order, Painter, Vec2};
 
 use crate::game_drawer::GameDrawer;
-use crate::pong::mechanics::{GameInput, GameState, PanelControl, TIME_GRANULARITY};
+use crate::pong::mechanics::{GameInput, GameState, PanelControl};
 
 pub struct PongApp<T> {
     game_input: Arc<RwLock<GameInput>>,
@@ -21,7 +19,7 @@ impl<T> PongApp<T> {
         _cc: &eframe::CreationContext<'_>,
         game_input: Arc<RwLock<GameInput>>,
         game_state: Arc<RwLock<GameState>>,
-        mechanics_join_handle: JoinHandle<T>
+        mechanics_join_handle: JoinHandle<T>,
     ) -> Self {
         Self {
             game_input,
@@ -31,9 +29,9 @@ impl<T> PongApp<T> {
     }
 
     fn ui_control(&mut self, ctx: &egui::Context) {
-        let control = if ctx.input().key_down(egui::Key::ArrowLeft) /*&& !ctx.input().key_down(egui::Key::ArrowRight)*/ {
+        let control = if ctx.input().key_down(egui::Key::ArrowLeft) && !ctx.input().key_down(egui::Key::ArrowRight) {
             PanelControl::AccelerateLeft
-        } else if ctx.input().key_down(egui::Key::ArrowRight) /*&& !ctx.input().key_down(egui::Key::ArrowLeft)*/ {
+        } else if ctx.input().key_down(egui::Key::ArrowRight) && !ctx.input().key_down(egui::Key::ArrowLeft) {
             PanelControl::AccelerateRight
         } else if ctx.input().key_pressed(egui::Key::Escape) {
             PanelControl::Exit
@@ -75,9 +73,10 @@ impl<T> PongApp<T> {
 const FRAME_SIZE_X: f32 = 600.0;
 const FRAME_SIZE_Y: f32 = 800.0;
 
+// TODO use Channel to sync input + updated mechanics + repaint
+
 impl<T> eframe::App for PongApp<T> {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        ctx.request_repaint_after(TIME_GRANULARITY.div(2));
         if self.mechanics_join_handle.is_finished() {
             frame.close()
         }

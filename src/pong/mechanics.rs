@@ -8,7 +8,7 @@ pub const MODEL_GRID_LEN_Y: f32 = 800.0;
 const SPACE_GRANULARITY: f32 = 0.001;
 
 /// time granularity (TG)
-pub const TIME_GRANULARITY: Duration = Duration::from_millis(100);
+pub const TIME_GRANULARITY: Duration = Duration::from_millis(40);
 
 
 const PANEL_LEN_X: f32 = 40.0;
@@ -16,11 +16,11 @@ const PANEL_LEN_Y: f32 = 10.0;
 const PANEL_CENTER_POS_Y: f32 = 770.0;
 
 /// model grid len per time granularity
-const PANEL_MAX_SPEED_PER_TG: f32 = 6.0;
+const PANEL_MAX_SPEED_PER_SECOND: f32 = 60.0;
 
-const PANEL_CONTROL_ACCEL_PER_TG: f32 = 2.0;
+const PANEL_CONTROL_ACCEL_PER_SECOND: f32 = 20.0;
 /// slow down if not accelerated
-const PANEL_SLOW_DOWN_ACCEL_PER_TP: f32 = 0.5;
+const PANEL_SLOW_DOWN_ACCEL_PER_SECOND: f32 = 5.0;
 
 
 const BRICK_EDGE_LEN: f32 = 25.0;
@@ -29,7 +29,7 @@ const BRICK_ROWS: usize = 3;
 const FIRST_BRICK_ROW_TOP_Y: f32 = 37.0;
 
 const BALL_RADIUS: f32 = 10.0;
-const BALL_SPEED_PER_TP: f32 = 8.0;
+const BALL_SPEED_PER_SEC: f32 = 80.0;
 
 
 pub struct PongMechanics {
@@ -73,7 +73,7 @@ impl PongMechanics {
             center_pos: Coordinate::from((MODEL_GRID_LEN_X / 2.0, MODEL_GRID_LEN_Y / 2.0)),
             radius: BALL_RADIUS,
             direction: Vector2d::from((-0.2, 1.0)),
-            speed: BALL_SPEED_PER_TP,
+            speed_per_sec: BALL_SPEED_PER_SEC,
         }
     }
 
@@ -83,7 +83,7 @@ impl PongMechanics {
             center_pos_y: PANEL_CENTER_POS_Y,
             size_x: PANEL_LEN_X,
             size_y: PANEL_LEN_Y,
-            move_vector_x: 0.0,
+            speed_per_sec: 0.0,
         }
     }
 
@@ -153,7 +153,7 @@ pub struct Ball {
     pub center_pos: Coordinate,
     pub radius: f32,
     pub direction: Vector2d,
-    pub speed: f32,
+    pub speed_per_sec: f32,
 }
 
 pub struct CollisionCandidates {
@@ -212,9 +212,9 @@ impl Ball {
     /// physically move one time step forward
     /// TODO project new ball position and direction based on its old position, speed, direction and collisions with panel&panel-drag/left-wall/right-wall
     pub fn proceed(&mut self, panel: &Panel, bricks: &mut Vec<Brick>) {
-        assert!(self.speed > 0.0);
+        assert!(self.speed_per_sec > 0.0);
         self.direction.normalize();
-        let move_vector = self.direction * self.speed;
+        let move_vector = self.direction * self.speed_per_sec * TIME_GRANULARITY.as_secs_f32();
         self.proceed_with(move_vector, panel, bricks);
     }
 
@@ -246,7 +246,7 @@ pub struct Panel {
     pub size_x: f32,
     pub size_y: f32,
     /// model len per time portion
-    pub move_vector_x: f32,
+    pub speed_per_sec: f32,
 }
 
 impl Panel {
@@ -260,11 +260,11 @@ impl Panel {
     pub fn process_input(&mut self, input: GameInput) {
         match input.control {
             PanelControl::None =>
-                self.move_vector_x = decrease_speed(self.move_vector_x, PANEL_SLOW_DOWN_ACCEL_PER_TP),
+                self.speed_per_sec = decrease_speed(self.speed_per_sec, PANEL_SLOW_DOWN_ACCEL_PER_SECOND),
             PanelControl::AccelerateLeft =>
-                self.move_vector_x = accelerate(self.move_vector_x, -PANEL_CONTROL_ACCEL_PER_TG, PANEL_MAX_SPEED_PER_TG),
+                self.speed_per_sec = accelerate(self.speed_per_sec, -PANEL_CONTROL_ACCEL_PER_SECOND, PANEL_MAX_SPEED_PER_SECOND),
             PanelControl::AccelerateRight =>
-                self.move_vector_x = accelerate(self.move_vector_x, PANEL_CONTROL_ACCEL_PER_TG, PANEL_MAX_SPEED_PER_TG),
+                self.speed_per_sec = accelerate(self.speed_per_sec, PANEL_CONTROL_ACCEL_PER_SECOND, PANEL_MAX_SPEED_PER_SECOND),
             PanelControl::Exit => ()
         }
     }
@@ -275,14 +275,14 @@ impl Panel {
     pub fn proceed(&mut self) {
         let most_left_center_pos_x = (self.size_x / 2.0).round();
         let most_right_center_pos_x = (MODEL_GRID_LEN_X - (self.size_x / 2.0)).round();
-        let potential_pos_x = self.center_pos_x + self.move_vector_x;
+        let potential_pos_x = self.center_pos_x + self.speed_per_sec * TIME_GRANULARITY.as_secs_f32();
 
         if potential_pos_x <= most_left_center_pos_x {
             self.center_pos_x = most_left_center_pos_x;
-            self.move_vector_x = 0.0;
+            self.speed_per_sec = 0.0;
         } else if potential_pos_x >= most_right_center_pos_x {
             self.center_pos_x = most_right_center_pos_x;
-            self.move_vector_x = 0.0;
+            self.speed_per_sec = 0.0;
         } else {
             self.center_pos_x = potential_pos_x;
         }
@@ -317,22 +317,22 @@ fn granulate_speed(speed: f32) -> f32 {
 
 /// speed: LEN per TP
 /// break_acceleration: LEN per TP²  (a positive amount)
-fn decrease_speed(speed: f32, break_acceleration: f32) -> f32 {
-    assert!(break_acceleration >= 0.0);
-    if speed > 0.0 {
-        (granulate_speed(speed - break_acceleration)).max(0.0)
-    } else if speed < 0.0 {
-        (granulate_speed(speed + break_acceleration)).max(0.0)
+fn decrease_speed(speed_per_sec: f32, break_acceleration_per_sec: f32) -> f32 {
+    assert!(break_acceleration_per_sec >= 0.0);
+    if speed_per_sec > 0.0 {
+        (granulate_speed(speed_per_sec - break_acceleration_per_sec)).max(0.0)
+    } else if speed_per_sec < 0.0 {
+        (granulate_speed(speed_per_sec + break_acceleration_per_sec)).max(0.0)
     } else {
         0.0
     }
 }
 
 /// positive or negative speed and acceleration
-fn accelerate(speed: f32, acceleration: f32, speed_limit_abs: f32) -> f32 {
+fn accelerate(speed_per_sec: f32, acceleration_per_sec: f32, speed_limit_abs: f32) -> f32 {
     assert!(!speed_limit_abs.is_sign_negative());
 
-    let virtual_speed = speed + acceleration;
+    let virtual_speed = speed_per_sec + acceleration_per_sec;
     let result_speed =
         if virtual_speed.abs() > speed_limit_abs {
             match virtual_speed.is_sign_positive() {
