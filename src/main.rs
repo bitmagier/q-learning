@@ -8,8 +8,7 @@ use std::thread;
 use std::time::{Instant};
 
 use crate::app::PongApp;
-use crate::pong::game::{GameInput, GameState, PanelControl, Pong};
-use crate::pong::pong_mechanics::{PongMechanics, MODEL_TIME_PORTION};
+use crate::pong::mechanics::{GameInput, GameState, TIME_GRANULARITY, PanelControl, PongMechanics};
 
 pub mod pong;
 mod app;
@@ -43,11 +42,11 @@ fn mechanics_thread(game_input: Arc<RwLock<GameInput>>, game_state: Arc<RwLock<G
     };
 
     let mut mechanics = PongMechanics::new();
-    let mut next_step_time = Instant::now().add(MODEL_TIME_PORTION);
-    let sleep_time_ms = MODEL_TIME_PORTION.div(5);
+    let mut next_step_time = Instant::now().add(TIME_GRANULARITY);
+    let sleep_time_ms = TIME_GRANULARITY.div(5);
     loop {
         if Instant::now().ge(&next_step_time) {
-            next_step_time = next_step_time.add(MODEL_TIME_PORTION);
+            next_step_time = next_step_time.add(TIME_GRANULARITY);
             let input = read_input();
             if PanelControl::Exit == input.control {
                 break

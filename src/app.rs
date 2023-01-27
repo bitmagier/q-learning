@@ -1,3 +1,4 @@
+use std::ops::Div;
 use std::sync::{Arc, RwLock};
 use std::thread::JoinHandle;
 use std::time::Duration;
@@ -7,7 +8,7 @@ use eframe::glow::Context;
 use egui::{Id, LayerId, Order, Painter, Vec2};
 
 use crate::game_drawer::GameDrawer;
-use crate::pong::game::{GameInput, GameState, PanelControl};
+use crate::pong::mechanics::{GameInput, GameState, PanelControl, TIME_GRANULARITY};
 
 pub struct PongApp<T> {
     game_input: Arc<RwLock<GameInput>>,
@@ -17,7 +18,7 @@ pub struct PongApp<T> {
 
 impl<T> PongApp<T> {
     pub fn new(
-        cc: &eframe::CreationContext<'_>,
+        _cc: &eframe::CreationContext<'_>,
         game_input: Arc<RwLock<GameInput>>,
         game_state: Arc<RwLock<GameState>>,
         mechanics_join_handle: JoinHandle<T>
@@ -76,6 +77,7 @@ const FRAME_SIZE_Y: f32 = 800.0;
 
 impl<T> eframe::App for PongApp<T> {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        ctx.request_repaint_after(TIME_GRANULARITY.div(2));
         if self.mechanics_join_handle.is_finished() {
             frame.close()
         }
@@ -83,7 +85,6 @@ impl<T> eframe::App for PongApp<T> {
         self.ui_control(ctx);
         let game_painter = ctx.layer_painter(LayerId::new(Order::Foreground, Id::new("game")));
         self.game_content(&game_painter);
-        ctx.request_repaint_after(Duration::from_millis(100));
     }
 
     fn on_exit(&mut self, _gl: Option<&Context>) {

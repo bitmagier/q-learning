@@ -1,94 +1,104 @@
-#![allow(unused)]
-
-use std::ops::{Add, Neg};
-use std::rc::Rc;
 use std::time::Duration;
 
-use egui::Vec2;
-
-use crate::pong::pong_mechanics::PongMechanics;
+use crate::pong::{Coordinate, max_f32, min_f32, Vector2d};
 
 pub const MODEL_GRID_LEN_X: f32 = 600.0;
 pub const MODEL_GRID_LEN_Y: f32 = 800.0;
 
-/// model grid len per time portion
-const PANEL_MAX_SPEED_PER_TP: f32 = 1.0;
-
-const PANEL_MASS_KG: f32 = 1.0;
-
-const PANEL_CONTROL_ACCELERATION_LEN_PER_SQUARE_TP: f32 = 5.0;
-/// slow down if not accelerated
-const PANEL_SLOW_DOWN_ACCELERATION_LEN_PER_SQUARE_TP: f32 = 2.0;
-
 const SPACE_GRANULARITY: f32 = 0.001;
 
-#[derive(Copy, Clone)]
-pub struct Vector2d {
-    pub x: f32,
-    pub y: f32,
+/// time granularity (TG)
+pub const TIME_GRANULARITY: Duration = Duration::from_millis(100);
+
+
+const PANEL_LEN_X: f32 = 40.0;
+const PANEL_LEN_Y: f32 = 10.0;
+const PANEL_CENTER_POS_Y: f32 = 770.0;
+
+/// model grid len per time granularity
+const PANEL_MAX_SPEED_PER_TG: f32 = 6.0;
+
+const PANEL_CONTROL_ACCEL_PER_TG: f32 = 2.0;
+/// slow down if not accelerated
+const PANEL_SLOW_DOWN_ACCEL_PER_TP: f32 = 0.5;
+
+
+const BRICK_EDGE_LEN: f32 = 25.0;
+const BRICK_SPACING: f32 = 2.0;
+const BRICK_ROWS: usize = 3;
+const FIRST_BRICK_ROW_TOP_Y: f32 = 37.0;
+
+const BALL_RADIUS: f32 = 10.0;
+const BALL_SPEED_PER_TP: f32 = 8.0;
+
+
+pub struct PongMechanics {
+    mechanic_state: GameState,
 }
 
-impl Vector2d {
-    pub fn new(x: f32, y: f32) -> Self {
-        Self { x, y }
-    }
-
-    /// normalize to len = 1.0
-    pub fn normalize(&mut self) {
-        let len = (self.x.powi(2) + self.y.powi(2)).sqrt();
-        if (1.0 - len).abs() > 0.001 {
-            let factor = 1.0 / len;
-            self.x = self.x * factor;
-            self.y = self.y * factor;
-        }
-    }
-}
-
-impl std::ops::Mul<f32> for Vector2d {
-    type Output = Vector2d;
-
-    fn mul(self, rhs: f32) -> Self::Output {
-        Vector2d {
-            x: self.x * rhs,
-            y: self.y * rhs,
-        }
-    }
-}
-
-impl From<(f32, f32)> for Vector2d {
-    fn from(value: (f32, f32)) -> Self {
+impl PongMechanics {
+    pub fn new() -> Self {
         Self {
-            x: value.0,
-            y: value.1,
+            mechanic_state: GameState::default(),
         }
+    }
+
+    pub fn initial_bricks() -> Vec<Brick> {
+        fn create_brick(left_x: f32, upper_y: f32) -> Brick {
+            Brick {
+                lower_left: Coordinate::from((left_x, upper_y - BRICK_EDGE_LEN)),
+                upper_right: Coordinate::from((left_x + BRICK_EDGE_LEN, upper_y)),
+            }
+        }
+
+        let mut bricks = vec![];
+        for row in 0..BRICK_ROWS {
+            let mut left_x = 0.0;
+            let upper_y = FIRST_BRICK_ROW_TOP_Y + row as f32 * (BRICK_EDGE_LEN + BRICK_SPACING);
+            loop {
+                let brick = create_brick(left_x, upper_y);
+                if brick.upper_right.x >= MODEL_GRID_LEN_X {
+                    break;
+                } else {
+                    left_x = brick.upper_right.x + BRICK_SPACING;
+                    bricks.push(brick);
+                }
+            }
+        }
+        bricks
+    }
+
+    pub fn initial_ball() -> Ball {
+        Ball {
+            center_pos: Coordinate::from((MODEL_GRID_LEN_X / 2.0, MODEL_GRID_LEN_Y / 2.0)),
+            radius: BALL_RADIUS,
+            direction: Vector2d::from((-0.2, 1.0)),
+            speed: BALL_SPEED_PER_TP,
+        }
+    }
+
+    pub fn initial_panel() -> Panel {
+        Panel {
+            center_pos_x: MODEL_GRID_LEN_X / 2.0,
+            center_pos_y: PANEL_CENTER_POS_Y,
+            size_x: PANEL_LEN_X,
+            size_y: PANEL_LEN_Y,
+            move_vector_x: 0.0,
+        }
+    }
+
+    pub fn time_step(
+        &mut self,
+        input: GameInput,
+    ) -> GameState {
+        self.mechanic_state.panel.proceed();
+        self.mechanic_state.ball.proceed(&self.mechanic_state.panel, &mut self.mechanic_state.bricks);
+        self.mechanic_state.panel.process_input(input);
+        self.mechanic_state.clone()
     }
 }
 
-impl From<(isize, isize)> for Vector2d {
-    fn from(value: (isize, isize)) -> Self {
-        Self {
-            x: value.0 as f32,
-            y: value.1 as f32,
-        }
-    }
-}
 
-pub type Coordinate = Vector2d;
-
-impl Add<Vector2d> for Coordinate {
-    type Output = Coordinate;
-
-    fn add(self, rhs: Vector2d) -> Self::Output {
-        Coordinate {
-            x: self.x + rhs.x,
-            y: self.y + rhs.y,
-        }
-    }
-}
-
-pub trait Pong {
-    fn time_step(&mut self, input: GameInput) -> GameState;
-}
 
 #[derive(Clone)]
 pub struct GameState {
@@ -190,26 +200,10 @@ impl CollisionCandidates {
     }
 
     fn multiple_entries_plausibility_check(&self) {
-        let mut max_distance = max_f32(self.surfaces.iter().map(|e| e.distance));
-        let mut min_distance = min_f32(self.surfaces.iter().map(|e| e.distance));
+        let max_distance = max_f32(self.surfaces.iter().map(|e| e.distance));
+        let min_distance = min_f32(self.surfaces.iter().map(|e| e.distance));
         assert!(max_distance - min_distance < SPACE_GRANULARITY);
     }
-}
-
-fn min_f32<I>(iter: I) -> f32
-    where I: Iterator<Item = f32>
-{
-    let r = iter.fold(f32::INFINITY, |a, b| a.min(b));
-    assert!(r.is_finite());
-    r
-}
-
-fn max_f32<I>(iter: I) -> f32
-    where I: Iterator<Item = f32>
-{
-    let r = iter.fold(f32::NEG_INFINITY, |a, b| a.max(b));
-    assert!(r.is_finite());
-    r
 }
 
 
@@ -224,6 +218,7 @@ impl Ball {
         self.proceed_with(move_vector, panel, bricks);
     }
 
+    #[allow(unused)]
     fn proceed_with(&mut self, move_vector: Vector2d, panel: &Panel, bricks: &mut Vec<Brick>) {
         let mut collision_candidates = CollisionCandidates::new();
         // TODO test collisions and keep the one(s) with shortest distance
@@ -265,11 +260,11 @@ impl Panel {
     pub fn process_input(&mut self, input: GameInput) {
         match input.control {
             PanelControl::None =>
-                self.move_vector_x = decrease_speed(self.move_vector_x, PANEL_SLOW_DOWN_ACCELERATION_LEN_PER_SQUARE_TP),
+                self.move_vector_x = decrease_speed(self.move_vector_x, PANEL_SLOW_DOWN_ACCEL_PER_TP),
             PanelControl::AccelerateLeft =>
-                self.move_vector_x = accelerate(self.move_vector_x, -PANEL_CONTROL_ACCELERATION_LEN_PER_SQUARE_TP, PANEL_MAX_SPEED_PER_TP),
+                self.move_vector_x = accelerate(self.move_vector_x, -PANEL_CONTROL_ACCEL_PER_TG, PANEL_MAX_SPEED_PER_TG),
             PanelControl::AccelerateRight =>
-                self.move_vector_x = accelerate(self.move_vector_x, PANEL_CONTROL_ACCELERATION_LEN_PER_SQUARE_TP, PANEL_MAX_SPEED_PER_TP),
+                self.move_vector_x = accelerate(self.move_vector_x, PANEL_CONTROL_ACCEL_PER_TG, PANEL_MAX_SPEED_PER_TG),
             PanelControl::Exit => ()
         }
     }
@@ -316,19 +311,8 @@ impl Assert for Ball {
     }
 }
 
-fn roughly_equals(a: f32, b: f32) -> bool {
-    (a - b).abs() < 0.0001
-}
-
-fn granulate_coordinate(c: Coordinate) -> Coordinate {
-    Coordinate {
-        x: (c.x * 1000.0).round() / 1000.0,
-        y: (c.y * 1000.0).round() / 1000.0,
-    }
-}
-
 fn granulate_speed(speed: f32) -> f32 {
-    (speed * 100.0).round() / 100.0
+    (speed * 1000.0).round() / 1000.0
 }
 
 /// speed: LEN per TP
@@ -347,15 +331,17 @@ fn decrease_speed(speed: f32, break_acceleration: f32) -> f32 {
 /// positive or negative speed and acceleration
 fn accelerate(speed: f32, acceleration: f32, speed_limit_abs: f32) -> f32 {
     assert!(!speed_limit_abs.is_sign_negative());
+
     let virtual_speed = speed + acceleration;
-    let result =
+    let result_speed =
         if virtual_speed.abs() > speed_limit_abs {
             match virtual_speed.is_sign_positive() {
                 true => speed_limit_abs,
-                false => speed_limit_abs.neg()
+                false => -speed_limit_abs
             }
         } else {
             virtual_speed
         };
-    granulate_speed(result)
+
+    granulate_speed(result_speed)
 }
