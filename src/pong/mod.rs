@@ -1,5 +1,5 @@
 pub mod mechanics;
-
+mod algebra_2d;
 
 fn min_f32<I>(iter: I) -> f32
     where I: Iterator<Item = f32>

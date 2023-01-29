@@ -52,8 +52,8 @@ impl GameDrawer {
     fn draw_ball(&self, ball: &Ball) -> Shape {
         ball.assert();
         CircleShape::stroke(
-            self.scale(ball.center),
-            self.scale_x(ball.radius),
+            self.scale(ball.shape.center),
+            self.scale_x(ball.shape.radius),
             Stroke::new(2.0, Color32::YELLOW),
         ).into()
     }
@@ -68,10 +68,10 @@ impl GameDrawer {
         RectShape::filled(
             Rect::from_two_pos(
                 self.scale(
-                    panel.lower_left_pos()
+                    panel.shape.min
                 ),
                 self.scale(
-                    panel.upper_right_pos()
+                    panel.shape.max
                 ),
             ),
             Rounding::none(),
@@ -83,8 +83,8 @@ impl GameDrawer {
     fn draw_brick(&self, brick: &Brick) -> egui::Shape {
         RectShape::filled(
             Rect::from_two_pos(
-                self.scale(brick.lower_left),
-                self.scale(brick.upper_right),
+                self.scale(brick.shape.min),
+                self.scale(brick.shape.max),
             ),
             Rounding::none(),
             Color32::DARK_GRAY,

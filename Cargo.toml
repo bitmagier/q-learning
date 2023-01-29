@@ -13,3 +13,4 @@ itertools = "*"
 # tensorflow = { version = "0", features = ["tensorflow_gpu"] }
 egui = "*"
 eframe = { version = "*", features = ["dark-light"] }
+parry2d = "*"

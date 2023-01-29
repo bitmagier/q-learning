@@ -1,10 +1,11 @@
-use std::ops::Index;
 use std::time::Duration;
 
 use egui::{Pos2, Vec2};
 use itertools::Itertools;
+use parry2d::query::Contact;
 
 use crate::pong::{max_f32, min_f32};
+use crate::pong::algebra_2d::{AaBB, Circle, CollisionSurface, contact_test_circle_aabb, reflected_vector};
 
 pub const MODEL_GRID_LEN_X: f32 = 600.0;
 pub const MODEL_GRID_LEN_Y: f32 = 800.0;
@@ -50,8 +51,10 @@ impl PongMechanics {
     pub fn initial_bricks() -> Vec<Brick> {
         fn create_brick(left_x: f32, upper_y: f32) -> Brick {
             Brick {
-                lower_left: Pos2::new(left_x, upper_y - BRICK_EDGE_LEN),
-                upper_right: Pos2::new(left_x + BRICK_EDGE_LEN, upper_y),
+                shape: AaBB {
+                    min: Pos2::new(left_x, upper_y - BRICK_EDGE_LEN),
+                    max: Pos2::new(left_x + BRICK_EDGE_LEN, upper_y),
+                },
             }
         }
 
@@ -61,10 +64,10 @@ impl PongMechanics {
             let upper_y = FIRST_BRICK_ROW_TOP_Y + row as f32 * (BRICK_EDGE_LEN + BRICK_SPACING);
             loop {
                 let brick = create_brick(left_x, upper_y);
-                if brick.upper_right.x >= MODEL_GRID_LEN_X {
+                if brick.shape.max.x >= MODEL_GRID_LEN_X {
                     break;
                 } else {
-                    left_x = brick.upper_right.x + BRICK_SPACING;
+                    left_x = brick.shape.max.x + BRICK_SPACING;
                     bricks.push(brick);
                 }
             }
@@ -74,8 +77,10 @@ impl PongMechanics {
 
     pub fn initial_ball() -> Ball {
         Ball {
-            center: Pos2::new(MODEL_GRID_LEN_X / 2.0, MODEL_GRID_LEN_Y / 2.0),
-            radius: BALL_RADIUS,
+            shape: Circle {
+                center: Pos2::new(MODEL_GRID_LEN_X / 2.0, MODEL_GRID_LEN_Y / 2.0),
+                radius: BALL_RADIUS,
+            },
             direction: Vec2::from((-0.2, 1.0)),
             speed_per_sec: BALL_SPEED_PER_SEC,
         }
@@ -83,8 +88,10 @@ impl PongMechanics {
 
     pub fn initial_panel() -> Panel {
         Panel {
-            center_pos: Pos2::new(MODEL_GRID_LEN_X / 2.0, PANEL_CENTER_POS_Y),
-            size: Vec2::new(PANEL_LEN_X, PANEL_LEN_Y),
+            shape: AaBB {
+                min: Pos2::new(MODEL_GRID_LEN_X / 2.0 - PANEL_LEN_X / 2.0, PANEL_CENTER_POS_Y - PANEL_LEN_Y / 2.0),
+                max: Pos2::new(MODEL_GRID_LEN_X / 2.0 + PANEL_LEN_X / 2.0, PANEL_CENTER_POS_Y + PANEL_LEN_Y / 2.0),
+            },
             speed_per_sec: 0.0,
         }
     }
@@ -141,28 +148,26 @@ pub enum PanelControl {
     Exit,
 }
 
-#[derive(Clone)]
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct Brick {
-    // 0,0 is in the lower left corner
-    pub lower_left: Pos2,
-    pub upper_right: Pos2,
+    pub shape: AaBB,
 }
 
 /// A ball is a perfect round 2D structure
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Ball {
-    pub center: Pos2,
-    pub radius: f32,
+    pub shape: Circle,
     pub direction: Vec2,
     pub speed_per_sec: f32,
 }
 
 pub struct CollisionCandidates {
-    surfaces: Vec<CollisionSurface>,
+    surfaces: Vec<CollisionObjectSurface>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct CollisionSurface {
+pub struct CollisionObjectSurface {
     // pub point: Coordinate,
     pub way_distance: f32,
     // ⊥ surface normal vector; perpendicular to surface ; normalized
@@ -170,15 +175,19 @@ pub struct CollisionSurface {
     pub brick_idx: Option<usize>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct EffectiveCollisionSurface {
-    pub way_distance: f32,
-    pub surface_normal: Vec2,
+impl CollisionObjectSurface {
+    pub fn of(surface: CollisionSurface, brick_idx: Option<usize>) -> Self {
+        CollisionObjectSurface {
+            way_distance: surface.way_distance,
+            surface_normal: surface.surface_normal,
+            brick_idx,
+        }
+    }
 }
 
-impl From<&CollisionSurface> for EffectiveCollisionSurface {
-    fn from(value: &CollisionSurface) -> Self {
-        EffectiveCollisionSurface {
+impl From<&CollisionObjectSurface> for CollisionSurface {
+    fn from(value: &CollisionObjectSurface) -> Self {
+        CollisionSurface {
             way_distance: value.way_distance,
             surface_normal: value.surface_normal,
         }
@@ -190,7 +199,7 @@ impl CollisionCandidates {
         Self { surfaces: Vec::with_capacity(2) }
     }
 
-    pub fn consider(&mut self, candidate: CollisionSurface) {
+    pub fn consider(&mut self, candidate: CollisionObjectSurface) {
         assert!(!candidate.way_distance.is_sign_negative());
         if !self.surfaces.iter()
             .any(|&e| (e.way_distance < candidate.way_distance - SPACE_GRANULARITY)) {
@@ -198,7 +207,7 @@ impl CollisionCandidates {
         }
     }
 
-    pub fn effective_collision(&self) -> Option<EffectiveCollisionSurface> {
+    pub fn effective_collision(&self) -> Option<CollisionSurface> {
         match self.surfaces.len() {
             0 => None,
             1 => Some(self.surfaces.first().unwrap().into()),
@@ -210,7 +219,7 @@ impl CollisionCandidates {
                 let way_distance = self.surfaces.iter()
                     .fold(0.0, |sum, e| sum + e.way_distance)
                     / self.surfaces.len() as f32;
-                Some(EffectiveCollisionSurface {
+                Some(CollisionSurface {
                     surface_normal: effective_surface_normale,
                     way_distance,
                 })
@@ -228,7 +237,6 @@ impl CollisionCandidates {
 
 impl Ball {
     /// physically move one time step forward
-    /// TODO project new ball position and direction based on its old position, speed, direction and collisions with panel&panel-drag/left-wall/right-wall
     pub fn proceed(&mut self, panel: &Panel, bricks: &mut Vec<Brick>) {
         assert!(self.speed_per_sec > 0.0);
         let move_vector = self.direction.normalized() * self.speed_per_sec * TIME_GRANULARITY.as_secs_f32();
@@ -244,20 +252,20 @@ impl Ball {
         // test collisions and keep the one(s) with shortest distance
         let mut collision_candidates = CollisionCandidates::new();
 
-        if let Some(c) = self.collision_test_left_wall(move_vector, None) {
-            collision_candidates.consider(c);
+        if let Some(c) = self.collision_test_left_wall(move_vector) {
+            collision_candidates.consider(CollisionObjectSurface::of(c, None));
         }
-        if let Some(c) = self.collision_test_right_wall(move_vector, None) {
-            collision_candidates.consider(c);
+        if let Some(c) = self.collision_test_right_wall(move_vector) {
+            collision_candidates.consider(CollisionObjectSurface::of(c, None));
         }
 
-        if let Some(c) = self.collision_test_rectangle(move_vector, (panel.lower_left_pos(), panel.upper_right_pos()), None) {
-            collision_candidates.consider(c);
+        if let Some(c) = self.collision_check_with_rectangle(move_vector, panel.shape) {
+            collision_candidates.consider(CollisionObjectSurface::of(c, None));
         }
 
         for (idx, brick) in bricks.iter().enumerate() {
-            if let Some(c) = self.collision_test_rectangle(move_vector, (brick.lower_left, brick.upper_right), Some(idx)) {
-                collision_candidates.consider(c)
+            if let Some(c) = self.collision_check_with_rectangle(move_vector, brick.shape) {
+                collision_candidates.consider(CollisionObjectSurface::of(c, Some(idx)));
             }
         }
 
@@ -273,22 +281,22 @@ impl Ball {
         }
 
         if let Some(collision) = collisions.effective_collision() {
-            let collision_center_pos = self.center + self.direction * collision.way_distance;
+            let collision_center_pos = self.shape.center + self.direction * collision.way_distance;
             let remaining_distance = move_vector.length() - collision.way_distance;
             let reflected_direction: Vec2 =
                 reflected_vector(self.direction, collision.surface_normal)
                     .normalized();
-            self.center = collision_center_pos;
+            self.shape.center = collision_center_pos;
             self.direction = reflected_direction;
             let remaining_move_vector = reflected_direction * remaining_distance;
             self.proceed_with(remaining_move_vector, panel, bricks);
         } else {
-            self.center = self.center + move_vector
+            self.shape.center = self.shape.center + move_vector
         }
     }
 
-    fn collision_test_left_wall(&self, move_vector: Vec2, brick_idx: Option<usize>) -> Option<CollisionSurface> {
-        let wall_distance_x = self.center.x - self.radius;
+    fn collision_test_left_wall(&self, move_vector: Vec2) -> Option<CollisionSurface> {
+        let wall_distance_x = self.shape.center.x - self.shape.radius;
         assert!(wall_distance_x >= 0.0);
 
         if wall_distance_x + move_vector.x > 0.0 {
@@ -299,13 +307,12 @@ impl Ball {
                 CollisionSurface {
                     way_distance: way_to_collision.length(),
                     surface_normal: Vec2::RIGHT,
-                    brick_idx,
                 })
         }
     }
 
-    fn collision_test_right_wall(&self, move_vector: Vec2, brick_idx: Option<usize>) -> Option<CollisionSurface> {
-        let wall_distance_x = MODEL_GRID_LEN_X - self.center.x - self.radius;
+    fn collision_test_right_wall(&self, move_vector: Vec2) -> Option<CollisionSurface> {
+        let wall_distance_x = MODEL_GRID_LEN_X - self.shape.center.x - self.shape.radius;
         assert!(wall_distance_x >= 0.0);
         if move_vector.x < wall_distance_x {
             None
@@ -315,37 +322,44 @@ impl Ball {
                 CollisionSurface {
                     way_distance: way_to_collision.length(),
                     surface_normal: Vec2::LEFT,
-                    brick_idx,
                 }
             )
         }
     }
-    fn collision_test_rectangle(&self, move_vector: Vec2, rectangle: (Pos2, Pos2), brick_idx: Option<usize>) -> Option<CollisionSurface> {
-        todo!()
+
+    /// https://stackoverflow.com/questions/401847/circle-rectangle-collision-detection-intersection
+    fn collision_check_with_rectangle(&self, move_vector: Vec2, aabb: AaBB) -> Option<CollisionSurface> {
+        debug_assert!(contact_test_circle_aabb(self.shape, aabb).is_none());
+
+        let way_parts_to_check= [1.0, 0.8, 0.6, 0.4, 0.2];
+
+        let mut contact: Option<(Contact, f32)> = None;
+        for way_part in way_parts_to_check {
+            let center = self.shape.center + move_vector * way_part;
+            if let Some(c) = contact_test_circle_aabb(
+                Circle {
+                    center,
+                    radius: self.shape.radius,
+                },
+                aabb,
+            ) {
+                contact = Some((c, way_part));
+            } else {
+                break;
+            }
+        }
+
+        contact.map(|(contact, way_part)| CollisionSurface {
+            way_distance: move_vector.length() * way_part,
+            surface_normal: Vec2::new(contact.normal2.x, contact.normal2.y),
+        })
     }
 }
 
 #[derive(Clone)]
 pub struct Panel {
-    pub center_pos: Pos2,
-    pub size: Vec2,
+    pub shape: AaBB,
     pub speed_per_sec: f32,
-}
-
-impl Panel {
-    pub fn lower_left_pos(&self) -> Pos2 {
-        Pos2::new(
-            self.center_pos.x - self.size.x / 2.0,
-            self.center_pos.y - self.size.y / 2.0,
-        )
-    }
-
-    pub fn upper_right_pos(&self) -> Pos2 {
-        Pos2::new(
-            self.center_pos.x + self.size.x / 2.0,
-            self.center_pos.y + self.size.y / 2.0,
-        )
-    }
 }
 
 impl Panel {
@@ -366,18 +380,18 @@ impl Panel {
 impl Panel {
     /// physically move one time step forward; project new position according to movement
     pub fn proceed(&mut self) {
-        let most_left_center_pos_x = (self.size.x / 2.0).round();
-        let most_right_center_pos_x = (MODEL_GRID_LEN_X - (self.size.x / 2.0)).round();
-        let potential_pos_x = self.center_pos.x + self.speed_per_sec * TIME_GRANULARITY.as_secs_f32();
+        // let most_left_center_pos_x = (self.shape.size.x / 2.0).round();
+        // let most_right_center_pos_x = (MODEL_GRID_LEN_X - (self.size.x / 2.0)).round();
+        let potential_pos = self.shape.translate(Vec2::new(self.speed_per_sec * TIME_GRANULARITY.as_secs_f32(), 0.0));
 
-        if potential_pos_x <= most_left_center_pos_x {
-            self.center_pos.x = most_left_center_pos_x;
+        if potential_pos.min.x <= 0.0 {
+            self.shape = potential_pos.translate(Vec2::new(-potential_pos.min.x, 0.0));
             self.speed_per_sec = 0.0;
-        } else if potential_pos_x >= most_right_center_pos_x {
-            self.center_pos.x = most_right_center_pos_x;
+        } else if potential_pos.max.x >= MODEL_GRID_LEN_X {
+            self.shape = potential_pos.translate(Vec2::new(MODEL_GRID_LEN_X - potential_pos.max.x, 0.0));
             self.speed_per_sec = 0.0;
         } else {
-            self.center_pos.x = potential_pos_x;
+            self.shape = potential_pos;
         }
     }
 }
@@ -388,19 +402,19 @@ pub trait Assert {
 
 impl Assert for Panel {
     fn assert(&self) {
-        assert!(self.center_pos.x - self.size.x / 2.0 >= 0.0);
-        assert!(self.center_pos.x + self.size.x / 2.0 <= MODEL_GRID_LEN_X);
-        assert!(self.center_pos.y - self.size.y / 2.0 >= 0.0);
-        assert!(self.center_pos.y + self.size.y / 2.0 <= MODEL_GRID_LEN_Y);
+        assert!(self.shape.min.x >= 0.0);
+        assert!(self.shape.max.x <= MODEL_GRID_LEN_X);
+        assert!(self.shape.min.y >= 0.0);
+        assert!(self.shape.max.y <= MODEL_GRID_LEN_Y);
     }
 }
 
 impl Assert for Ball {
     fn assert(&self) {
-        assert!(self.center.x - self.radius >= 0.0);
-        assert!(self.center.x + self.radius <= MODEL_GRID_LEN_X);
-        assert!(self.center.y - self.radius >= 0.0);
-        assert!(self.center.y + self.radius <= MODEL_GRID_LEN_Y);
+        assert!(self.shape.center.x - self.shape.radius >= 0.0);
+        assert!(self.shape.center.x + self.shape.radius <= MODEL_GRID_LEN_X);
+        assert!(self.shape.center.y - self.shape.radius >= 0.0);
+        assert!(self.shape.center.y + self.shape.radius <= MODEL_GRID_LEN_Y);
     }
 }
 
@@ -440,44 +454,80 @@ fn accelerate(speed_per_sec: f32, acceleration_per_sec: f32, speed_limit_abs: f3
 }
 
 
-/// r = v - 2 (v ⋅ n) n
-fn reflected_vector(v: Vec2, surface_normal: Vec2) -> Vec2 {
-    v - 2.0 * v.dot(surface_normal) * surface_normal
-}
-
-
 #[cfg(test)]
 mod test {
     use egui::{Pos2, Vec2};
     use rstest::rstest;
 
+    use crate::pong::algebra_2d::{AaBB, Circle};
     use crate::pong::mechanics::{Ball, CollisionSurface, MODEL_GRID_LEN_X};
 
     #[rstest]
     #[case(Pos2::new(10.0, 10.0), 5.0, Vec2::new(- 2.0, 2.0), None)]
-    #[case(Pos2::new(5.0, 10.0), 5.0, Vec2::new(- 5.0, 0.0), Some(CollisionSurface{ way_distance: 0.0, surface_normal: Vec2::new(1.0, 0.0), brick_idx: None}))]
-    #[case(Pos2::new(7.0, 7.0), 5.0, Vec2::new(- 5.0, 0.0), Some(CollisionSurface{ way_distance: 2.0, surface_normal: Vec2::new(1.0, 0.0), brick_idx: None}))]
+    #[case(Pos2::new(5.0, 10.0), 5.0, Vec2::new(- 5.0, 0.0), Some(CollisionSurface{ way_distance: 0.0, surface_normal: Vec2::new(1.0, 0.0)}))]
+    #[case(Pos2::new(7.0, 7.0), 5.0, Vec2::new(- 5.0, 0.0), Some(CollisionSurface{ way_distance: 2.0, surface_normal: Vec2::new(1.0, 0.0)}))]
     fn ball_collision_test_left_wall(#[case] center: Pos2, #[case] radius: f32, #[case] move_vector: Vec2, #[case] expected_result: Option<CollisionSurface>) {
         let ball = Ball {
-            center,
-            radius,
+            shape: Circle {
+                center,
+                radius,
+            },
             direction: Vec2::new(0.0, 0.0),
             speed_per_sec: 0.0,
         };
-        assert_eq!(ball.collision_test_left_wall(move_vector, None), expected_result);
+        assert_eq!(ball.collision_test_left_wall(move_vector), expected_result);
     }
 
     #[rstest]
     #[case(Pos2::new(MODEL_GRID_LEN_X - 10.0, 10.0), 5.0, Vec2::new(2.0, 2.0), None)]
-    #[case(Pos2::new(MODEL_GRID_LEN_X - 5.0, 10.0), 5.0, Vec2::new(5.0, 0.0), Some(CollisionSurface{ way_distance: 0.0, surface_normal: Vec2::new(- 1.0, 0.0), brick_idx: None}))]
-    #[case(Pos2::new(MODEL_GRID_LEN_X - 7.0, 7.0), 5.0, Vec2::new(5.0, 0.0), Some(CollisionSurface{ way_distance: 2.0, surface_normal: Vec2::new(- 1.0, 0.0), brick_idx: None}))]
+    #[case(Pos2::new(MODEL_GRID_LEN_X - 5.0, 10.0), 5.0, Vec2::new(5.0, 0.0), Some(CollisionSurface{ way_distance: 0.0, surface_normal: Vec2::new(- 1.0, 0.0)}))]
+    #[case(Pos2::new(MODEL_GRID_LEN_X - 7.0, 7.0), 5.0, Vec2::new(5.0, 0.0), Some(CollisionSurface{ way_distance: 2.0, surface_normal: Vec2::new(- 1.0, 0.0)}))]
     fn ball_collision_test_right_wall(#[case] center: Pos2, #[case] radius: f32, #[case] move_vector: Vec2, #[case] expected_result: Option<CollisionSurface>) {
         let ball = Ball {
-            center,
-            radius,
+            shape: Circle {
+                center,
+                radius,
+            },
             direction: Vec2::new(0.0, 0.0),
             speed_per_sec: 0.0,
         };
-        assert_eq!(ball.collision_test_right_wall(move_vector, None), expected_result);
+        assert_eq!(ball.collision_test_right_wall(move_vector), expected_result);
+    }
+
+    fn assert_eq_roughly(a: f32, b: f32, tolerance: f32) {
+        assert!(!tolerance.is_sign_negative());
+        assert!((a - b).abs() <= tolerance, "difference between {a} and {b} more than {tolerance}");
+    }
+
+    #[rstest]
+    #[case(Pos2::new(100.0, 100.0), 5.0, Vec2::new(10.0, 0.0), Pos2::new(150.0, 90.0), Pos2::new(170.0, 110.0), None)]
+    #[case(Pos2::new(100.0, 100.0), 5.0, Vec2::new(5.0, 0.0), Pos2::new(110.0, 90.0), Pos2::new(130.0, 110.0), Some(CollisionSurface{ way_distance: 5.0, surface_normal: Vec2::new(-1.0, 0.0)}))]
+    #[case(Pos2::new(100.0, 100.0), 5.0, Vec2::new(3.0, -3.0), Pos2::new(100.0, 70.0), Pos2::new(120.0, 93.0), Some(CollisionSurface{ way_distance: 2.8, surface_normal: Vec2::new(0.0,1.0)}))]
+    #[case(Pos2::new(100.0, 100.0), 5.0, Vec2::new(- 12.0, - 12.0), Pos2::new(70.0, 80.0), Pos2::new(90.0, 100.0), Some(CollisionSurface{ way_distance: (2.0 * f32::powi(5.0, 2)).sqrt(), surface_normal: Vec2::new(1.0, 0.0)}))]
+    #[case(Pos2::new(100.0, 100.0), 5.0, Vec2::new(- 12.0, - 12.0), Pos2::new(80.0, 80.0), Pos2::new(90.0, 90.0), Some(CollisionSurface{ way_distance: (2.0 * f32::powi(10.0, 2)).sqrt() - 5.0, surface_normal: Vec2::new(1.0, 1.0).normalized()}))]
+    // TODO precise numbers #[case(Pos2::new(100.0, 100.0), 5.0, Vec2::new(-12.0, -12.0),   Pos2::new(82.0, 80.0),  Pos2::new(92.0, 90.0),      Some(CollisionSurface{ way_distance: (2 * 10.0.powi(2)).sqrt() - 5.0, surface_normal: Vec2::new(1.0, 1.2).normaled()}))]
+    fn ball_collision_test_rectangle(#[case] center: Pos2, #[case] radius: f32, #[case] move_vector: Vec2, #[case] rect_lower_left: Pos2, #[case] rect_upper_right: Pos2, #[case] expected_result: Option<CollisionSurface>) {
+        let ball = Ball {
+            shape: Circle {
+                center,
+                radius,
+            },
+            direction: Default::default(),
+            speed_per_sec: 0.0,
+        };
+        let rect = AaBB {
+            min: rect_lower_left,
+            max: rect_upper_right,
+        };
+
+        let result = ball.collision_check_with_rectangle(move_vector, rect);
+
+        assert_eq!(result.is_none(), expected_result.is_none());
+        if result.is_some() {
+            let result = result.unwrap();
+            let expected_result = expected_result.unwrap();
+            assert_eq!(result.surface_normal, expected_result.surface_normal);
+            assert_eq_roughly(result.way_distance, expected_result.way_distance, 1.0)
+        }
     }
 }
