@@ -1,7 +1,5 @@
 // extern crate tensorflow;
 
-extern crate core;
-
 use std::ops::{Add, Div};
 use std::sync::{Arc, RwLock};
 use std::thread;
@@ -15,6 +13,8 @@ mod app;
 mod game_drawer;
 
 fn main() {
+    simple_logger::init_with_level(log::Level::Debug).unwrap();
+
     let game_input = Arc::new(RwLock::new(GameInput::new()));
     let game_state = Arc::new(RwLock::new(GameState::default()));
 
@@ -54,6 +54,10 @@ fn mechanics_thread(game_input: Arc<RwLock<GameInput>>, game_state: Arc<RwLock<G
                 break;
             } else {
                 let state = mechanics.time_step(input);
+                if state.finished {
+                    log::debug!("{:?}", state.clone().game_result);
+                    break;
+                }
                 write_game_state(state);
             }
             egui_ctx.request_repaint();

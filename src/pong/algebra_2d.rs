@@ -48,7 +48,7 @@ pub fn reflected_vector(v: Vec2, surface_normal: Vec2) -> Vec2 {
     v - 2.0 * v.dot(surface_normal) * surface_normal
 }
 
-pub fn contact_test_circle_aabb(circle: Circle, aabb: AaBB) -> Option<Contact> {
+pub fn contact_test_circle_aabb(circle: &Circle, aabb: &AaBB) -> Option<Contact> {
     let aabb_center = aabb.center();
     query::contact(
         &Isometry2::translation(circle.center.x, circle.center.y),

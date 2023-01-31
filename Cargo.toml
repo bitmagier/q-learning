@@ -9,6 +9,8 @@ authors = ["Roman Krüger<bitmagier@mailbox.org>"]
 rstest = "*"
 
 [dependencies]
+log = "*"
+simple_logger = "*"
 itertools = "*"
 # tensorflow = { version = "0", features = ["tensorflow_gpu"] }
 egui = "*"
