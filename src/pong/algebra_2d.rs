@@ -4,7 +4,7 @@ use parry2d::query;
 use parry2d::query::Contact;
 use parry2d::shape::{Ball, Cuboid};
 
-use crate::pong::mechanics::SPACE_GRANULARITY;
+use crate::pong::mechanics::CONTACT_PREDICTION;
 
 /// Axis-aligned Bounding Box
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -54,7 +54,11 @@ pub fn contact_test_circle_aabb(circle: Circle, aabb: AaBB) -> Option<Contact> {
         &Isometry2::translation(circle.center.x, circle.center.y),
         &Ball::new(circle.radius),
         &Isometry2::translation(aabb_center.x, aabb_center.y),
-        &Cuboid::new(Vector2::new((aabb.max.x - aabb.min.x) / 2.0, (aabb.max.y - aabb.min.y) / 2.0)),
-        SPACE_GRANULARITY / 2.0,
-    ).expect("contact calculation failed")
+        &Cuboid::new(Vector2::new(
+            (aabb.max.x - aabb.min.x) / 2.0,
+            (aabb.max.y - aabb.min.y) / 2.0,
+        )),
+        CONTACT_PREDICTION,
+    )
+    .expect("contact calculation failed")
 }
