@@ -38,7 +38,7 @@ pub struct Circle {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct CollisionSurface {
+pub struct ContactSurface {
     pub way_distance: f32,
     pub surface_normal: Vec2,
 }
@@ -46,6 +46,11 @@ pub struct CollisionSurface {
 /// r = v - 2 (v ⋅ n) n
 pub fn reflected_vector(v: Vec2, surface_normal: Vec2) -> Vec2 {
     v - 2.0 * v.dot(surface_normal) * surface_normal
+}
+
+/// for normalized vectors: cos(angle) = v1 ⋅ v2
+pub fn vector_angle(v1: Vec2, v2: Vec2) -> f32 {
+    v1.normalized().dot(v2.normalized()).acos()
 }
 
 pub fn contact_test_circle_aabb(circle: &Circle, aabb: &AaBB) -> Option<Contact> {
