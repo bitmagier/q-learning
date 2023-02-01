@@ -1,4 +1,5 @@
 use std::f32::consts::FRAC_PI_2;
+use std::ops::Range;
 use std::time::Duration;
 
 use egui::{Pos2, Vec2};
@@ -20,7 +21,7 @@ const PANEL_LEN_Y: f32 = 10.0;
 const PANEL_CENTER_POS_Y: f32 = 770.0;
 
 /// model grid len per time granularity
-const PANEL_MAX_SPEED_PER_SECOND: f32 = 85.0;
+const PANEL_MAX_SPEED_PER_SECOND: f32 = 120.0;
 
 const PANEL_CONTROL_ACCEL_PER_SECOND: f32 = 20.0;
 /// slow down if not accelerated
@@ -36,13 +37,14 @@ const BRICKS_SETUP_MIN_DISTANCE_RIGHT_WALL: f32 = BRICKS_SETUP_DISTANCE_LEFT_WAL
 const BRICKS_SETUP_FIRST_ROW_TOP_Y: f32 = 60.0;
 
 const BALL_RADIUS: f32 = 10.0;
-const BALL_SPEED_PER_SEC: f32 = 100.0;
+const BALL_SPEED_PER_SEC: f32 = 200.0;
 
 // max object distance to detect a collision
-pub const CONTACT_PREDICTION: f32 = 0.5;
-const CONTACT_PENETRATION_LIMIT: f32 = 0.1;
+pub const CONTACT_PREDICTION: f32 = 0.8;
+const CONTACT_PENETRATION_LIMIT: f32 = 0.01;
 
 
+// TODO bugfix: reflection with 2 bricks can result in weired reflection angle
 // TODO add timer + game score when finished based on timer
 // TODO implement a ceiling at height X, which is apparently not zero. (use paintable area start)
 
@@ -400,6 +402,28 @@ impl Ball {
             p / (n1.dot(mv) / mv.length())
         }
 
+        // we know there is a penetrating contact at search_range.end, so there must be non-penetrating contact before
+        fn binary_search_first_contact(ball: &Circle, move_vector: Vec2, search_range: Range<f32>, aabb: &AaBB, depth: usize) -> ContactSurface {
+            if depth > 10 {
+                log::warn!("binary_search_first_contact depth={depth}")
+            }
+            let m = (search_range.start + search_range.end) / 2.0;
+            match contact_test_circle_aabb(
+                &Circle {
+                    center: ball.center + move_vector * m,
+                    radius: ball.radius,
+                },
+                aabb,
+            ) {
+                None => binary_search_first_contact(ball, move_vector, m..search_range.end, aabb, depth+1),
+                Some(contact) if contact.dist < -CONTACT_PENETRATION_LIMIT => binary_search_first_contact(ball, move_vector, search_range.start..m, aabb, depth+1),
+                Some(contact) => ContactSurface {
+                    way_distance: move_vector.length() * m,
+                    surface_normal: Vec2::new(contact.normal2.x, contact.normal2.y),
+                }
+            }
+        }
+
         match contact_test_circle_aabb(
             &Circle {
                 center: self.shape.center + move_vector,
@@ -408,7 +432,7 @@ impl Ball {
             aabb,
         ) {
             None => None,
-            Some(contact) if contact.dist.is_sign_negative() => {
+            Some(contact) if contact.dist < -CONTACT_PENETRATION_LIMIT  => {
                 let x = moved_distance_after_collision(
                     contact.dist.abs(),
                     Vec2::new(contact.normal1.x, contact.normal1.y),
@@ -423,21 +447,29 @@ impl Ball {
                     },
                     aabb,
                 ) {
-                    None => panic!("estimated contact not there"),
-                    Some(contact) if contact.dist.is_sign_negative() && contact.dist.abs() > CONTACT_PENETRATION_LIMIT => panic!("estimated contact is still penetrating: dist={}", contact.dist),
+                    //None => panic!("estimated contact not there"), // can FAILS here when scratching a brick's corner
+                    None => {
+                        log::debug!("estimated contact not there - need to performing binary search");
+                        Some(binary_search_first_contact(&self.shape, move_vector, estimated_move_vector_portion_till_contact..1.0, aabb, 0))
+                    }
+                    Some(contact) if contact.dist < -CONTACT_PENETRATION_LIMIT => {
+                        log::debug!("estimated contact is still penetrating: dist={}", contact.dist);
+                        Some(binary_search_first_contact(&self.shape, move_vector, 0.0..estimated_move_vector_portion_till_contact, aabb, 0))
+                    },
                     Some(contact) => Some(ContactSurface {
-                        way_distance: move_vector.length() * estimated_move_vector_portion_till_contact + contact.dist,
+                        way_distance: move_vector.length() * estimated_move_vector_portion_till_contact,
                         surface_normal: Vec2::new(contact.normal2.x, contact.normal2.y),
                     }),
                 }
             }
             Some(contact) => Some(ContactSurface {
-                way_distance: move_vector.length() + contact.dist,
+                way_distance: move_vector.length(),
                 surface_normal: Vec2::new(contact.normal2.x, contact.normal2.y),
             }),
         }
     }
 }
+
 
 #[derive(Clone)]
 pub struct Panel {
