@@ -8,24 +8,27 @@ use itertools::Itertools;
 use crate::pong::algebra_2d::{AaBB, Circle, contact_test_circle_aabb, ContactSurface, reflected_vector, vector_angle};
 use crate::pong::mechanics::GameResult::{Lost, Won};
 
+/// TOP / LEFT corner is 0/0
 pub const MODEL_GRID_LEN_X: f32 = 600.0;
 pub const MODEL_GRID_LEN_Y: f32 = 800.0;
+
+const CEILING_HEIGHT_Y: f32 = 0.0;
 
 pub const SPACE_GRANULARITY: f32 = 0.001;
 
 /// time granularity (TG)
-pub const TIME_GRANULARITY: Duration = Duration::from_millis(40);
+pub const TIME_GRANULARITY: Duration = Duration::from_millis(20);
 
-const PANEL_LEN_X: f32 = 40.0;
+const PANEL_LEN_X: f32 = 50.0;
 const PANEL_LEN_Y: f32 = 10.0;
 const PANEL_CENTER_POS_Y: f32 = 770.0;
 
 /// model grid len per time granularity
-const PANEL_MAX_SPEED_PER_SECOND: f32 = 120.0;
+const PANEL_MAX_SPEED_PER_SECOND: f32 = 160.0;
 
 const PANEL_CONTROL_ACCEL_PER_SECOND: f32 = 20.0;
 /// slow down if not accelerated
-const PANEL_SLOW_DOWN_ACCEL_PER_SECOND: f32 = 5.0;
+const PANEL_SLOW_DOWN_ACCEL_PER_SECOND: f32 = 7.0;
 
 const BRICK_EDGE_LEN: f32 = 25.0;
 
@@ -44,9 +47,8 @@ pub const CONTACT_PREDICTION: f32 = 0.8;
 const CONTACT_PENETRATION_LIMIT: f32 = 0.01;
 
 
-// TODO bugfix: reflection with 2 bricks can result in weired reflection angle
 // TODO add timer + game score when finished based on timer
-// TODO implement a ceiling at height X, which is apparently not zero. (use paintable area start)
+
 
 pub struct PongMechanics {
     mechanic_state: GameState,
@@ -89,7 +91,7 @@ impl PongMechanics {
     pub fn initial_ball() -> Ball {
         Ball {
             shape: Circle {
-                center: Pos2::new(MODEL_GRID_LEN_X / 2.0, MODEL_GRID_LEN_Y / 2.0),
+                center: Pos2::new(MODEL_GRID_LEN_X / 2.0, MODEL_GRID_LEN_Y * 0.33),
                 radius: BALL_RADIUS,
             },
             direction: Vec2::from((-0.2, 1.0)),
@@ -204,8 +206,9 @@ pub struct ContactCandidates {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ContactObjectSurface {
-    // pub point: Coordinate,
-    pub way_distance: f32,
+    pub way: f32,
+    /// final distance after the way
+    pub approximation: f32,
     // ⊥ surface normal vector; perpendicular to surface ; normalized
     pub surface_normal: Vec2,
     pub brick_idx: Option<usize>,
@@ -214,7 +217,8 @@ pub struct ContactObjectSurface {
 impl ContactObjectSurface {
     pub fn of(surface: ContactSurface, brick_idx: Option<usize>) -> Self {
         ContactObjectSurface {
-            way_distance: surface.way_distance,
+            way: surface.way,
+            approximation: surface.approximation,
             surface_normal: surface.surface_normal,
             brick_idx,
         }
@@ -224,7 +228,8 @@ impl ContactObjectSurface {
 impl From<&ContactObjectSurface> for ContactSurface {
     fn from(value: &ContactObjectSurface) -> Self {
         ContactSurface {
-            way_distance: value.way_distance,
+            way: value.way,
+            approximation: value.approximation,
             surface_normal: value.surface_normal,
         }
     }
@@ -238,13 +243,25 @@ impl ContactCandidates {
     }
 
     pub fn consider(&mut self, candidate: ContactObjectSurface) {
-        assert!(candidate.way_distance >= -CONTACT_PENETRATION_LIMIT);
-        if !self
-            .surfaces
-            .iter()
-            .any(|&e| (e.way_distance < candidate.way_distance - SPACE_GRANULARITY))
-        {
-            self.surfaces.push(candidate)
+        fn keep_shortest_way_plus_approximation(surfaces: &mut Vec<ContactObjectSurface>) {
+            fn path_len(e: &ContactObjectSurface) -> f32 {
+                e.way + e.approximation
+            }
+
+            let shortest_path = surfaces.iter()
+                .map(|e| path_len(e))
+                .fold(f32::INFINITY, |r, len| match len < r {
+                    false => r,
+                    true => len,
+                });
+
+            surfaces.drain_filter(|e| path_len(e) > shortest_path + SPACE_GRANULARITY);
+        }
+
+        assert!(candidate.approximation >= -CONTACT_PENETRATION_LIMIT && candidate.approximation <= CONTACT_PREDICTION);
+        self.surfaces.push(candidate);
+        if self.surfaces.len() > 1 {
+            keep_shortest_way_plus_approximation(&mut self.surfaces)
         }
     }
 
@@ -253,19 +270,19 @@ impl ContactCandidates {
             0 => None,
             1 => Some(self.surfaces.first().unwrap().into()),
             _ => {
-                let effective_surface_normale = self
-                    .surfaces
-                    .iter()
+                let normale = self.surfaces.iter()
                     .fold(Vec2::new(0.0, 0.0), |sum, e| sum + e.surface_normal)
                     .normalized();
-                let way_distance = self
-                    .surfaces
-                    .iter()
-                    .fold(0.0, |sum, e| sum + e.way_distance)
+                let distance = self.surfaces.iter()
+                    .fold(0.0, |sum, e| sum + e.approximation)
+                    / self.surfaces.len() as f32;
+                let way = self.surfaces.iter()
+                    .fold(0.0, |sum, e| sum + e.way)
                     / self.surfaces.len() as f32;
                 Some(ContactSurface {
-                    surface_normal: effective_surface_normale,
-                    way_distance,
+                    way,
+                    approximation: distance,
+                    surface_normal: normale,
                 })
             }
         }
@@ -295,6 +312,9 @@ impl Ball {
         if let Some(c) = self.collision_test_right_wall(move_vector) {
             collision_candidates.consider(ContactObjectSurface::of(c, None));
         }
+        if let Some(c) = self.collision_test_top_wall(move_vector) {
+            collision_candidates.consider(ContactObjectSurface::of(c, None))
+        }
 
         if let Some(c) = self.collision_check_with_rectangle(move_vector, &panel.shape) {
             collision_candidates.consider(ContactObjectSurface::of(c, None));
@@ -319,8 +339,8 @@ impl Ball {
         }
 
         if let Some(collision) = collisions.effective_collision() {
-            let collision_center_pos = self.shape.center + self.direction * collision.way_distance;
-            let remaining_distance = move_vector.length() - collision.way_distance;
+            let collision_center_pos = self.shape.center + self.direction * collision.way;
+            let remaining_distance = move_vector.length() - collision.way;
             let reflected_direction: Vec2 =
                 reflected_vector(self.direction, collision.surface_normal).normalized();
             self.shape.center = collision_center_pos;
@@ -347,8 +367,9 @@ impl Ball {
         } else {
             let way_to_collision = move_vector * (wall_distance_x / move_vector.x.abs());
             Some(ContactSurface {
-                way_distance: way_to_collision.length(),
-                surface_normal: Vec2::RIGHT,
+                way: way_to_collision.length(),
+                approximation: 0.0,
+                surface_normal: Vec2::new(1.0, 0.0),
             })
         }
     }
@@ -356,13 +377,31 @@ impl Ball {
     fn collision_test_right_wall(&self, move_vector: Vec2) -> Option<ContactSurface> {
         let wall_distance_x = MODEL_GRID_LEN_X - self.shape.center.x - self.shape.radius;
         assert!(wall_distance_x >= 0.0);
+
         if move_vector.x < wall_distance_x {
             None
         } else {
             let way_to_collision = move_vector * (wall_distance_x / move_vector.x.abs());
             Some(ContactSurface {
-                way_distance: way_to_collision.length(),
-                surface_normal: Vec2::LEFT,
+                way: way_to_collision.length(),
+                approximation: 0.0,
+                surface_normal: Vec2::new(-1.0, 0.0),
+            })
+        }
+    }
+
+    fn collision_test_top_wall(&self, move_vector: Vec2) -> Option<ContactSurface> {
+        let wall_distance_y = self.shape.center.y - self.shape.radius - CEILING_HEIGHT_Y;
+        assert!(wall_distance_y >= 0.0);
+
+        if wall_distance_y + move_vector.y > 0.0 {
+            None
+        } else {
+            let way_to_collision = move_vector * (wall_distance_y / move_vector.y.abs());
+            Some(ContactSurface {
+                way: way_to_collision.length(),
+                approximation: 0.0,
+                surface_normal: Vec2::new(0.0, 1.0),
             })
         }
     }
@@ -375,7 +414,7 @@ impl Ball {
     ) -> Option<ContactSurface> {
         match self.find_non_penetrating_collision(move_vector, aabb) {
             None => None,
-            c @Some(collision) => {
+            c @ Some(collision) => {
                 // only accept collisions, which are +- 90° from move_vector
                 if vector_angle(move_vector, collision.surface_normal).abs() > FRAC_PI_2 {
                     c
@@ -415,10 +454,11 @@ impl Ball {
                 },
                 aabb,
             ) {
-                None => binary_search_first_contact(ball, move_vector, m..search_range.end, aabb, depth+1),
-                Some(contact) if contact.dist < -CONTACT_PENETRATION_LIMIT => binary_search_first_contact(ball, move_vector, search_range.start..m, aabb, depth+1),
+                None => binary_search_first_contact(ball, move_vector, m..search_range.end, aabb, depth + 1),
+                Some(contact) if contact.dist < -CONTACT_PENETRATION_LIMIT => binary_search_first_contact(ball, move_vector, search_range.start..m, aabb, depth + 1),
                 Some(contact) => ContactSurface {
-                    way_distance: move_vector.length() * m,
+                    way: move_vector.length() * m,
+                    approximation: contact.dist,
                     surface_normal: Vec2::new(contact.normal2.x, contact.normal2.y),
                 }
             }
@@ -432,7 +472,7 @@ impl Ball {
             aabb,
         ) {
             None => None,
-            Some(contact) if contact.dist < -CONTACT_PENETRATION_LIMIT  => {
+            Some(contact) if contact.dist < -CONTACT_PENETRATION_LIMIT => {
                 let x = moved_distance_after_collision(
                     contact.dist.abs(),
                     Vec2::new(contact.normal1.x, contact.normal1.y),
@@ -447,7 +487,6 @@ impl Ball {
                     },
                     aabb,
                 ) {
-                    //None => panic!("estimated contact not there"), // can FAILS here when scratching a brick's corner
                     None => {
                         log::debug!("estimated contact not there - need to performing binary search");
                         Some(binary_search_first_contact(&self.shape, move_vector, estimated_move_vector_portion_till_contact..1.0, aabb, 0))
@@ -455,15 +494,17 @@ impl Ball {
                     Some(contact) if contact.dist < -CONTACT_PENETRATION_LIMIT => {
                         log::debug!("estimated contact is still penetrating: dist={}", contact.dist);
                         Some(binary_search_first_contact(&self.shape, move_vector, 0.0..estimated_move_vector_portion_till_contact, aabb, 0))
-                    },
+                    }
                     Some(contact) => Some(ContactSurface {
-                        way_distance: move_vector.length() * estimated_move_vector_portion_till_contact,
+                        way: move_vector.length() * estimated_move_vector_portion_till_contact,
+                        approximation: contact.dist,
                         surface_normal: Vec2::new(contact.normal2.x, contact.normal2.y),
                     }),
                 }
             }
             Some(contact) => Some(ContactSurface {
-                way_distance: move_vector.length(),
+                way: move_vector.length(),
+                approximation: contact.dist,
                 surface_normal: Vec2::new(contact.normal2.x, contact.normal2.y),
             }),
         }
@@ -589,12 +630,12 @@ mod test {
     use rstest::rstest;
 
     use crate::pong::algebra_2d::{AaBB, Circle};
-    use crate::pong::mechanics::{Ball, ContactSurface, MODEL_GRID_LEN_X};
+    use crate::pong::mechanics::{Ball, CONTACT_PENETRATION_LIMIT, CONTACT_PREDICTION, ContactSurface, MODEL_GRID_LEN_X};
 
     #[rstest]
     #[case(Pos2::new(10.0, 10.0), 5.0, Vec2::new(- 2.0, 2.0), None)]
-    #[case(Pos2::new(5.0, 10.0), 5.0, Vec2::new(- 5.0, 0.0), Some(CollisionSurface{ way_distance: 0.0, surface_normal: Vec2::new(1.0, 0.0)}))]
-    #[case(Pos2::new(7.0, 7.0), 5.0, Vec2::new(- 5.0, 0.0), Some(CollisionSurface{ way_distance: 2.0, surface_normal: Vec2::new(1.0, 0.0)}))]
+    #[case(Pos2::new(5.0, 10.0), 5.0, Vec2::new(- 5.0, 0.0), Some(ContactSurface{ way: 0.0, approximation: 0.0, surface_normal: Vec2::new(1.0, 0.0)}))]
+    #[case(Pos2::new(7.0, 7.0), 5.0, Vec2::new(- 5.0, 0.0), Some(ContactSurface{ way: 2.0, approximation: 0.0, surface_normal: Vec2::new(1.0, 0.0)}))]
     fn ball_collision_test_left_wall(
         #[case] center: Pos2,
         #[case] radius: f32,
@@ -611,8 +652,8 @@ mod test {
 
     #[rstest]
     #[case(Pos2::new(MODEL_GRID_LEN_X - 10.0, 10.0), 5.0, Vec2::new(2.0, 2.0), None)]
-    #[case(Pos2::new(MODEL_GRID_LEN_X - 5.0, 10.0), 5.0, Vec2::new(5.0, 0.0), Some(CollisionSurface{ way_distance: 0.0, surface_normal: Vec2::new(- 1.0, 0.0)}))]
-    #[case(Pos2::new(MODEL_GRID_LEN_X - 7.0, 7.0), 5.0, Vec2::new(5.0, 0.0), Some(CollisionSurface{ way_distance: 2.0, surface_normal: Vec2::new(- 1.0, 0.0)}))]
+    #[case(Pos2::new(MODEL_GRID_LEN_X - 5.0, 10.0), 5.0, Vec2::new(5.0, 0.0), Some(ContactSurface{ way: 0.0, approximation: 0.0, surface_normal: Vec2::new(- 1.0, 0.0)}))]
+    #[case(Pos2::new(MODEL_GRID_LEN_X - 7.0, 7.0), 5.0, Vec2::new(5.0, 0.0), Some(ContactSurface{ way: 2.0, approximation: 0.0, surface_normal: Vec2::new(- 1.0, 0.0)}))]
     fn ball_collision_test_right_wall(
         #[case] center: Pos2,
         #[case] radius: f32,
@@ -627,19 +668,19 @@ mod test {
         assert_eq!(ball.collision_test_right_wall(move_vector), expected_result);
     }
 
-    fn assert_eq_roughly(a: f32, b: f32, tolerance: f32) {
+    fn assert_eq_roughly(what: &str, a: f32, b: f32, tolerance: f32) {
         assert!(!tolerance.is_sign_negative());
-        assert!((a - b).abs() <= tolerance, "difference between {a} and {b} more than {tolerance}"
+        assert!((a - b).abs() <= tolerance, "'{what}' difference between {a} and {b} more than {tolerance}"
         );
     }
 
     #[rstest]
     #[case(Pos2::new(100.0, 100.0), 5.0, Vec2::new(10.0, 0.0), Pos2::new(150.0, 90.0), Pos2::new(170.0, 110.0), None)]
-    #[case(Pos2::new(100.0, 100.0), 5.0, Vec2::new(5.0, 0.0), Pos2::new(110.0, 90.0), Pos2::new(130.0, 110.0), Some(CollisionSurface{ way_distance: 5.0, surface_normal: Vec2::new(- 1.0, 0.0)}))]
-    #[case(Pos2::new(100.0, 100.0), 5.0, Vec2::new(3.0, - 3.0), Pos2::new(100.0, 70.0), Pos2::new(120.0, 93.0), Some(CollisionSurface{ way_distance: 2.55, surface_normal: Vec2::new(0.0, 1.0)}))]
-    #[case(Pos2::new(100.0, 100.0), 5.0, Vec2::new(- 8.0, - 8.0), Pos2::new(70.0, 80.0), Pos2::new(90.0, 100.0), Some(CollisionSurface{ way_distance: 6.7, surface_normal: Vec2::new(1.0, 0.0)}))]
-    #[case(Pos2::new(100.0, 100.0), 5.0, Vec2::new(- 1.46, - 1.46), Pos2::new(80.0, 80.0), Pos2::new(95.0, 95.0), Some(CollisionSurface{ way_distance: 2.07, surface_normal: Vec2::new(1.0, 1.0).normalized()}))]
-    #[case(Pos2::new(100.0, 100.0), 5.0, Vec2::new(- 5.0, - 5.0), Pos2::new(80.0, 80.0), Pos2::new(95.0, 95.0), Some(CollisionSurface{ way_distance: 2.07, surface_normal: Vec2::new(1.0, 1.0).normalized()}))]
+    #[case(Pos2::new(100.0, 100.0), 5.0, Vec2::new(5.0, 0.0), Pos2::new(110.0, 90.0), Pos2::new(130.0, 110.0), Some(ContactSurface{ way: 5.0, approximation: 0.0, surface_normal: Vec2::new(- 1.0, 0.0)}))]
+    #[case(Pos2::new(100.0, 100.0), 5.0, Vec2::new(3.0, - 3.0), Pos2::new(100.0, 70.0), Pos2::new(120.0, 93.0), Some(ContactSurface{ way: 2.83, approximation: 0.0, surface_normal: Vec2::new(0.0, 1.0)}))]
+    #[case(Pos2::new(100.0, 100.0), 5.0, Vec2::new(- 8.0, - 8.0), Pos2::new(70.0, 80.0), Pos2::new(90.0, 100.0), Some(ContactSurface{ way: 7.07, approximation: 0.0, surface_normal: Vec2::new(1.0, 0.0)}))]
+    #[case(Pos2::new(100.0, 100.0), 5.0, Vec2::new(- 1.46, - 1.46), Pos2::new(80.0, 80.0), Pos2::new(95.0, 95.0), Some(ContactSurface{ way: 2.07, approximation: 0.0, surface_normal: Vec2::new(1.0, 1.0).normalized()}))]
+    #[case(Pos2::new(100.0, 100.0), 5.0, Vec2::new(- 5.0, - 5.0), Pos2::new(80.0, 80.0), Pos2::new(95.0, 95.0), Some(ContactSurface{ way: 2.07, approximation: 0.0, surface_normal: Vec2::new(1.0, 1.0).normalized()}))]
     #[case(Pos2::new(100.0, 100.0), 5.0, Vec2::new(- 4.2, - 4.2), Pos2::new(80.0, 80.0), Pos2::new(90.0, 90.0), None)]
     fn ball_collision_test_rectangle(
         #[case] center: Pos2,
@@ -666,16 +707,19 @@ mod test {
             let result = result.unwrap();
             let expected_result = expected_result.unwrap();
             assert_eq_roughly(
+                "surface_normal.x",
                 result.surface_normal.x,
                 expected_result.surface_normal.x,
                 0.01,
             );
             assert_eq_roughly(
+                "surface_normal.y",
                 result.surface_normal.y,
                 expected_result.surface_normal.y,
                 0.01,
             );
-            assert_eq_roughly(result.way_distance, expected_result.way_distance, 0.5)
+            assert_eq_roughly("way", result.way, expected_result.way, 0.1);
+            assert!(result.approximation >= -CONTACT_PENETRATION_LIMIT && result.approximation < CONTACT_PREDICTION);
         }
     }
 }

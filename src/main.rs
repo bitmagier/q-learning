@@ -1,3 +1,4 @@
+#![feature(drain_filter)]
 // extern crate tensorflow;
 
 use std::ops::{Add, Div};
@@ -13,7 +14,7 @@ mod app;
 mod game_drawer;
 
 fn main() {
-    simple_logger::init_with_level(log::Level::Debug).unwrap();
+    init_logging();
 
     let game_input = Arc::new(RwLock::new(GameInput::new()));
     let game_state = Arc::new(RwLock::new(GameState::default()));
@@ -27,6 +28,14 @@ fn main() {
         let mechanics_join_handle = thread::spawn(move || mechanics_thread(m_game_input, m_game_state, egui_ctx));
         Box::new(PongApp::new(cc, game_input, game_state, mechanics_join_handle))
     }));
+}
+
+fn init_logging() {
+    if cfg!(debug_assertions) {
+        simple_logger::init_with_level(log::Level::Debug).unwrap();
+    } else {
+        simple_logger::init_with_level(log::Level::Info).unwrap();
+    }
 }
 
 fn mechanics_thread(game_input: Arc<RwLock<GameInput>>, game_state: Arc<RwLock<GameState>>, egui_ctx: egui::Context) {

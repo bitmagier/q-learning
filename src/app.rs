@@ -33,7 +33,7 @@ impl<T> PongApp<T> {
             PanelControl::AccelerateLeft
         } else if ctx.input().key_down(egui::Key::ArrowRight) && !ctx.input().key_down(egui::Key::ArrowLeft) {
             PanelControl::AccelerateRight
-        } else if ctx.input().key_pressed(egui::Key::Escape) {
+        } else if ctx.input().key_down(egui::Key::Escape) {
             PanelControl::Exit
         } else {
             PanelControl::None

@@ -39,7 +39,8 @@ pub struct Circle {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ContactSurface {
-    pub way_distance: f32,
+    pub way: f32,
+    pub approximation: f32, // after way
     pub surface_normal: Vec2,
 }
 
