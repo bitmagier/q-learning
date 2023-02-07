@@ -5,8 +5,8 @@ use std::time::Duration;
 use egui::{Pos2, Vec2};
 use itertools::Itertools;
 
-use crate::pong::algebra_2d::{AaBB, Circle, contact_test_circle_aabb, ContactSurface, reflected_vector, vector_angle};
-use crate::pong::mechanics::GameResult::{Lost, Won};
+use crate::breakout::algebra_2d::{AaBB, Circle, contact_test_circle_aabb, ContactSurface, reflected_vector, vector_angle};
+use crate::breakout::mechanics::GameResult::{Lost, Won};
 
 /// TOP / LEFT corner is 0/0
 pub const MODEL_GRID_LEN_X: f32 = 600.0;
@@ -50,11 +50,11 @@ const CONTACT_PENETRATION_LIMIT: f32 = 0.01;
 // TODO add timer + game score when finished based on timer
 
 
-pub struct PongMechanics {
+pub struct BreakoutMechanics {
     mechanic_state: GameState,
 }
 
-impl PongMechanics {
+impl BreakoutMechanics {
     pub fn new() -> Self {
         Self {
             mechanic_state: GameState::default(),
@@ -91,10 +91,10 @@ impl PongMechanics {
     pub fn initial_ball() -> Ball {
         Ball {
             shape: Circle {
-                center: Pos2::new(MODEL_GRID_LEN_X / 2.0, MODEL_GRID_LEN_Y * 0.33),
+                center: Pos2::new(MODEL_GRID_LEN_X * 0.5, MODEL_GRID_LEN_Y * 0.5),
                 radius: BALL_RADIUS,
             },
-            direction: Vec2::from((-0.2, 1.0)),
+            direction: Vec2::from((-0.2, -1.0)),
             speed_per_sec: BALL_SPEED_PER_SEC,
         }
     }
@@ -157,9 +157,9 @@ pub enum GameResult {
 impl Default for GameState {
     fn default() -> Self {
         Self {
-            bricks: PongMechanics::initial_bricks(),
-            ball: PongMechanics::initial_ball(),
-            panel: PongMechanics::initial_panel(),
+            bricks: BreakoutMechanics::initial_bricks(),
+            ball: BreakoutMechanics::initial_ball(),
+            panel: BreakoutMechanics::initial_panel(),
             finished: false,
             game_result: None,
         }
@@ -169,12 +169,14 @@ impl Default for GameState {
 #[derive(Copy, Clone)]
 pub struct GameInput {
     pub control: PanelControl,
+    pub exit: bool,
 }
 
 impl GameInput {
     pub fn new() -> Self {
         Self {
             control: PanelControl::None,
+            exit: false
         }
     }
 }
@@ -184,7 +186,6 @@ pub enum PanelControl {
     None,
     AccelerateLeft,
     AccelerateRight,
-    Exit,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -540,7 +541,6 @@ impl Panel {
                     PANEL_MAX_SPEED_PER_SECOND,
                 )
             }
-            PanelControl::Exit => (),
         }
     }
 }
@@ -629,8 +629,8 @@ mod test {
     use egui::{Pos2, Vec2};
     use rstest::rstest;
 
-    use crate::pong::algebra_2d::{AaBB, Circle};
-    use crate::pong::mechanics::{Ball, CONTACT_PENETRATION_LIMIT, CONTACT_PREDICTION, ContactSurface, MODEL_GRID_LEN_X};
+    use crate::breakout::algebra_2d::{AaBB, Circle};
+    use crate::breakout::mechanics::{Ball, CONTACT_PENETRATION_LIMIT, CONTACT_PREDICTION, ContactSurface, MODEL_GRID_LEN_X};
 
     #[rstest]
     #[case(Pos2::new(10.0, 10.0), 5.0, Vec2::new(- 2.0, 2.0), None)]

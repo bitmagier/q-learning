@@ -2,7 +2,7 @@ use eframe::epaint::{CircleShape, Shape};
 use egui::{Color32, Pos2, Rect, Rounding, Stroke, Vec2};
 use egui::epaint::RectShape;
 
-use crate::pong::mechanics::{Assert, Ball, Brick, GameState, MODEL_GRID_LEN_X, MODEL_GRID_LEN_Y, Panel};
+use crate::breakout::mechanics::{Assert, Ball, Brick, GameState, MODEL_GRID_LEN_X, MODEL_GRID_LEN_Y, Panel};
 
 pub struct GameDrawer {
     canvas_size: Vec2,

@@ -1,18 +1,17 @@
 [package]
-name = "pong-ai-study"
-version = "0.1.0"
+name = "breakout-ai"
+version = "0.2.0"
 edition = "2021"
 authors = ["Roman Krüger<bitmagier@mailbox.org>"]
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dev-dependencies]
-rstest = "*"
+rstest = "0"
 
 [dependencies]
-log = "*"
-simple_logger = "*"
-itertools = "*"
-# tensorflow = { version = "0", features = ["tensorflow_gpu"] }
-egui = "*"
-eframe = { version = "*", features = ["dark-light"] }
-parry2d = "*"
+log = "0"
+simple_logger = "4"
+itertools = "0"
+tensorflow = { version = "0", features = ["tensorflow_gpu"] }
+egui = "0"
+eframe = { version = "0", features = ["dark-light"] }
+parry2d = "0"

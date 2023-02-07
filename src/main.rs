@@ -6,12 +6,13 @@ use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Instant;
 
-use crate::app::PongApp;
-use crate::pong::mechanics::{GameInput, GameState, PanelControl, PongMechanics, TIME_GRANULARITY};
+use crate::app::BreakoutApp;
+use crate::breakout::mechanics::{GameInput, GameState, BreakoutMechanics, TIME_GRANULARITY};
 
-pub mod pong;
+pub mod breakout;
 mod app;
 mod game_drawer;
+mod ai;
 
 fn main() {
     init_logging();
@@ -23,10 +24,10 @@ fn main() {
     let m_game_state = Arc::clone(&game_state);
 
     let native_options = eframe::NativeOptions::default();
-    eframe::run_native("Pong", native_options, Box::new(|cc| {
+    eframe::run_native("Breakout", native_options, Box::new(|cc| {
         let egui_ctx = cc.egui_ctx.clone();
         let mechanics_join_handle = thread::spawn(move || mechanics_thread(m_game_input, m_game_state, egui_ctx));
-        Box::new(PongApp::new(cc, game_input, game_state, mechanics_join_handle))
+        Box::new(BreakoutApp::new(cc, game_input, game_state, mechanics_join_handle))
     }));
 }
 
@@ -52,14 +53,14 @@ fn mechanics_thread(game_input: Arc<RwLock<GameInput>>, game_state: Arc<RwLock<G
         drop(write_handle);
     };
 
-    let mut mechanics = PongMechanics::new();
+    let mut mechanics = BreakoutMechanics::new();
     let mut next_step_time = Instant::now().add(TIME_GRANULARITY);
     let sleep_time_ms = TIME_GRANULARITY.div(5);
     loop {
         if Instant::now().ge(&next_step_time) {
             next_step_time = next_step_time.add(TIME_GRANULARITY);
             let input = read_input();
-            if PanelControl::Exit == input.control {
+            if input.exit {
                 break;
             } else {
                 let state = mechanics.time_step(input);

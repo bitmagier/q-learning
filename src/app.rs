@@ -6,15 +6,15 @@ use eframe::glow::Context;
 use egui::{Id, LayerId, Order, Painter, Vec2};
 
 use crate::game_drawer::GameDrawer;
-use crate::pong::mechanics::{GameInput, GameState, PanelControl};
+use crate::breakout::mechanics::{GameInput, GameState, PanelControl};
 
-pub struct PongApp<T> {
+pub struct BreakoutApp<T> {
     game_input: Arc<RwLock<GameInput>>,
     game_state: Arc<RwLock<GameState>>,
     mechanics_join_handle: JoinHandle<T>,
 }
 
-impl<T> PongApp<T> {
+impl<T> BreakoutApp<T> {
     pub fn new(
         _cc: &eframe::CreationContext<'_>,
         game_input: Arc<RwLock<GameInput>>,
@@ -33,13 +33,13 @@ impl<T> PongApp<T> {
             PanelControl::AccelerateLeft
         } else if ctx.input().key_down(egui::Key::ArrowRight) && !ctx.input().key_down(egui::Key::ArrowLeft) {
             PanelControl::AccelerateRight
-        } else if ctx.input().key_down(egui::Key::Escape) {
-            PanelControl::Exit
         } else {
             PanelControl::None
         };
+        let exit = ctx.input().key_down(egui::Key::Escape);
 
-        self.write_game_input(GameInput { control });
+
+        self.write_game_input(GameInput { control, exit });
     }
 
     fn game_content(&self, painter: &Painter) {
@@ -70,12 +70,10 @@ impl<T> PongApp<T> {
 
 /// see https://github.com/emilk/egui/blob/master/crates/egui_demo_lib/src/demo/paint_bezier.rs
 
-const FRAME_SIZE_X: f32 = 600.0;
-const FRAME_SIZE_Y: f32 = 800.0;
+pub const FRAME_SIZE_X: f32 = 600.0;
+pub const FRAME_SIZE_Y: f32 = 800.0;
 
-// TODO use Channel to sync input + updated mechanics + repaint
-
-impl<T> eframe::App for PongApp<T> {
+impl<T> eframe::App for BreakoutApp<T> {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         if self.mechanics_join_handle.is_finished() {
             frame.close()
@@ -87,6 +85,6 @@ impl<T> eframe::App for PongApp<T> {
     }
 
     fn on_exit(&mut self, _gl: Option<&Context>) {
-        *self.game_input.write().unwrap() = GameInput { control: PanelControl::Exit };
+        *self.game_input.write().unwrap() = GameInput { control: PanelControl::None, exit: true };
     }
 }
