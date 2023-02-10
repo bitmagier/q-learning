@@ -1,9 +1,7 @@
 use std::sync::{Arc, RwLock};
 use std::thread::JoinHandle;
+use egui::{Context, Id, LayerId, Order, Painter, Vec2};
 
-use eframe::egui;
-use eframe::glow::Context;
-use egui::{Id, LayerId, Order, Painter, Vec2};
 
 use crate::game_drawer::GameDrawer;
 use crate::breakout::mechanics::{GameInput, GameState, PanelControl};
@@ -29,15 +27,14 @@ impl<T> BreakoutApp<T> {
     }
 
     fn ui_control(&mut self, ctx: &egui::Context) {
-        let control = if ctx.input().key_down(egui::Key::ArrowLeft) && !ctx.input().key_down(egui::Key::ArrowRight) {
+        let control = if ctx.input(|i| i.key_down(egui::Key::ArrowLeft) && !i.key_down(egui::Key::ArrowRight)) {
             PanelControl::AccelerateLeft
-        } else if ctx.input().key_down(egui::Key::ArrowRight) && !ctx.input().key_down(egui::Key::ArrowLeft) {
+        } else if ctx.input(|i|i.key_down(egui::Key::ArrowRight) && !i.key_down(egui::Key::ArrowLeft)) {
             PanelControl::AccelerateRight
         } else {
             PanelControl::None
         };
-        let exit = ctx.input().key_down(egui::Key::Escape);
-
+        let exit = ctx.input(|i| i.key_down(egui::Key::Escape));
 
         self.write_game_input(GameInput { control, exit });
     }
@@ -74,7 +71,7 @@ pub const FRAME_SIZE_X: f32 = 600.0;
 pub const FRAME_SIZE_Y: f32 = 800.0;
 
 impl<T> eframe::App for BreakoutApp<T> {
-    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &Context, frame: &mut eframe::Frame) {
         if self.mechanics_join_handle.is_finished() {
             frame.close()
         }
@@ -84,7 +81,7 @@ impl<T> eframe::App for BreakoutApp<T> {
         self.game_content(&game_painter);
     }
 
-    fn on_exit(&mut self, _gl: Option<&Context>) {
+    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
         *self.game_input.write().unwrap() = GameInput { control: PanelControl::None, exit: true };
     }
 }

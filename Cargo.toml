@@ -5,13 +5,14 @@ edition = "2021"
 authors = ["Roman Krüger<bitmagier@mailbox.org>"]
 
 [dev-dependencies]
-rstest = "0"
+rstest = "0.16"
 
 [dependencies]
-log = "0"
+log = "0.4"
 simple_logger = "4"
-itertools = "0"
-tensorflow = { version = "0", features = ["tensorflow_gpu"] }
-egui = "0"
-eframe = { version = "0", features = ["dark-light"] }
-parry2d = "0"
+itertools = "0.10"
+egui = "0.21"
+eframe = { version = "0.21", features = ["dark-light"] }
+parry2d = "0.13"
+nalgebra = "0.32"
+tensorflow = { version = "0.19.1", features = ["tensorflow_gpu"] }

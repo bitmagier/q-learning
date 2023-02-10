@@ -1,5 +1,5 @@
 #![feature(drain_filter)]
-// extern crate tensorflow;
+extern crate tensorflow;
 
 use std::ops::{Add, Div};
 use std::sync::{Arc, RwLock};
@@ -14,7 +14,7 @@ mod app;
 mod game_drawer;
 mod ai;
 
-fn main() {
+fn main() -> eframe::Result<()> {
     init_logging();
 
     let game_input = Arc::new(RwLock::new(GameInput::new()));
@@ -28,7 +28,7 @@ fn main() {
         let egui_ctx = cc.egui_ctx.clone();
         let mechanics_join_handle = thread::spawn(move || mechanics_thread(m_game_input, m_game_state, egui_ctx));
         Box::new(BreakoutApp::new(cc, game_input, game_state, mechanics_join_handle))
-    }));
+    }))
 }
 
 fn init_logging() {

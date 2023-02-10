@@ -1,3 +1,4 @@
+use std::f32::consts;
 use std::f32::consts::FRAC_PI_2;
 use std::ops::Range;
 use std::time::Duration;
@@ -19,11 +20,10 @@ pub const SPACE_GRANULARITY: f32 = 0.001;
 /// time granularity (TG)
 pub const TIME_GRANULARITY: Duration = Duration::from_millis(20);
 
-const PANEL_LEN_X: f32 = 50.0;
+const PANEL_LEN_X: f32 = 60.0;
 const PANEL_LEN_Y: f32 = 10.0;
 const PANEL_CENTER_POS_Y: f32 = 770.0;
 
-/// model grid len per time granularity
 const PANEL_MAX_SPEED_PER_SECOND: f32 = 160.0;
 
 const PANEL_CONTROL_ACCEL_PER_SECOND: f32 = 20.0;
@@ -44,7 +44,7 @@ const BALL_SPEED_PER_SEC: f32 = 200.0;
 
 // max object distance to detect a collision
 pub const CONTACT_PREDICTION: f32 = 0.8;
-const CONTACT_PENETRATION_LIMIT: f32 = 0.01;
+const CONTACT_PENETRATION_LIMIT: f32 = 0.0;
 
 
 // TODO add timer + game score when finished based on timer
@@ -176,7 +176,7 @@ impl GameInput {
     pub fn new() -> Self {
         Self {
             control: PanelControl::None,
-            exit: false
+            exit: false,
         }
     }
 }
@@ -205,23 +205,28 @@ pub struct ContactCandidates {
     surfaces: Vec<ContactObjectSurface>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ContactObjectSurface {
     pub way: f32,
     /// final distance after the way
     pub approximation: f32,
     // ⊥ surface normal vector; perpendicular to surface ; normalized
     pub surface_normal: Vec2,
-    pub brick_idx: Option<usize>,
+    pub object: Option<BreakoutObject>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum BreakoutObject {
+    Brick { idx: usize }
 }
 
 impl ContactObjectSurface {
-    pub fn of(surface: ContactSurface, brick_idx: Option<usize>) -> Self {
+    pub fn of(surface: ContactSurface, object: Option<BreakoutObject>) -> Self {
         ContactObjectSurface {
             way: surface.way,
             approximation: surface.approximation,
             surface_normal: surface.surface_normal,
-            brick_idx,
+            object,
         }
     }
 }
@@ -323,7 +328,7 @@ impl Ball {
 
         for (idx, brick) in bricks.iter().enumerate() {
             if let Some(c) = self.collision_check_with_rectangle(move_vector, &brick.shape) {
-                collision_candidates.consider(ContactObjectSurface::of(c, Some(idx)));
+                collision_candidates.consider(ContactObjectSurface::of(c, Some(BreakoutObject::Brick { idx })));
             }
         }
 
@@ -331,8 +336,10 @@ impl Ball {
 
         // remove brick(s), which have been really hit
         for brick_idx in collisions.surfaces.iter()
-            .map(|e| e.brick_idx)
-            .flatten()
+            .filter_map(|e| match e.object {
+                Some(BreakoutObject::Brick { idx }) => Some(idx),
+                _ => None,
+            })
             .sorted_unstable()
             .rev()
         {
@@ -353,7 +360,9 @@ impl Ball {
                 collision,
                 &remaining_move_vector
             );
-            self.proceed_with(remaining_move_vector, panel, bricks);
+            if remaining_move_vector.length() > 0.0 {
+                self.proceed_with(remaining_move_vector, panel, bricks);
+            }
         } else {
             self.shape.center = self.shape.center + move_vector
         }
@@ -511,7 +520,6 @@ impl Ball {
         }
     }
 }
-
 
 #[derive(Clone)]
 pub struct Panel {
