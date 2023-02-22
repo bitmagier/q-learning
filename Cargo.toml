@@ -1,11 +1,12 @@
 [package]
-name = "breakout-ai"
+name = "rl-breakout"
 version = "0.2.0"
 edition = "2021"
 authors = ["Roman Krüger<bitmagier@mailbox.org>"]
+description = "Machine Learning | Reinforcement Learning | Deep-Q-Learning | Breakout"
 
 [dev-dependencies]
-rstest = "0.16"
+rstest = "0.16.0"
 
 [dependencies]
 log = "0.4"
@@ -15,4 +16,4 @@ egui = "0.21"
 eframe = { version = "0.21", features = ["dark-light"] }
 parry2d = "0.13"
 nalgebra = "0.32"
-tensorflow = { version = "0.19.1", features = ["tensorflow_gpu"] }
+tensorflow = { version = "0.20.0", features = ["tensorflow_gpu"] }
