@@ -3,10 +3,12 @@
 How to visualize the game screen and possible AI statistics?
 
 ### Visualization
-- [egui](https://crates.io/crates/egui) (choosen)
+- [egui](https://crates.io/crates/egui) (chosen)
+- plotter
 
 ### Other
 - [parry2d](https://crates.io/crates/parry2d-f64) collision detection
+
 
 
 | Pong                                                         |

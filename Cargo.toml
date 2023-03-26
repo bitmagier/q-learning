@@ -4,6 +4,7 @@ version = "0.2.0"
 edition = "2021"
 authors = ["Roman Krüger<bitmagier@mailbox.org>"]
 description = "Machine Learning | Reinforcement Learning | Deep-Q-Learning | Breakout"
+repository = "git@github.com:bitmagier/rl-breakout.git"
 
 [dev-dependencies]
 rstest = "0.16.0"
