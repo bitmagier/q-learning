@@ -45,6 +45,18 @@ Of course, the particular states and actions vary greatly from task to task, and
 they are represented can strongly affect performance. In reinforcement learning, as in
 other kinds of learning, such representational choices are at present more art than science.
 
+#### Reward signal
+
+Represents what should be achieved (not how). It quantifies real results (positive and negative).
+
+Discount rate 𝛾
+: (0 <= 𝛾 <= 1) represents the value of future rewards. The bigger, the more farsighted the agent becomes
+
+```
+Gₜ = Rₜ₊₁ + 𝛾Rₜ₊₂ + 𝛾²Rₜ₊₃ ...
+Gₜ = Rₜ₊₁ + 𝛾(Rₜ₊₂ + 𝛾Rₜ₊₃ + 𝛾²Rₜ₊₄)
+Gₜ = Rₜ₊₁ + 𝛾Gₜ₊₁
+```
 ---
 
 ## The Bellmann Equation

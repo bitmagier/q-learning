@@ -14,7 +14,6 @@ __Required installs:__
 
 Layers:
 1. Convolutional Layer
-   1. 
     
 2. Fully connected deep neural network
 
