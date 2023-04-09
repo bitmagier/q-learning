@@ -3,7 +3,6 @@ from keras.layers import Dense
 
 
 class BreakoutModel(tf.keras.Model):
-
     # TODO: Define 1 convolutional layer, 1 fully connected MLP
     def __init__(self, *args, **kwargs):
         super(BreakoutModel, self).__init__(*args, **kwargs)
@@ -57,3 +56,7 @@ my_model.save('breakout_keras_model',
 
 # one way to get output names via saved_model_cli:
 # saved_model_cli show --dir /path/to/saved-model/ --all
+
+
+# TODO create Network with convolutional layer + fully connected layer
+# good example: https://www.tensorflow.org/tutorials/images/cnn
