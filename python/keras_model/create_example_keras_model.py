@@ -2,10 +2,10 @@ import tensorflow as tf
 from keras.layers import Dense
 
 
-class BreakoutModel(tf.keras.Model):
+class ExampleModel(tf.keras.Model):
     # TODO: Define 1 convolutional layer, 1 fully connected MLP
     def __init__(self, *args, **kwargs):
-        super(BreakoutModel, self).__init__(*args, **kwargs)
+        super(ExampleModel, self).__init__(*args, **kwargs)
         self.dense_1 = Dense(2, name="test_in", input_dim=2)
         self.dense_2 = Dense(1, name="test_out")
 
@@ -34,7 +34,7 @@ class BreakoutModel(tf.keras.Model):
 
 
 # Create model
-my_model = BreakoutModel()
+my_model = ExampleModel()
 # optimizer = tf.keras.optimizers.experimental.SGD()
 my_model.compile(optimizer='sgd', loss='mse', metrics=['mae'])
 
