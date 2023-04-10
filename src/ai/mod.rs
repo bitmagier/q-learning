@@ -1,2 +1,2 @@
 pub mod interface;
-mod keras_model;
+mod example_keras_model;

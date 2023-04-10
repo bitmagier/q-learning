@@ -50,7 +50,7 @@ train_output = my_model.training.get_concrete_function((tf.TensorSpec(shape=[1, 
                                                                       name="training_target")))
 
 # Save the model
-my_model.save('breakout_keras_model',
+my_model.save('example_keras_model',
               save_format='tf',
               signatures={'train': train_output, 'pred': pred_output})
 

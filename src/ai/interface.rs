@@ -1,3 +1,4 @@
+#![allow(unused)]
 use egui::Color32;
 use crate::app;
 use crate::breakout::mechanics::{GameInput, PanelControl};

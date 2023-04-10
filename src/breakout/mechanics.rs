@@ -1,4 +1,3 @@
-use std::f32::consts;
 use std::f32::consts::FRAC_PI_2;
 use std::ops::Range;
 use std::time::Duration;
