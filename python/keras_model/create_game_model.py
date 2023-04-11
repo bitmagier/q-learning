@@ -2,15 +2,36 @@ import tensorflow as tf
 from keras import layers, models
 
 
+# example: https://www.tensorflow.org/tutorials/images/cnn
+# another example: https://towardsdatascience.com/convolutional-neural-networks-with-tensorflow-2d0d41382d32
+
 class GameModel1(models.Sequential):
     def __init__(self, *args, **kwargs):
         super(GameModel1, self).__init__(*args, **kwargs)
         # TODO dimensions
-        self.add(layers.Conv2D(32, (3, 3), activation='relu', input_shape=(32, 32, 3)))
-        self.add(layers.MaxPooling2D((2, 2)))
-        self.add(layers.Conv2D(64, (3, 3), activation='relu'))
-        self.add(layers.MaxPooling2D((2, 2)))
-        self.add(layers.Conv2D(64, (3, 3), activation='relu'))
+        # filters: integer, the dimensionality of the output space (i.e. the number of output filters in the convolution).
+        #          initial filters in a network is responsible for detecting edges and blobs; 16 or 32 is recommended
+        # kernel_size
+        # input_shape: (x, y, color-channels)
+        self.add(layers.Conv2D(16, (5, 5), activation='relu', input_shape=(600, 800, 3)))
+        self.add(layers.MaxPooling2D((3, 3)))
+        self.add(layers.Conv2D(32, (5, 5), activation='relu'))
+        self.add(layers.MaxPooling2D((3, 3)))
+        self.add(layers.Conv2D(64, (5, 5), activation='relu'))
+        self.add(layers.MaxPooling2D((3, 3)))
+
+        # TODO find optimal activation function candidates
+        # relu, sigmoid, softmax, etc
+
+        self.add(layers.Flatten())
+        self.add(layers.Dense(64, activation='relu'))
+        self.add(layers.Dense(16, activation='sigmoid'))
+        # number of neuron in the output layer matches the dimensionality of the action space (values range from 0..1)
+        # <0.4 means acceleration to left side
+        # 0.4 .. 0.6 means stand still
+        # >0.6 means acceleration to right side
+        self.add(layers.Dense(1, activation='sigmoid'))
+
         self.summary()
 
     @tf.function
@@ -25,12 +46,12 @@ class GameModel1(models.Sequential):
 
 
 model = GameModel1()
-model.compile(optimizer='adam',
-              loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-              metrics=['accuracy'])
 
+# TODO optimization algorithms Stochastic Gradient Descent (SGD), RMSprop etc
 
-
+# model.compile(optimizer='adam',
+#              loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+#              metrics=['accuracy'])
 
 # TODO define a training mini-batch function
 # e.g.
@@ -43,4 +64,3 @@ model.compile(optimizer='adam',
 #           against the old model, but train the new one
 #   - replace old model by the new model
 #   - return stats (loss, etc)
-
