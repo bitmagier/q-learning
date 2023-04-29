@@ -26,10 +26,11 @@ class GameModel1(models.Sequential):
         self.add(layers.Flatten())
         self.add(layers.Dense(64, activation='relu'))
         self.add(layers.Dense(16, activation='sigmoid'))
+
         # number of neuron in the output layer matches the dimensionality of the action space (values range from 0..1)
-        # <0.4 means acceleration to left side
+        # < 0.4 means acceleration to left side
         # 0.4 .. 0.6 means stand still
-        # >0.6 means acceleration to right side
+        # > 0.6 means acceleration to right side
         self.add(layers.Dense(1, activation='sigmoid'))
 
         self.summary()
@@ -49,9 +50,30 @@ model = GameModel1()
 
 # TODO optimization algorithms Stochastic Gradient Descent (SGD), RMSprop etc
 
-# model.compile(optimizer='adam',
-#              loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-#              metrics=['accuracy'])
+model.compile(optimizer='adam',
+              loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+              metrics=['accuracy'])
+
+# Get concrete function for the call and training method
+# TODO add batch size as first parameter for `shape` (see conv2d.py)
+pred_output = model.call.get_concrete_function(tf.TensorSpec(shape=[600, 800, 3],
+                                                             dtype=tf.float32,
+                                                             name='inputs'))
+
+train_output = model.training.get_concrete_function((tf.TensorSpec(shape=[600, 800, 3],
+                                                                   dtype=tf.float32, name="training_input"),
+                                                     tf.TensorSpec(shape=[1],
+                                                                   dtype=tf.float32,
+                                                                   name="training_target")))
+
+# Save the model
+model.save('game_keras_model_1',
+           save_format='tf',
+           signatures={'train': train_output, 'pred': pred_output})
+
+# one way to get output names via saved_model_cli:
+# saved_model_cli show --dir /path/to/saved-model/ --all
+
 
 # TODO define a training mini-batch function
 # e.g.

@@ -3,7 +3,6 @@ from keras.layers import Dense
 
 
 class ExampleModel(tf.keras.Model):
-    # TODO: Define 1 convolutional layer, 1 fully connected MLP
     def __init__(self, *args, **kwargs):
         super(ExampleModel, self).__init__(*args, **kwargs)
         self.dense_1 = Dense(2, name="test_in", input_dim=2)
@@ -20,17 +19,6 @@ class ExampleModel(tf.keras.Model):
     def training(self, train_data):
         loss = self.train_step(train_data)['loss']
         return loss
-
-    # TODO define a training mini-batch function
-    # - High level:
-    #   - input: last 5 images of the game
-    #   - output: action values: value vector for possible actions (left, none, right) [0..1]
-    # - steps:
-    #   - make a copy of the model
-    #   - run a min-batch (series of training data [input,target]
-    #           against the old model, but train the new one
-    #   - replace old model by the new model
-    #   - return stats (loss, etc)
 
 
 # Create model
