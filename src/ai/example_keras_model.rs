@@ -4,7 +4,7 @@ use std::path::Path;
 
 use tensorflow::{Graph, SavedModelBundle, SessionOptions, SessionRunArgs, Tensor};
 
-const KERAS_MODEL_DIR: &str = "python/keras_model/example_keras_model";
+const KERAS_MODEL_DIR: &str = "keras_model/example_keras_model";
 
 // const PRED_FUNCTION: TensorFunction = TensorFunction {
 //     name: "pred",
