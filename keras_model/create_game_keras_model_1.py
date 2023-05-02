@@ -232,6 +232,7 @@ class BreakoutQLearningCore:
 # =>
 # - Implement a pure Tensorflow Model (with 2 instances) in Python
 # - Implement Q-Learning batch/sample/etc update logic completely in Rust - calling the basic model functions
+# https://keras.io/examples/rl/deep_q_network_breakout/
 learning_core = BreakoutQLearningCore()
 
 # Get concrete function for the call and training method
