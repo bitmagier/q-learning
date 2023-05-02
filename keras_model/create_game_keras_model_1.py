@@ -229,6 +229,9 @@ class BreakoutQLearningCore:
 
 
 # TODO How to save the custom class containing two models, so that we can call it from Rust?
+# =>
+# - Implement a pure Tensorflow Model (with 2 instances) in Python
+# - Implement Q-Learning batch/sample/etc update logic completely in Rust - calling the basic model functions
 learning_core = BreakoutQLearningCore()
 
 # Get concrete function for the call and training method
