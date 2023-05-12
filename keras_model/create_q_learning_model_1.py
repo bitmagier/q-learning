@@ -33,7 +33,7 @@ class QLearningModel(tf.keras.Sequential):
         action_probs = self(state_tensor, training=False)
         # Take best action
         action = tf.argmax(action_probs[0])
-        return action
+        return {'action': action}
 
     @tf.function
     def train_model(self, state_samples, action_samples, updated_q_values):
@@ -53,14 +53,6 @@ class QLearningModel(tf.keras.Sequential):
         grads = tape.gradient(loss, self.trainable_variables)
         self.optimizer.apply_gradients(zip(grads, self.trainable_variables))
         return {'loss': loss}
-
-    @tf.function
-    def get_weights(self):
-        return self.weights
-
-    @tf.function
-    def set_weights(self, weights):
-        super().set_weights(weights)
 
 
 # def rl_step_first_predict_action(self, state):
@@ -179,30 +171,14 @@ t_state_samples = tf.TensorSpec(shape=[BATCH_SIZE, 600, 800, 3], dtype=tf.float3
 t_action_samples = tf.TensorSpec(shape=[BATCH_SIZE, 1], dtype=tf.int8, name='action_samples')
 t_updated_q_values = tf.TensorSpec(shape=[BATCH_SIZE, 1], dtype=tf.float32, name='updated_q_values')
 
-# weights: a list of NumPy arrays. The number
-# of arrays and their shape must match
-# number of the dimensions of the weights
-# of the layer (i.e. it should match the
-# output of `get_weights`)
-# TODO export train_model
+# TODO find a way to create a copy of the model to refresh the target model after a batch run
 
-# weights = model.get_weights()
-# print(type(weights))
-
-weights = model.get_weights()
-# TODO ValueError: `tensor` should be a tf.Tensor, but got type <class 'list'>
-t_weights = tf.TensorSpec.from_tensor(weights)
-
-model.save('q_learning_model',
+model.save('q_learning_model_1',
            save_format='tf',
            signatures={
                'predict_single': model.predict_single.get_concrete_function(t_state),
                'train_model': model.train_model.get_concrete_function(t_state_samples, t_action_samples, t_updated_q_values),
-               'get_weights': model.get_weights.get_concrete_function(),
-               'set_weights': model.set_weights.get_concrete_function(t_weights)
            })
-
-# TODO save target model
 
 # one way to get output names via saved_model_cli:
 # saved_model_cli show --dir /path/to/saved-model/ --all

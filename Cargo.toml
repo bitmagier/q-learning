@@ -7,7 +7,7 @@ description = "Machine Learning | Reinforcement Learning | Deep-Q-Learning | Bre
 repository = "git@github.com:bitmagier/rl-breakout.git"
 
 [dev-dependencies]
-rstest = "0.16.0"
+rstest = "0.17"
 
 [dependencies]
 log = "0.4"
