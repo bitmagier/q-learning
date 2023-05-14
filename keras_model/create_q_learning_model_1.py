@@ -179,6 +179,3 @@ model.save('q_learning_model_1',
                'predict_single': model.predict_single.get_concrete_function(t_state),
                'train_model': model.train_model.get_concrete_function(t_state_samples, t_action_samples, t_updated_q_values),
            })
-
-# one way to get output names via saved_model_cli:
-# saved_model_cli show --dir /path/to/saved-model/ --all
