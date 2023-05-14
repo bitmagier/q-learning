@@ -1,0 +1,13 @@
+services:
+  tensorflow-rust-dev:
+    build:
+      dockerfile: Dockerfile
+      args:
+        DEV_USER: $DEV_USER
+        SSH_AUTHORIZED_KEY: $SSH_AUTHORIZED_KEY
+    ports:
+      - "1022:22"
+    volumes:
+      - type: bind
+        source: ../../
+        target: /home/$DEV_USER/rl-breakout

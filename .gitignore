@@ -6,3 +6,4 @@
 **/*.rs.bk
 
 /.idea/
+/keras_model/q_learning_model_1
