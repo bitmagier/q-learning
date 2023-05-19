@@ -11,13 +11,13 @@ const BATCH_SIZE: i32 = 32;
 pub struct QLearningModel {
     pub graph: Graph,
     pub bundle: SavedModelBundle,
-    pub function_predict_single: FunctionPredictSingle,
-    pub function_train_model: FunctionTrainModel,
+    function_predict_single: FunctionPredictSingle,
+    function_train_model: FunctionTrainModel,
 }
 
 
 impl QLearningModel {
-    pub fn new() -> Self {
+    pub fn load() -> Self {
         // we load the model as a graph from the path it was saved in
         let model_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join(KERAS_MODEL_DIR);
         let mut graph = Graph::new();
@@ -53,21 +53,43 @@ impl QLearningModel {
             function_train_model,
         }
     }
+
+    /// Predicts the next action based on the current state.
+    ///
+    /// # Arguments
+    /// * `state` Game state Tensor [600, 800, 3]
+    ///
+    pub fn predict(
+        &self,
+        state: Tensor<f32>) -> i8
+    {
+        self.function_predict_single.call(&self.bundle.session, state)
+    }
+
+    /// Performs a single training step using a a batch of data.
+    /// Returns the model's loss
+    ///
+    /// # Arguments
+    /// * `state_samples` Tensor [BATCH_SIZE, 600, 800, 3]
+    /// * `action_samples` Tensor [BATCH_SIZE, 1]
+    /// * `updated_q_values` Tensor [BATCH_SIZE, 1]
+    ///
+    pub fn train(&self,
+                 state_samples: Tensor<f32>,
+                 action_samples: Tensor<i8>,
+                 updated_q_values: Tensor<f32>) -> f32
+    {
+        self.function_train_model.call(&self.bundle.session, state_samples, action_samples, updated_q_values)
+    }
 }
 
 
-pub struct FunctionPredictSingle {
+struct FunctionPredictSingle {
     state_input_operation: Operation,
     output_operation: Operation,
 }
 
 impl FunctionPredictSingle {
-    /// Predicts the next action based on the current state.
-    ///
-    /// # Arguments
-    /// * `session` tensorflow session
-    /// * `state` Game state Tensor [600, 800, 3]
-    ///
     pub fn call(
         &self,
         session: &Session,
@@ -93,7 +115,7 @@ impl FunctionPredictSingle {
     }
 }
 
-pub struct FunctionTrainModel {
+struct FunctionTrainModel {
     state_samples_input_operation: Operation,
     action_samples_input_operation: Operation,
     updated_q_values_input_operation: Operation,
@@ -101,16 +123,6 @@ pub struct FunctionTrainModel {
 }
 
 impl FunctionTrainModel {
-    /// Performs a single training step using a a batch of data.
-    /// Returns the model's loss
-    ///
-    /// # Arguments
-    /// * `session` Tensorflow session
-    /// * `state_samples` Tensor [BATCH_SIZE, 600, 800, 3]
-    /// * `action_samples` Tensor [BATCH_SIZE, 1]
-    /// * `updated_q_values` Tensor [BATCH_SIZE, 1]
-    ///
-    ///
     pub fn call(
         &self,
         session: &Session,
@@ -133,13 +145,31 @@ impl FunctionTrainModel {
     }
 }
 
-// TODO add cargo/rust to tensorflow_shell_docker.sh and run this test
 #[cfg(test)]
 mod test {
-    use crate::ai::q_learning_model_1::QLearningModel;
+    use tensorflow::Tensor;
+
+    use crate::ai::q_learning_model_1::{BATCH_SIZE, QLearningModel};
 
     #[test]
     fn test_load_model() {
-        QLearningModel::new();
+        QLearningModel::load();
+    }
+
+    #[test]
+    fn test_predict() {
+        let model = QLearningModel::load();
+        let state = Tensor::new(&[600, 800, 3]);
+        model.predict(state);
+    }
+
+    #[test]
+    fn test_train() {
+        let model = QLearningModel::load();
+        let state_samples = Tensor::new(&[BATCH_SIZE as u64, 600, 800, 3]);
+        let action_samples = Tensor::new(&[BATCH_SIZE as u64, 1]);
+        let updated_q_values = Tensor::new(&[BATCH_SIZE as u64, 1]);
+
+        let _loss = model.train(state_samples, action_samples, updated_q_values);
     }
 }

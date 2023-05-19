@@ -5,18 +5,13 @@
 __Required installs:__
 
 - Tensorflow
-  - [docker](https://docs.docker.com/desktop/install/linux-install/)
-  - [nvidia-docker](https://github.com/NVIDIA/nvidia-docker)
-  - [tensorflow](https://www.tensorflow.org/install/docker) 
+  - native:
+    - [tensorflow](https://www.tensorflow.org/install/docker)
+    - nvidia-cuda-toolkit
+    - libcudnn8 (cuDNN runtime libraries)
 
+  - or via docker:
+    - [docker setup](https://docs.docker.com/desktop/install/linux-install/)
+    - [nvidia-docker setup](https://github.com/NVIDIA/nvidia-docker)
+    - `docker run --gpus all -it --rm tensorflow/tensorflow:2.12.0-gpu bash`
  
-# Keras Model
-
-Layers:
-1. Convolutional Layer
-    
-2. Fully connected deep neural network
-
-
-Requirements:
-- Mini batch training

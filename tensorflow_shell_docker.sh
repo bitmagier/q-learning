@@ -1,1 +1,0 @@
-docker/tensorflow_shell_docker.sh
