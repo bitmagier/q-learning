@@ -6,7 +6,7 @@ use tensorflow::{Graph, Operation, SavedModelBundle, Session, SessionOptions, Se
 
 const KERAS_MODEL_DIR: &str = "keras_model/q_learning_model_1";
 
-const BATCH_SIZE: i32 = 32;
+const BATCH_SIZE: u64 = 32;
 
 pub struct QLearningModel {
     pub graph: Graph,
@@ -61,8 +61,8 @@ impl QLearningModel {
     ///
     pub fn predict(
         &self,
-        state: Tensor<f32>) -> i8
-    {
+        state: Tensor<f32>,
+    ) -> i8 {
         self.function_predict_single.call(&self.bundle.session, state)
     }
 
@@ -74,11 +74,12 @@ impl QLearningModel {
     /// * `action_samples` Tensor [BATCH_SIZE, 1]
     /// * `updated_q_values` Tensor [BATCH_SIZE, 1]
     ///
-    pub fn train(&self,
-                 state_samples: Tensor<f32>,
-                 action_samples: Tensor<i8>,
-                 updated_q_values: Tensor<f32>) -> f32
-    {
+    pub fn train(
+        &self,
+        state_samples: Tensor<f32>,
+        action_samples: Tensor<i8>,
+        updated_q_values: Tensor<f32>,
+    ) -> f32 {
         self.function_train_model.call(&self.bundle.session, state_samples, action_samples, updated_q_values)
     }
 }
@@ -166,9 +167,9 @@ mod test {
     #[test]
     fn test_train() {
         let model = QLearningModel::load();
-        let state_samples = Tensor::new(&[BATCH_SIZE as u64, 600, 800, 3]);
-        let action_samples = Tensor::new(&[BATCH_SIZE as u64, 1]);
-        let updated_q_values = Tensor::new(&[BATCH_SIZE as u64, 1]);
+        let state_samples = Tensor::new(&[BATCH_SIZE, 600, 800, 3]);
+        let action_samples = Tensor::new(&[BATCH_SIZE, 1]);
+        let updated_q_values = Tensor::new(&[BATCH_SIZE, 1]);
 
         let _loss = model.train(state_samples, action_samples, updated_q_values);
     }
