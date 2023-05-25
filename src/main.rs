@@ -23,7 +23,8 @@ fn main() -> eframe::Result<()> {
     let m_game_input = Arc::clone(&game_input);
     let m_game_state = Arc::clone(&game_state);
 
-    let native_options = eframe::NativeOptions::default();
+    let mut native_options = eframe::NativeOptions::default();
+    native_options.default_theme = eframe::Theme::Dark;
     eframe::run_native("Breakout", native_options, Box::new(|cc| {
         let egui_ctx = cc.egui_ctx.clone();
         let mechanics_join_handle = thread::spawn(move || mechanics_thread(m_game_input, m_game_state, egui_ctx));
