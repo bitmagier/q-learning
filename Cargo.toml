@@ -20,3 +20,4 @@ eframe = { version = "0.21", features = ["dark-light"] }
 parry2d = "0.13"
 nalgebra = "0.32"
 tensorflow = { version = "0.20.0", features = ["tensorflow_gpu"] }
+clap = { version = "4", features = ["derive"] }
