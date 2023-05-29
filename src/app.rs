@@ -8,16 +8,15 @@ use egui::{Context, Id, LayerId, Order, Painter, Vec2};
 use crate::breakout::mechanics::{GameInput, GameState, MODEL_GRID_LEN_X, MODEL_GRID_LEN_Y, PanelControl};
 use crate::game_drawer::GameDrawer;
 
-pub const FRAME_SIZE_X: u32 = MODEL_GRID_LEN_X as u32;
-pub const FRAME_SIZE_Y: u32 = MODEL_GRID_LEN_Y as u32;
-pub const FRAME_SIZE: usize = (FRAME_SIZE_Y * FRAME_SIZE_Y * 3) as usize;
+pub const FRAME_SIZE_X: usize = MODEL_GRID_LEN_X as usize;
+pub const FRAME_SIZE_Y: usize = MODEL_GRID_LEN_Y as usize;
+pub const FRAME_SIZE: usize = (FRAME_SIZE_X * FRAME_SIZE_Y * 3) as usize;
 
 pub trait ExternalGameController {
     fn show_frame(&mut self, frame: [u8; FRAME_SIZE]);
     fn read_input(&mut self) -> GameInput;
 }
 
-// TODO no T needed - its JoinHandle<()>
 pub struct BreakoutApp<C>
 where C: ExternalGameController {
     game_input: Arc<RwLock<GameInput>>,
@@ -29,7 +28,7 @@ where C: ExternalGameController {
 impl<C> BreakoutApp<C>
 where C: ExternalGameController {
     pub fn new(
-        _cc: &eframe::CreationContext<'_>,
+        _: &eframe::CreationContext<'_>,
         game_input: Arc<RwLock<GameInput>>,
         game_state: Arc<RwLock<GameState>>,
         mechanics_join_handle: JoinHandle<()>,
@@ -43,7 +42,10 @@ where C: ExternalGameController {
         }
     }
 
-    fn read_ui_control(&mut self, ctx: &Context) -> GameInput {
+    fn read_ui_control(
+        &mut self,
+        ctx: &Context
+    ) -> GameInput {
         let control = if ctx.input(|i| i.key_down(egui::Key::ArrowLeft) && !i.key_down(egui::Key::ArrowRight)) {
             PanelControl::AccelerateLeft
         } else if ctx.input(|i| i.key_down(egui::Key::ArrowRight) && !i.key_down(egui::Key::ArrowLeft)) {
@@ -74,7 +76,10 @@ where C: ExternalGameController {
         game_state
     }
 
-    fn write_game_input(&self, game_input: GameInput) {
+    fn write_game_input(
+        &self,
+        game_input: GameInput
+    ) {
         let mut write_handle = self.game_input.write().unwrap();
         *write_handle = game_input;
         drop(write_handle);
@@ -85,7 +90,11 @@ where C: ExternalGameController {
 
 impl<C> eframe::App for BreakoutApp<C>
 where C: ExternalGameController {
-    fn update(&mut self, ctx: &Context, frame: &mut Frame) {
+    fn update(
+        &mut self,
+        ctx: &Context,
+        frame: &mut Frame
+    ) {
         if self.mechanics_join_handle.is_finished() {
             frame.close()
         }
@@ -102,13 +111,20 @@ where C: ExternalGameController {
         self.draw_game_content(&game_painter);
     }
 
-    fn on_exit(&mut self, _gl: Option<&glow::Context>) {
+    fn on_exit(
+        &mut self,
+        _: Option<&glow::Context>
+    ) {
         *self.game_input.write().unwrap() = GameInput { control: PanelControl::None, exit: true };
     }
 
-    fn post_rendering(&mut self, window_size_px: [u32; 2], frame: &Frame) {
-        assert_eq!(window_size_px[0], FRAME_SIZE_X);
-        assert_eq!(window_size_px[1], FRAME_SIZE_Y);
+    fn post_rendering(
+        &mut self,
+        window_size_px: [u32; 2],
+        frame: &Frame
+    ) {
+        assert_eq!(window_size_px[0] as usize, FRAME_SIZE_X);
+        assert_eq!(window_size_px[1] as usize, FRAME_SIZE_Y);
         if let Some(c) = &mut self.external_game_controller {
             let gl = frame.gl().expect("need a GL context").clone();
             let painter = eframe::egui_glow::Painter::new(gl, "", None).expect("should be able to create glow painter");

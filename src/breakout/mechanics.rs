@@ -15,8 +15,6 @@ pub const MODEL_GRID_LEN_Y: f32 = 800.0;
 const CEILING_HEIGHT_Y: f32 = 0.0;
 
 pub const SPACE_GRANULARITY: f32 = 0.001;
-
-/// time granularity (TG)
 pub const TIME_GRANULARITY: Duration = Duration::from_millis(20);
 
 const PANEL_LEN_X: f32 = 60.0;

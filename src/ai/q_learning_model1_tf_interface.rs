@@ -4,14 +4,15 @@
 use std::path::Path;
 
 use tensorflow::{Graph, Operation, SavedModelBundle, Session, SessionOptions, SessionRunArgs, Tensor};
+use crate::app::{FRAME_SIZE_X, FRAME_SIZE_Y};
 
 const KERAS_MODEL_DIR: &str = "keras_model/q_learning_model_1";
 
 /// series of frames to represent world state
-pub const WORLD_STATE_FRAMES: u64 = 4;
+pub const WORLD_STATE_NUM_FRAMES: usize = 4;
 
 // 600x800 pixel (grey-scaled), series of `WORLD_STATE_FRAMES` frames
-pub const WORLD_STATE_DIMENSION: &[u64] = &[600, 800, WORLD_STATE_FRAMES];
+pub const WORLD_STATE_DIMENSION: &[u64] = &[FRAME_SIZE_X as u64, FRAME_SIZE_Y as u64, WORLD_STATE_NUM_FRAMES as u64];
 
 pub const ACTION_SPACE: u8 = 3;
 pub const BATCH_SIZE: u64 = 32;
@@ -66,7 +67,7 @@ impl QLearningModel1Interface {
     /// Predicts the next action based on the current state.
     ///
     /// # Arguments
-    /// * `state` Game state Tensor [600, 800, 3]
+    /// * `state` Game state Tensor [FRAME_SIZE_X, FRAME_SIZE_Y, WORLD_STATE_NUM_FRAMES]
     ///
     pub fn predict(
         &self,
@@ -79,7 +80,7 @@ impl QLearningModel1Interface {
     /// Returns the model's loss
     ///
     /// # Arguments
-    /// * `state_samples` Tensor [BATCH_SIZE, 600, 800, 3]
+    /// * `state_samples` Tensor [BATCH_SIZE, FRAME_SIZE_X, FRAME_SIZE_Y, WORLD_STATE_NUM_FRAMES]
     /// * `action_samples` Tensor [BATCH_SIZE, 1]
     /// * `updated_q_values` Tensor [BATCH_SIZE, 1]
     ///
@@ -159,7 +160,8 @@ impl FunctionTrainModel {
 mod test {
     use tensorflow::Tensor;
 
-    use crate::ai::q_learning_model1_interface::{BATCH_SIZE, QLearningModel1Interface, WORLD_STATE_FRAMES};
+    use crate::ai::q_learning_model1_tf_interface::{BATCH_SIZE, QLearningModel1Interface, WORLD_STATE_NUM_FRAMES};
+    use crate::app::{FRAME_SIZE_X, FRAME_SIZE_Y};
 
     #[test]
     fn test_load_model() {
@@ -169,14 +171,14 @@ mod test {
     #[test]
     fn test_predict() {
         let model = QLearningModel1Interface::load();
-        let state = Tensor::new(&[600, 800, WORLD_STATE_FRAMES]);
+        let state = Tensor::new(&[FRAME_SIZE_X as u64, FRAME_SIZE_Y as u64, WORLD_STATE_NUM_FRAMES as u64]);
         model.predict(state);
     }
 
     #[test]
     fn test_train() {
         let model = QLearningModel1Interface::load();
-        let state_samples = Tensor::new(&[BATCH_SIZE, 600, 800, WORLD_STATE_FRAMES]);
+        let state_samples = Tensor::new(&[BATCH_SIZE, FRAME_SIZE_X as u64, FRAME_SIZE_Y as u64, WORLD_STATE_NUM_FRAMES as u64]);
         let action_samples = Tensor::new(&[BATCH_SIZE, 1]);
         let updated_q_values = Tensor::new(&[BATCH_SIZE, 1]);
 
