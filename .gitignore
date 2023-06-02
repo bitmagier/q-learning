@@ -7,3 +7,4 @@
 
 /.idea/
 /keras_model/q_learning_model_1
+/keras_model/*.ckpt.*

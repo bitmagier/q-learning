@@ -168,9 +168,8 @@ pub struct GameInput {
     pub control: PanelControl,
     pub exit: bool,
 }
-
 impl GameInput {
-    pub fn new() -> Self {
+    pub fn none() -> Self {
         Self {
             control: PanelControl::None,
             exit: false,

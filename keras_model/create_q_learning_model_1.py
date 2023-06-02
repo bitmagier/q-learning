@@ -13,7 +13,8 @@ BATCH_SIZE = 32  # Size of batch taken from replay buffer
 class QLearningModel(tf.keras.Sequential):
     def __init__(self, *args, **kwargs):
         super(QLearningModel, self).__init__(*args, **kwargs)
-        self.add(layers.Conv2D(32, 12, strides=6, activation='relu', input_shape=(600, 800, WORLD_STATE_FRAMES), name='convolution_layer1'))
+        self.add(layers.Conv2D(32, 12, strides=6, activation='relu', input_shape=(600, 800, WORLD_STATE_FRAMES),
+                               name='convolution_layer1'))
         self.add(layers.Conv2D(64, 6, strides=3, activation='relu', name='convolution_layer2'))
         self.add(layers.Conv2D(64, 4, strides=2, activation='relu', name='convolution_layer3'))
         self.add(layers.Flatten(name='flatten'))
@@ -26,7 +27,7 @@ class QLearningModel(tf.keras.Sequential):
                      metrics=['accurate'])
 
     # Predict action from environment state
-    @tf.function
+    @tf.function(input_signature=[tf.TensorSpec(shape=[600, 800, WORLD_STATE_FRAMES], dtype=tf.float32, name='state')])
     def predict_single(self, state):
         state_tensor = tf.convert_to_tensor(state)
         state_tensor = tf.expand_dims(state_tensor, 0)
@@ -35,7 +36,12 @@ class QLearningModel(tf.keras.Sequential):
         action = tf.argmax(action_probs[0])
         return {'action': action}
 
-    @tf.function
+    @tf.function(input_signature=[
+        tf.TensorSpec(shape=[BATCH_SIZE, 600, 800, WORLD_STATE_FRAMES], dtype=tf.float32,
+                      name='state_samples'),
+        tf.TensorSpec(shape=[BATCH_SIZE, 1], dtype=tf.int8, name='action_samples'),
+        tf.TensorSpec(shape=[BATCH_SIZE, 1], dtype=tf.float32, name='updated_q_values')
+    ])
     def train_model(self, state_samples, action_samples, updated_q_values):
         # Create a mask - so we only calculate loss on the updated Q-values
         masks = tf.one_hot(action_samples, ACTION_SPACE)
@@ -54,21 +60,41 @@ class QLearningModel(tf.keras.Sequential):
         self.optimizer.apply_gradients(zip(grads, self.trainable_variables))
         return {'loss': loss}
 
+    @tf.function(input_signature=[tf.TensorSpec(shape=None, dtype=tf.string, name='path')])
+    def write_checkpoint(self, path):
+        checkpoint = tf.train.Checkpoint(self)
+        path = checkpoint.write(path)
+        return {'path': tf.convert_to_tensor(path)}
+
+    # @tf.function(input_signature=[])
+    # def get_weights(self):
+    #     return tf.keras.Sequential.get_weights(self)
+    #
+    # # weights: a list of numpy arrays
+    # @tf.function
+    # def set_weights(self, weights):
+    #     tf.keras.Sequential.set_weights(self, weights)
+    # @tf.function(input_signature=[])
+    # def save_weights(self):
+    #     tf.keras.Sequential.save_weights(self, "TODO", overwrite=True, save_format="tf")
+    #
+    # @tf.function
+    # def load_weights(self, filepath):
+    #     tf.keras.Sequential.load_weights(self, filepath)
+
+
+# TODO model function to persist model with current values
+# Official python guide: https://keras.io/guides/serialization_and_saving/
+# TODO try that one: https://github.com/tensorflow/rust/issues/279#issuecomment-749339129
 
 model = QLearningModel()
 model.summary()
 
-t_state = tf.TensorSpec(shape=[600, 800, WORLD_STATE_FRAMES], dtype=tf.float32, name='state')
-
-t_state_samples = tf.TensorSpec(shape=[BATCH_SIZE, 600, 800, WORLD_STATE_FRAMES], dtype=tf.float32, name='state_samples')
-t_action_samples = tf.TensorSpec(shape=[BATCH_SIZE, 1], dtype=tf.int8, name='action_samples')
-t_updated_q_values = tf.TensorSpec(shape=[BATCH_SIZE, 1], dtype=tf.float32, name='updated_q_values')
-
 # TODO find a (fast) way to create a copy of the model to refresh the target model after a batch run
-
 model.save('q_learning_model_1',
            save_format='tf',
            signatures={
-               'predict_single': model.predict_single.get_concrete_function(t_state),
-               'train_model': model.train_model.get_concrete_function(t_state_samples, t_action_samples, t_updated_q_values),
+               'predict_single': model.predict_single,
+               'train_model': model.train_model,
+               'write_checkpoint': model.write_checkpoint
            })

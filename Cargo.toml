@@ -8,11 +8,11 @@ repository = "git@github.com:bitmagier/rl-breakout.git"
 
 [dev-dependencies]
 rstest = "0.17"
+ctor = "0.2"
 
 [dependencies]
 log = "0.4"
-simple_logger = "4"
-# rustc-hash = "1.1"
+env_logger = "0.10"
 itertools = "0.10"
 lazy_static = "1.4"
 egui = "0.21"
@@ -21,3 +21,4 @@ parry2d = "0.13"
 nalgebra = "0.32"
 tensorflow = { version = "0.20.0", features = ["tensorflow_gpu"] }
 clap = { version = "4", features = ["derive"] }
+futures = "0.3"

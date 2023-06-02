@@ -8,6 +8,7 @@ use std::thread;
 use std::time::Instant;
 
 use clap::{Parser, ValueEnum};
+use log::LevelFilter;
 
 use crate::app::BreakoutApp;
 use crate::breakout::mechanics::{BreakoutMechanics, GameInput, GameState, TIME_GRANULARITY};
@@ -49,15 +50,15 @@ fn main() -> eframe::Result<()> {
 
     let args: Args = Args::parse();
 
-    let game_input = Arc::new(RwLock::new(GameInput::new()));
+    let game_input = Arc::new(RwLock::new(GameInput::none()));
     let game_state = Arc::new(RwLock::new(GameState::default()));
 
     let m_game_input = Arc::clone(&game_input);
     let m_game_state = Arc::clone(&game_state);
 
-    let ai_game_controller: Option<GameAiAdapter> = match args.mode {
+    let ai_game_adapter: Option<GameAiAdapter> = match args.mode {
         GameMode::User => None,
-        GameMode::AiLearning | GameMode::AiPlaying => Some(GameAiAdapter {})
+        GameMode::AiLearning | GameMode::AiPlaying => Some(GameAiAdapter::new())
     };
 
     let mut native_options = eframe::NativeOptions::default();
@@ -65,16 +66,17 @@ fn main() -> eframe::Result<()> {
     eframe::run_native("Breakout", native_options, Box::new(|cc| {
         let egui_ctx = cc.egui_ctx.clone();
         let mechanics_join_handle = thread::spawn(move || mechanics_thread(m_game_input, m_game_state, egui_ctx));
-        Box::new(BreakoutApp::new(cc, game_input, game_state, mechanics_join_handle, ai_game_controller))
+        Box::new(BreakoutApp::new(cc, game_input, game_state, mechanics_join_handle, ai_game_adapter))
     }))
 }
 
 fn init_logging() {
-    if cfg!(debug_assertions) {
-        simple_logger::init_with_level(log::Level::Debug).unwrap();
-    } else {
-        simple_logger::init_with_level(log::Level::Info).unwrap();
-    }
+    env_logger::builder()
+        .is_test(false)
+        .format_target(false)
+        .format_timestamp_secs()
+        .filter_level(LevelFilter::Info)
+        .init()
 }
 
 fn mechanics_thread(game_input: Arc<RwLock<GameInput>>, game_state: Arc<RwLock<GameState>>, egui_ctx: egui::Context) {
@@ -112,4 +114,11 @@ fn mechanics_thread(game_input: Arc<RwLock<GameInput>>, game_state: Arc<RwLock<G
         }
         thread::sleep(sleep_time_ms);
     }
+}
+
+
+#[cfg(test)]
+#[ctor::ctor]
+fn init() {
+    env_logger::builder().is_test(true).format_target(false).format_timestamp_secs().filter_level(LevelFilter::Debug).init()
 }

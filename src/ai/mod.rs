@@ -1,2 +1,2 @@
-mod q_learning_model1_tf_interface;
-mod realtime_player;
+pub mod realtime_ai_player;
+mod q_learning_tf_model1;

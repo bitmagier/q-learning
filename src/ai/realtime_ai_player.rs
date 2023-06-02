@@ -1,10 +1,9 @@
 use lazy_static::lazy_static;
 use tensorflow::Tensor;
 
-use crate::ai::q_learning_model1_tf_interface::WORLD_STATE_NUM_FRAMES;
+use crate::ai::q_learning_tf_model1::{QLearningTfModel1, WORLD_STATE_NUM_FRAMES};
 use crate::app::{FRAME_SIZE_X, FRAME_SIZE_Y};
-
-use crate::breakout::mechanics::PanelControl;
+use crate::breakout::mechanics::{GameInput, PanelControl};
 
 lazy_static!(
     pub static ref MODEL_ACTION_MAPPING: Vec<(PanelControl, u8)> = vec![
@@ -16,7 +15,7 @@ lazy_static!(
 
 
 #[derive(Clone)]
-struct GrayFrame([u8; (FRAME_SIZE_X * FRAME_SIZE_Y) as usize]);
+pub struct GrayFrame([u8; (FRAME_SIZE_X * FRAME_SIZE_Y) as usize]);
 
 impl GrayFrame {
     pub fn from_rgb(frame: [u8; (FRAME_SIZE_X * FRAME_SIZE_Y * 3) as usize]) -> Self {
@@ -35,7 +34,6 @@ impl Default for GrayFrame {
     }
 }
 
-// TODO extract generic RingBuffer
 struct GrayFrameRingBuffer {
     /// four most recent frames
     buffer: [GrayFrame; WORLD_STATE_NUM_FRAMES as usize],
@@ -52,8 +50,8 @@ impl GrayFrameRingBuffer {
         }
     }
 
-    // TODO it should bring a performance benefit with an optimized implementation here, when we re-order the WORLD_STATE dimensions, so that WORLD_STATE_NUM_FRAMES comes first,
-    // but maybe there is a yet unseen negative functional aspect involved.
+    // TODO: it should bring a performance benefit with an optimized implementation here, when we re-order the WORLD_STATE dimensions, so that WORLD_STATE_NUM_FRAMES comes first,
+    //   but maybe there is a yet unseen negative functional aspect involved.
     pub fn as_tensor(&self) -> Tensor<f32> {
         let mut tensor = Tensor::new(&[FRAME_SIZE_X as u64, FRAME_SIZE_Y as u64, WORLD_STATE_NUM_FRAMES as u64]);
         for hist in 0..=3 {
@@ -88,29 +86,33 @@ impl Default for GrayFrameRingBuffer {
     }
 }
 
-pub struct RealtimePlayer {
+pub struct RealtimeAiPlayer {
     frames: GrayFrameRingBuffer,
+    model: QLearningTfModel1
 }
 
-impl RealtimePlayer {
+impl RealtimeAiPlayer {
     pub fn new() -> Self {
         Self {
             frames: GrayFrameRingBuffer::default(),
+            model: QLearningTfModel1::init()
         }
     }
 
-    pub fn seeing_next_frame(&mut self, frame: GrayFrame) {
+    pub async fn watch_next_frame(&mut self, frame: GrayFrame) -> GameInput {
         self.frames.add(frame);
+        /// TODO run AI model `predict()`
+        todo!()
     }
 }
 
 #[cfg(test)]
 mod test {
-    use crate::ai::realtime_player::RealtimePlayer;
+    use crate::ai::realtime_ai_player::RealtimeAiPlayer;
 
     #[test]
     fn test_tensor_linear_storage_assumptions() {
-        let t = RealtimePlayer::new();
+        let t = RealtimeAiPlayer::new();
         assert_eq!(t.frames.as_tensor().get_index(&[0, 0, 0]), 0);
         assert_eq!(t.frames.as_tensor().get_index(&[0, 0, 1]), 1);
         assert_eq!(t.frames.as_tensor().get_index(&[0, 0, 2]), 2);
