@@ -1,7 +1,10 @@
+#![allow(unused)]
+
+use image::{ImageBuffer, Luma, Pixel};
 use lazy_static::lazy_static;
 use tensorflow::Tensor;
+use crate::ai::model::q_learning_tf_model1::{QLearningTfModel1, WORLD_STATE_NUM_FRAMES};
 
-use crate::ai::q_learning_tf_model1::{QLearningTfModel1, WORLD_STATE_NUM_FRAMES};
 use crate::app::{FRAME_SIZE_X, FRAME_SIZE_Y};
 use crate::breakout::mechanics::{GameInput, PanelControl};
 
@@ -14,32 +17,34 @@ lazy_static!(
 );
 
 
-#[derive(Clone)]
-pub struct GrayFrame([u8; (FRAME_SIZE_X * FRAME_SIZE_Y) as usize]);
+// #[derive(Clone)]
+// pub struct GrayFrame([u8; (FRAME_SIZE_X * FRAME_SIZE_Y) as usize]);
+//
+// impl GrayFrame {
+//     pub fn from_rgb(frame: [u8; (FRAME_SIZE_X * FRAME_SIZE_Y * 3) as usize]) -> Self {
+//         let mut r = [0_u8; (FRAME_SIZE_X * FRAME_SIZE_Y) as usize];
+//         for (i, pixel) in frame.chunks(3).enumerate() {
+//             let gray_value = ((pixel[0] as usize + pixel[1] as usize + pixel[2] as usize) / 3) as u8;
+//             r[i] = gray_value;
+//         }
+//         GrayFrame(r)
+//     }
+// }
+//
+// impl Default for GrayFrame {
+//     fn default() -> Self {
+//         Self([0; (FRAME_SIZE_X * FRAME_SIZE_Y) as usize])
+//     }
+// }
 
-impl GrayFrame {
-    pub fn from_rgb(frame: [u8; (FRAME_SIZE_X * FRAME_SIZE_Y * 3) as usize]) -> Self {
-        let mut r = [0_u8; (FRAME_SIZE_X * FRAME_SIZE_Y) as usize];
-        for (i, pixel) in frame.chunks(3).enumerate() {
-            let gray_value = ((pixel[0] as usize + pixel[1] as usize + pixel[2] as usize) / 3) as u8;
-            r[i] = gray_value;
-        }
-        GrayFrame(r)
-    }
-}
+type GrayFrame = ImageBuffer<Luma<u8>, Vec<u8>>;
 
-impl Default for GrayFrame {
-    fn default() -> Self {
-        Self([0; (FRAME_SIZE_X * FRAME_SIZE_Y) as usize])
-    }
-}
-
+#[allow(unused_must_use)]
 struct GrayFrameRingBuffer {
     /// four most recent frames
     buffer: [GrayFrame; WORLD_STATE_NUM_FRAMES as usize],
     next_slot: usize,
 }
-
 impl GrayFrameRingBuffer {
     pub fn add(&mut self, element: GrayFrame) {
         self.buffer[self.next_slot] = element;
@@ -51,16 +56,16 @@ impl GrayFrameRingBuffer {
     }
 
     // TODO: it should bring a performance benefit with an optimized implementation here, when we re-order the WORLD_STATE dimensions, so that WORLD_STATE_NUM_FRAMES comes first,
-    //   but maybe there is a yet unseen negative functional aspect involved.
+    //   but it is also quite likely, that there is a (yet unseen) negative functional aspect involved. So we go alongside the reference implementation for now.
     pub fn as_tensor(&self) -> Tensor<f32> {
         let mut tensor = Tensor::new(&[FRAME_SIZE_X as u64, FRAME_SIZE_Y as u64, WORLD_STATE_NUM_FRAMES as u64]);
         for hist in 0..=3 {
             let frame = &self.buffer[hist];
-            debug_assert_eq!(frame.0.len(), (FRAME_SIZE_X * FRAME_SIZE_Y) as usize);
+            debug_assert_eq!(frame.len(), (FRAME_SIZE_X * FRAME_SIZE_Y) as usize);
             for y in 0..FRAME_SIZE_Y {
                 for x in 0..FRAME_SIZE_X {
-                    let pixel = frame.0[x * y];
-                    tensor.set(&[x as u64, y as u64, hist as u64], pixel as f32)
+                    let pixel = frame.get_pixel(x as u32, y as u32);
+                    tensor.set(&[x as u64, y as u64, hist as u64], pixel.channels()[0] as f32)
                 }
             }
         }
@@ -69,7 +74,7 @@ impl GrayFrameRingBuffer {
 
     fn get(&self, steps_into_history: usize) -> &GrayFrame {
         assert!(steps_into_history < 4, "available steps into history: 0..3");
-        let slot = match self.next_slot as isize - 1 - steps_into_history as isize {
+        let slot =  match self.next_slot as isize - 1 - steps_into_history as isize {
             slot @ 0.. => slot as usize,
             slot @ _ => (slot + 4) as usize
         };
@@ -99,9 +104,9 @@ impl RealtimeAiPlayer {
         }
     }
 
-    pub async fn watch_next_frame(&mut self, frame: GrayFrame) -> GameInput {
+    pub async fn watch_next_frame(&mut self, frame: ImageBuffer<Luma<u8>, Vec<u8>>) -> GameInput {
         self.frames.add(frame);
-        /// TODO run AI model `predict()`
+        // TODO run AI model `predict()`
         todo!()
     }
 }

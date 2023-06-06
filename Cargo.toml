@@ -1,10 +1,10 @@
 [package]
-name = "rl-breakout"
-version = "0.2.0"
+name = "q-learning-breakout"
+version = "0.3.0"
 edition = "2021"
 authors = ["Roman Krüger<bitmagier@mailbox.org>"]
-description = "Machine Learning | Reinforcement Learning | Deep-Q-Learning | Breakout"
-repository = "git@github.com:bitmagier/rl-breakout.git"
+description = "Reinforcement Learning | Deep-Q-Learning | Tensorflow | Breakout"
+repository = "git@github.com:bitmagier/q-learning-breakout.git"
 
 [dev-dependencies]
 rstest = "0.17"
@@ -15,10 +15,12 @@ log = "0.4"
 env_logger = "0.10"
 itertools = "0.10"
 lazy_static = "1.4"
-egui = "0.21"
-eframe = { version = "0.21", features = ["dark-light"] }
+egui = "0.22.0"
+eframe = "0.22.0"
 parry2d = "0.13"
 nalgebra = "0.32"
+image = "0.24"
 tensorflow = { version = "0.20.0", features = ["tensorflow_gpu"] }
 clap = { version = "4", features = ["derive"] }
 futures = "0.3"
+threadpool = "1.8"

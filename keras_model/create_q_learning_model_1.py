@@ -60,41 +60,32 @@ class QLearningModel(tf.keras.Sequential):
         self.optimizer.apply_gradients(zip(grads, self.trainable_variables))
         return {'loss': loss}
 
+    # model function to persist model with current values
+    # - Official python guide: https://keras.io/guides/serialization_and_saving/
+    # - used that one: https://github.com/tensorflow/rust/issues/279#issuecomment-749339129
+
     @tf.function(input_signature=[tf.TensorSpec(shape=None, dtype=tf.string, name='path')])
     def write_checkpoint(self, path):
         checkpoint = tf.train.Checkpoint(self)
         path = checkpoint.write(path)
         return {'path': tf.convert_to_tensor(path)}
 
-    # @tf.function(input_signature=[])
-    # def get_weights(self):
-    #     return tf.keras.Sequential.get_weights(self)
-    #
-    # # weights: a list of numpy arrays
-    # @tf.function
-    # def set_weights(self, weights):
-    #     tf.keras.Sequential.set_weights(self, weights)
-    # @tf.function(input_signature=[])
-    # def save_weights(self):
-    #     tf.keras.Sequential.save_weights(self, "TODO", overwrite=True, save_format="tf")
-    #
-    # @tf.function
-    # def load_weights(self, filepath):
-    #     tf.keras.Sequential.load_weights(self, filepath)
+    @tf.function(input_signature=[tf.TensorSpec(shape=None, dtype=tf.string, name='path')])
+    def read_checkpoint(self, path):
+        checkpoint = tf.train.Checkpoint(self)
+        path = tf.get_static_value(path)
+        checkpoint.read(path)
+        return {'dummy': tf.constant("")}
 
-
-# TODO model function to persist model with current values
-# Official python guide: https://keras.io/guides/serialization_and_saving/
-# TODO try that one: https://github.com/tensorflow/rust/issues/279#issuecomment-749339129
 
 model = QLearningModel()
 model.summary()
 
-# TODO find a (fast) way to create a copy of the model to refresh the target model after a batch run
 model.save('q_learning_model_1',
            save_format='tf',
            signatures={
                'predict_single': model.predict_single,
                'train_model': model.train_model,
-               'write_checkpoint': model.write_checkpoint
+               'write_checkpoint': model.write_checkpoint,
+               'read_checkpoint': model.read_checkpoint
            })

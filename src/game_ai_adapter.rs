@@ -1,11 +1,15 @@
-use crate::app::{ExternalGameController, FRAME_SIZE};
-use crate::breakout::mechanics::{GameInput, PanelControl};
-use crate::ai::realtime_ai_player::{GrayFrame, RealtimeAiPlayer};
+use image::{ImageBuffer, imageops, Rgb};
+
+use crate::ai::realtime_ai_player::RealtimeAiPlayer;
+use crate::app::ExternalGameController;
+use crate::breakout::mechanics::GameInput;
+
+use threadpool::ThreadPool;
 
 // TODO asynchronously run AI model (playing or learning mode)
 pub struct GameAiAdapter {
     player: RealtimeAiPlayer,
-    action_buffer: Option<GameInput>
+    next_action: Option<GameInput>
 }
 impl GameAiAdapter {
     pub fn new() -> Self {
@@ -13,17 +17,20 @@ impl GameAiAdapter {
     }
 }
 impl ExternalGameController for GameAiAdapter {
-    fn show_frame(&mut self, frame: [u8; FRAME_SIZE]) {
-        self.player.watch_next_frame(
-            GrayFrame::from_rgb(frame)
+    fn show_frame(&mut self, frame: ImageBuffer<Rgb<u8>, Vec<u8>>) {
+
+
+        let game_input = self.player.watch_next_frame(
+            imageops::grayscale(&frame)
         );
 
+        // TODO run tensorflow model and fill `next_action`
         todo!()
     }
 
     fn read_input(&mut self) -> GameInput {
-        if let Some(action) = self.action_buffer {
-            self.action_buffer = None;
+        if let Some(action) = self.next_action {
+            self.next_action = None;
             action
         } else {
             GameInput::none()

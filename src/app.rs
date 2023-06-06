@@ -4,6 +4,8 @@ use std::thread::JoinHandle;
 use eframe::Frame;
 use eframe::glow;
 use egui::{Context, Id, LayerId, Order, Painter, Vec2};
+use image::{ImageBuffer, imageops, Rgb, RgbImage};
+use image::imageops::FilterType;
 
 use crate::breakout::mechanics::{GameInput, GameState, MODEL_GRID_LEN_X, MODEL_GRID_LEN_Y, PanelControl};
 use crate::game_drawer::GameDrawer;
@@ -13,7 +15,7 @@ pub const FRAME_SIZE_Y: usize = MODEL_GRID_LEN_Y as usize;
 pub const FRAME_SIZE: usize = (FRAME_SIZE_X * FRAME_SIZE_Y * 3) as usize;
 
 pub trait ExternalGameController {
-    fn show_frame(&mut self, frame: [u8; FRAME_SIZE]);
+    fn show_frame(&mut self, frame: ImageBuffer<Rgb<u8>, Vec<u8>>);
     fn read_input(&mut self) -> GameInput;
 }
 
@@ -44,7 +46,7 @@ where C: ExternalGameController {
 
     fn read_ui_control(
         &mut self,
-        ctx: &Context
+        ctx: &Context,
     ) -> GameInput {
         let control = if ctx.input(|i| i.key_down(egui::Key::ArrowLeft) && !i.key_down(egui::Key::ArrowRight)) {
             PanelControl::AccelerateLeft
@@ -78,7 +80,7 @@ where C: ExternalGameController {
 
     fn write_game_input(
         &self,
-        game_input: GameInput
+        game_input: GameInput,
     ) {
         let mut write_handle = self.game_input.write().unwrap();
         *write_handle = game_input;
@@ -93,7 +95,7 @@ where C: ExternalGameController {
     fn update(
         &mut self,
         ctx: &Context,
-        frame: &mut Frame
+        frame: &mut Frame,
     ) {
         if self.mechanics_join_handle.is_finished() {
             frame.close()
@@ -113,7 +115,7 @@ where C: ExternalGameController {
 
     fn on_exit(
         &mut self,
-        _: Option<&glow::Context>
+        _: Option<&glow::Context>,
     ) {
         *self.game_input.write().unwrap() = GameInput { control: PanelControl::None, exit: true };
     }
@@ -121,17 +123,28 @@ where C: ExternalGameController {
     fn post_rendering(
         &mut self,
         window_size_px: [u32; 2],
-        frame: &Frame
+        frame: &Frame,
     ) {
-        assert_eq!(window_size_px[0] as usize, FRAME_SIZE_X);
-        assert_eq!(window_size_px[1] as usize, FRAME_SIZE_Y);
+        // TODO fix code when we have a scale factor, because for e.g. factor = 2, the `window_size_px` size is doubled
+        let assumed_display_scale_factor = 2.0;
+        let display_scaling_factor = assumed_display_scale_factor;
+        assert_eq!((window_size_px[0] as f32 / display_scaling_factor).round() as usize, FRAME_SIZE_X);
+        assert_eq!((window_size_px[1] as f32 / display_scaling_factor).round() as usize, FRAME_SIZE_Y);
+
         if let Some(c) = &mut self.external_game_controller {
             let gl = frame.gl().expect("need a GL context").clone();
             let painter = eframe::egui_glow::Painter::new(gl, "", None).expect("should be able to create glow painter");
-            let frame = painter.read_screen_rgb(window_size_px);
-            let frame: [u8; FRAME_SIZE] = frame.try_into()
-                .unwrap_or_else(|v: Vec<u8>| panic!("vector of len {} should have length {}", v.len(), FRAME_SIZE));
-            c.show_frame(frame)
+            let raw_frame = painter.read_screen_rgb(window_size_px);
+            let normalized_frame: ImageBuffer<Rgb<u8>, Vec<u8>> = normalize_frame(raw_frame, window_size_px, display_scaling_factor);
+            c.show_frame(normalized_frame)
         }
     }
+}
+
+fn normalize_frame(raw_frame: Vec<u8>, frame_size_px: [u32; 2], display_scale_factor: f32) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
+    let image = RgbImage::from_raw(frame_size_px[0], frame_size_px[1], raw_frame).expect("frame dimension should match");
+    let scaling_factor = 1.0 / display_scale_factor;
+    let new_width: u32 = (frame_size_px[0] as f32 * scaling_factor).round() as u32;
+    let new_height: u32 = (frame_size_px[1] as f32 * scaling_factor).round() as u32;
+    imageops::resize(&image, new_width, new_height, FilterType::Nearest)
 }

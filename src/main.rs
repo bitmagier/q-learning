@@ -1,4 +1,5 @@
 #![feature(drain_filter)]
+#![feature(tuple_trait)]
 extern crate tensorflow;
 
 use std::fmt::{Display, Formatter};
@@ -58,7 +59,8 @@ fn main() -> eframe::Result<()> {
 
     let ai_game_adapter: Option<GameAiAdapter> = match args.mode {
         GameMode::User => None,
-        GameMode::AiLearning | GameMode::AiPlaying => Some(GameAiAdapter::new())
+        GameMode::AiLearning
+        | GameMode::AiPlaying => Some(GameAiAdapter::new())
     };
 
     let mut native_options = eframe::NativeOptions::default();
@@ -72,7 +74,6 @@ fn main() -> eframe::Result<()> {
 
 fn init_logging() {
     env_logger::builder()
-        .is_test(false)
         .format_target(false)
         .format_timestamp_secs()
         .filter_level(LevelFilter::Info)
@@ -116,9 +117,8 @@ fn mechanics_thread(game_input: Arc<RwLock<GameInput>>, game_state: Arc<RwLock<G
     }
 }
 
-
 #[cfg(test)]
 #[ctor::ctor]
 fn init() {
-    env_logger::builder().is_test(true).format_target(false).format_timestamp_secs().filter_level(LevelFilter::Debug).init()
+    env_logger::builder().format_target(false).format_timestamp_secs().filter_level(LevelFilter::Debug).init()
 }
