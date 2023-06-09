@@ -19,24 +19,24 @@ pub trait ExternalGameController {
     fn read_input(&mut self) -> GameInput;
 }
 
-pub struct BreakoutApp<C>
-where C: ExternalGameController {
+pub struct BreakoutApp<C: ExternalGameController> {
+    pixels_per_point: f32,
     game_input: Arc<RwLock<GameInput>>,
     game_state: Arc<RwLock<GameState>>,
     mechanics_join_handle: JoinHandle<()>,
     external_game_controller: Option<C>,
 }
 
-impl<C> BreakoutApp<C>
-where C: ExternalGameController {
+impl<C: ExternalGameController> BreakoutApp<C> {
     pub fn new(
-        _: &eframe::CreationContext<'_>,
+        cc: &eframe::CreationContext<'_>,
         game_input: Arc<RwLock<GameInput>>,
         game_state: Arc<RwLock<GameState>>,
         mechanics_join_handle: JoinHandle<()>,
         external_game_controller: Option<C>,
     ) -> Self {
         Self {
+            pixels_per_point: cc.integration_info.native_pixels_per_point.unwrap_or(1.0),
             game_input,
             game_state,
             mechanics_join_handle,
@@ -125,9 +125,7 @@ where C: ExternalGameController {
         window_size_px: [u32; 2],
         frame: &Frame,
     ) {
-        // TODO fix code when we have a scale factor, because for e.g. factor = 2, the `window_size_px` size is doubled
-        let assumed_display_scale_factor = 2.0;
-        let display_scaling_factor = assumed_display_scale_factor;
+        let display_scaling_factor = self.pixels_per_point;
         assert_eq!((window_size_px[0] as f32 / display_scaling_factor).round() as usize, FRAME_SIZE_X);
         assert_eq!((window_size_px[1] as f32 / display_scaling_factor).round() as usize, FRAME_SIZE_Y);
 

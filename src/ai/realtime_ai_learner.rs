@@ -1,22 +1,30 @@
 #![allow(unused)]
+///! It's quite a challenge to implement this async realtime AI play/learner efficiently.
+///! So probably a more efficient and easier way would it be
+///! to create an DirectAiLearner directly connected to [BreakoutMechanics] + using a Drawer to generate the image data
 
-use futures::channel::mpsc::Sender;
+
+use std::sync::Arc;
+use std::sync::mpsc::Sender;
+
 use image::{ImageBuffer, Luma, Pixel};
 use lazy_static::lazy_static;
 use tensorflow::Tensor;
+use threadpool::ThreadPool;
 
 use crate::ai::model::q_learning_tf_model1::{QLearningTfModel1, WORLD_STATE_NUM_FRAMES};
 use crate::app::{FRAME_SIZE_X, FRAME_SIZE_Y};
 use crate::breakout::mechanics::{GameInput, PanelControl};
 
-lazy_static!(
-    pub static ref MODEL_ACTION_MAPPING: Vec<(PanelControl, u8)> = vec![
-        (PanelControl::None, 0_u8),
-        (PanelControl::AccelerateLeft, 1),
-        (PanelControl::AccelerateRight, 2)
-    ];
-);
-
+fn map_model_action_to_game_input(model_action: u8) -> GameInput {
+    GameInput::action(
+        match model_action {
+            0 => PanelControl::None,
+            1 => PanelControl::AccelerateLeft,
+            2 => PanelControl::AccelerateRight,
+            _ => panic!("model_action out of range")
+        })
+}
 
 type GrayFrame = ImageBuffer<Luma<u8>, Vec<u8>>;
 
@@ -73,31 +81,35 @@ impl Default for FrameRingBuffer {
     }
 }
 
-pub struct RealtimeAiPlayer {
+pub struct RealtimeAiLearner {
     frames: FrameRingBuffer,
     model: QLearningTfModel1,
-    action_sender: Sender<GameInput>,
+    thread_pool: ThreadPool,
 }
 
-impl RealtimeAiPlayer {
+impl RealtimeAiLearner {
     pub fn new(action_sender: Sender<GameInput>) -> Self {
+        // TODO create an action-thread (passing action_sender) to react on watched frames
+        // TODO create a learning-thread to learn from following states after an action
         Self {
             frames: FrameRingBuffer::default(),
             model: QLearningTfModel1::init(),
-            action_sender,
+            thread_pool: ThreadPool::new(1),
         }
     }
 
     pub fn watch_next_frame(&mut self, frame: ImageBuffer<Luma<u8>, Vec<u8>>) {
         self.frames.add(frame);
-        // TODO run model predict function if no such one is already running
-        todo!()
+        // TODO feed action-tread
+        // TODO feed learning thread
     }
 }
 
+
+
 #[cfg(test)]
 mod test {
-    use crate::ai::realtime_ai_player::FrameRingBuffer;
+    use crate::ai::realtime_ai_learner::FrameRingBuffer;
 
     #[test]
     fn test_tensor_linear_storage_assumptions() {

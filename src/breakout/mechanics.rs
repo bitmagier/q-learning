@@ -168,10 +168,18 @@ pub struct GameInput {
     pub control: PanelControl,
     pub exit: bool,
 }
+
 impl GameInput {
     pub fn none() -> Self {
         Self {
             control: PanelControl::None,
+            exit: false,
+        }
+    }
+
+    pub fn action(control: PanelControl) -> Self {
+        Self {
+            control,
             exit: false,
         }
     }
@@ -634,7 +642,7 @@ mod test {
     use rstest::rstest;
 
     use crate::breakout::algebra_2d::{AaBB, Circle};
-    use crate::breakout::mechanics::{Ball, CONTACT_PENETRATION_LIMIT, CONTACT_PREDICTION, ContactSurface, MODEL_GRID_LEN_X};
+    use crate::breakout::mechanics::{Ball, CONTACT_PENETRATION_LIMIT, CONTACT_PREDICTION, ContactSurface, MODEL_GRID_LEN_X, MODEL_GRID_LEN_Y};
 
     #[rstest]
     #[case(Pos2::new(10.0, 10.0), 5.0, Vec2::new(- 2.0, 2.0), None)]
