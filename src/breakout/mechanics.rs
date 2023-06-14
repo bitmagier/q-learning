@@ -43,8 +43,6 @@ pub const CONTACT_PREDICTION: f32 = 0.8;
 const CONTACT_PENETRATION_LIMIT: f32 = 0.0;
 
 
-// TODO add timer + game score when finished based on timer
-
 #[derive(Clone)]
 pub struct BreakoutMechanics {
     // x = 0 = left side; y = 0 = bottom
