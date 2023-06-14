@@ -45,18 +45,34 @@ const CONTACT_PENETRATION_LIMIT: f32 = 0.0;
 
 // TODO add timer + game score when finished based on timer
 
-
+#[derive(Clone)]
 pub struct BreakoutMechanics {
-    mechanic_state: GameState,
+    // x = 0 = left side; y = 0 = bottom
+    pub bricks: Vec<Brick>,
+    pub ball: Ball,
+    pub panel: Panel,
+    pub finished: bool,
+    pub score: u32,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct GameResult {
+    score: u32,
+}
+
+impl Default for BreakoutMechanics {
+    fn default() -> Self {
+        Self {
+            bricks: BreakoutMechanics::initial_bricks(),
+            ball: BreakoutMechanics::initial_ball(),
+            panel: BreakoutMechanics::initial_panel(),
+            finished: false,
+            score: 0,
+        }
+    }
 }
 
 impl BreakoutMechanics {
-    pub fn new() -> Self {
-        Self {
-            mechanic_state: GameState::default(),
-        }
-    }
-
     fn initial_bricks() -> Vec<Brick> {
         fn create_brick(left_x: f32, upper_y: f32) -> Brick {
             Brick {
@@ -112,21 +128,20 @@ impl BreakoutMechanics {
     }
 
     /// physically move one time step forward
-    pub fn time_step(&mut self, input: GameInput) -> GameState {
-        self.mechanic_state.panel.proceed();
-        self.proceed_ball_with(self.mechanic_state.ball.move_vector());
+    pub fn time_step(&mut self, input: GameInput) {
+        self.panel.proceed();
+        self.proceed_ball_with(self.ball.move_vector());
         self.check_game_end_situation();
-        if !self.mechanic_state.finished {
-            self.mechanic_state.panel.process_input(input);
+        if !self.finished {
+            self.panel.process_input(input);
         }
-        self.mechanic_state.clone()
     }
 
     fn check_game_end_situation(&mut self) {
-        if self.mechanic_state.ball.shape.center.y >= self.mechanic_state.panel.shape.max.y {
-            self.mechanic_state.finished = true;
-        } else if self.mechanic_state.bricks.is_empty() {
-            self.mechanic_state.finished = true;
+        if self.ball.shape.center.y >= self.panel.shape.max.y {
+            self.finished = true;
+        } else if self.bricks.is_empty() {
+            self.finished = true;
         }
     }
 
@@ -134,7 +149,7 @@ impl BreakoutMechanics {
         if move_vector.length() < SPACE_GRANULARITY {
             return;
         }
-        let ball = &self.mechanic_state.ball;
+        let ball = &self.ball;
         assert!(ball.speed_per_sec > 0.0);
 
         let collisions = self.check_collisions(move_vector);
@@ -148,11 +163,11 @@ impl BreakoutMechanics {
             .sorted_unstable()
             .rev()
         {
-            self.mechanic_state.bricks.remove(brick_idx);
-            self.mechanic_state.score += 1;
+            self.bricks.remove(brick_idx);
+            self.score += 1;
         }
 
-        let ball = &mut self.mechanic_state.ball;
+        let ball = &mut self.ball;
         if let Some(collision) = collisions.effective_collision_surface() {
             let collision_center_pos = ball.shape.center + ball.direction * collision.way;
             let remaining_distance = move_vector.length() - collision.way;
@@ -173,53 +188,26 @@ impl BreakoutMechanics {
         // test collisions and keep the one(s) with shortest distance
         let mut collision_candidates = ContactCandidates::new();
 
-        if let Some(c) = self.mechanic_state.ball.collision_test_left_wall(move_vector) {
+        if let Some(c) = self.ball.collision_test_left_wall(move_vector) {
             collision_candidates.consider(ContactObjectSurface::of(c, None));
         }
-        if let Some(c) = self.mechanic_state.ball.collision_test_right_wall(move_vector) {
+        if let Some(c) = self.ball.collision_test_right_wall(move_vector) {
             collision_candidates.consider(ContactObjectSurface::of(c, None));
         }
-        if let Some(c) = self.mechanic_state.ball.collision_test_top_wall(move_vector) {
+        if let Some(c) = self.ball.collision_test_top_wall(move_vector) {
             collision_candidates.consider(ContactObjectSurface::of(c, None))
         }
 
-        if let Some(c) = self.mechanic_state.ball.collision_check_with_rectangle(move_vector, &self.mechanic_state.panel.shape) {
+        if let Some(c) = self.ball.collision_check_with_rectangle(move_vector, &self.panel.shape) {
             collision_candidates.consider(ContactObjectSurface::of(c, None));
         }
 
-        for (idx, brick) in self.mechanic_state.bricks.iter().enumerate() {
-            if let Some(c) = self.mechanic_state.ball.collision_check_with_rectangle(move_vector, &brick.shape) {
+        for (idx, brick) in self.bricks.iter().enumerate() {
+            if let Some(c) = self.ball.collision_check_with_rectangle(move_vector, &brick.shape) {
                 collision_candidates.consider(ContactObjectSurface::of(c, Some(BreakoutObject::Brick { idx })));
             }
         }
         collision_candidates
-    }
-}
-
-#[derive(Clone)]
-pub struct GameState {
-    // x = 0 = left side; y = 0 = bottom
-    pub bricks: Vec<Brick>,
-    pub ball: Ball,
-    pub panel: Panel,
-    pub finished: bool,
-    pub score: u32,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct GameResult {
-    score: u32,
-}
-
-impl Default for GameState {
-    fn default() -> Self {
-        Self {
-            bricks: BreakoutMechanics::initial_bricks(),
-            ball: BreakoutMechanics::initial_ball(),
-            panel: BreakoutMechanics::initial_panel(),
-            finished: false,
-            score: 0,
-        }
     }
 }
 

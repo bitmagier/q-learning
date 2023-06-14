@@ -12,7 +12,7 @@ use clap::{Parser, ValueEnum};
 use log::LevelFilter;
 
 use crate::app::BreakoutApp;
-use crate::breakout::mechanics::{BreakoutMechanics, GameInput, GameState, TIME_GRANULARITY};
+use crate::breakout::mechanics::{BreakoutMechanics, GameInput, TIME_GRANULARITY};
 use crate::game_ai_adapter::GameAiAdapter;
 
 pub mod breakout;
@@ -52,7 +52,7 @@ fn main() -> eframe::Result<()> {
     let args: Args = Args::parse();
 
     let game_input = Arc::new(RwLock::new(GameInput::none()));
-    let game_state = Arc::new(RwLock::new(GameState::default()));
+    let game_state = Arc::new(RwLock::new(BreakoutMechanics::default()));
 
     let m_game_input = Arc::clone(&game_input);
     let m_game_state = Arc::clone(&game_state);
@@ -80,7 +80,7 @@ fn init_logging() {
         .init()
 }
 
-fn mechanics_thread(game_input: Arc<RwLock<GameInput>>, game_state: Arc<RwLock<GameState>>, egui_ctx: egui::Context) {
+fn mechanics_thread(game_input: Arc<RwLock<GameInput>>, game_state: Arc<RwLock<BreakoutMechanics>>, egui_ctx: egui::Context) {
     let read_input = || -> GameInput {
         let read_handle = game_input.read().unwrap();
         let input = read_handle.clone();
@@ -94,7 +94,7 @@ fn mechanics_thread(game_input: Arc<RwLock<GameInput>>, game_state: Arc<RwLock<G
         drop(write_handle);
     };
 
-    let mut mechanics = BreakoutMechanics::new();
+    let mut mechanics = BreakoutMechanics::default();
     let mut next_step_time = Instant::now().add(TIME_GRANULARITY);
     let sleep_time_ms = TIME_GRANULARITY.div(5);
     loop {
@@ -104,12 +104,12 @@ fn mechanics_thread(game_input: Arc<RwLock<GameInput>>, game_state: Arc<RwLock<G
             if input.exit {
                 break;
             } else {
-                let state = mechanics.time_step(input);
-                if state.finished {
-                    log::info!("score: {:?}", state.clone().score);
+                mechanics.time_step(input);
+                if mechanics.finished {
+                    log::info!("score: {:?}", &mechanics.score);
                     break;
                 }
-                write_game_state(state);
+                write_game_state(mechanics.clone());
             }
             egui_ctx.request_repaint();
         }

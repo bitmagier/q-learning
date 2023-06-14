@@ -7,7 +7,7 @@ use egui::{Context, Id, LayerId, Order, Painter, Vec2};
 use image::{ImageBuffer, imageops, Rgb, RgbImage};
 use image::imageops::FilterType;
 
-use crate::breakout::mechanics::{GameInput, GameState, MODEL_GRID_LEN_X, MODEL_GRID_LEN_Y, PanelControl};
+use crate::breakout::mechanics::{BreakoutMechanics, GameInput, MODEL_GRID_LEN_X, MODEL_GRID_LEN_Y, PanelControl};
 use crate::game_drawer::GameDrawer;
 
 pub const FRAME_SIZE_X: usize = MODEL_GRID_LEN_X as usize;
@@ -21,7 +21,7 @@ pub trait ExternalGameController {
 pub struct BreakoutApp<C: ExternalGameController> {
     pixels_per_point: f32,
     game_input: Arc<RwLock<GameInput>>,
-    game_state: Arc<RwLock<GameState>>,
+    game_state: Arc<RwLock<BreakoutMechanics>>,
     mechanics_join_handle: JoinHandle<()>,
     external_game_controller: Option<C>,
 }
@@ -30,7 +30,7 @@ impl<C: ExternalGameController> BreakoutApp<C> {
     pub fn new(
         cc: &eframe::CreationContext<'_>,
         game_input: Arc<RwLock<GameInput>>,
-        game_state: Arc<RwLock<GameState>>,
+        game_state: Arc<RwLock<BreakoutMechanics>>,
         mechanics_join_handle: JoinHandle<()>,
         external_game_controller: Option<C>,
     ) -> Self {
@@ -70,7 +70,7 @@ impl<C: ExternalGameController> BreakoutApp<C> {
         }
     }
 
-    fn read_game_state(&self) -> GameState {
+    fn read_game_state(&self) -> BreakoutMechanics {
         let read_handle = self.game_state.read().unwrap();
         let game_state = read_handle.clone();
         drop(read_handle);

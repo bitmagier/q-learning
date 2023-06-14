@@ -1,15 +1,15 @@
 use egui::{Color32, Pos2, Rect, Rounding, Shape, Stroke, Vec2};
 use egui::epaint::{CircleShape, RectShape};
 
-use crate::breakout::mechanics::{Assert, Ball, Brick, GameState, MODEL_GRID_LEN_X, MODEL_GRID_LEN_Y, Panel};
+use crate::breakout::mechanics::{Assert, Ball, BreakoutMechanics, Brick, MODEL_GRID_LEN_X, MODEL_GRID_LEN_Y, Panel};
 
 pub struct GameDrawer {
     canvas_size: Vec2,
-    game_state: GameState,
+    game_state: BreakoutMechanics,
 }
 
 impl GameDrawer {
-    pub fn new(canvas_size: Vec2, game_state: GameState) -> Self {
+    pub fn new(canvas_size: Vec2, game_state: BreakoutMechanics) -> Self {
         Self {
             canvas_size,
             game_state,
