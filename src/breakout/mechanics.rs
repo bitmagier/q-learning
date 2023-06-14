@@ -6,7 +6,6 @@ use egui::{Pos2, Vec2};
 use itertools::Itertools;
 
 use crate::breakout::algebra_2d::{AaBB, Circle, contact_test_circle_aabb, ContactSurface, reflected_vector, vector_angle};
-use crate::breakout::mechanics::GameResult::{Lost, Won};
 
 /// TOP / LEFT corner is 0/0
 pub const MODEL_GRID_LEN_X: f32 = 600.0;
@@ -58,7 +57,7 @@ impl BreakoutMechanics {
         }
     }
 
-    pub fn initial_bricks() -> Vec<Brick> {
+    fn initial_bricks() -> Vec<Brick> {
         fn create_brick(left_x: f32, upper_y: f32) -> Brick {
             Brick {
                 shape: AaBB {
@@ -85,7 +84,7 @@ impl BreakoutMechanics {
         bricks
     }
 
-    pub fn initial_ball() -> Ball {
+    fn initial_ball() -> Ball {
         Ball {
             shape: Circle {
                 center: Pos2::new(MODEL_GRID_LEN_X * 0.5, MODEL_GRID_LEN_Y * 0.5),
@@ -96,7 +95,7 @@ impl BreakoutMechanics {
         }
     }
 
-    pub fn initial_panel() -> Panel {
+    fn initial_panel() -> Panel {
         Panel {
             shape: AaBB {
                 min: Pos2::new(
@@ -112,11 +111,10 @@ impl BreakoutMechanics {
         }
     }
 
+    /// physically move one time step forward
     pub fn time_step(&mut self, input: GameInput) -> GameState {
         self.mechanic_state.panel.proceed();
-        self.mechanic_state
-            .ball
-            .proceed(&self.mechanic_state.panel, &mut self.mechanic_state.bricks);
+        self.proceed_ball_with(self.mechanic_state.ball.move_vector());
         self.check_game_end_situation();
         if !self.mechanic_state.finished {
             self.mechanic_state.panel.process_input(input);
@@ -126,12 +124,75 @@ impl BreakoutMechanics {
 
     fn check_game_end_situation(&mut self) {
         if self.mechanic_state.ball.shape.center.y >= self.mechanic_state.panel.shape.max.y {
-            self.mechanic_state.game_result = Some(Lost);
             self.mechanic_state.finished = true;
         } else if self.mechanic_state.bricks.is_empty() {
-            self.mechanic_state.game_result = Some(Won);
             self.mechanic_state.finished = true;
         }
+    }
+
+    fn proceed_ball_with(&mut self, move_vector: Vec2) {
+        if move_vector.length() < SPACE_GRANULARITY {
+            return;
+        }
+        let ball = &self.mechanic_state.ball;
+        assert!(ball.speed_per_sec > 0.0);
+
+        let collisions = self.check_collisions(move_vector);
+
+        // remove brick(s), which have been really hit
+        for brick_idx in collisions.surfaces.iter()
+            .filter_map(|e| match e.object {
+                Some(BreakoutObject::Brick { idx }) => Some(idx),
+                _ => None,
+            })
+            .sorted_unstable()
+            .rev()
+        {
+            self.mechanic_state.bricks.remove(brick_idx);
+            self.mechanic_state.score += 1;
+        }
+
+        let ball = &mut self.mechanic_state.ball;
+        if let Some(collision) = collisions.effective_collision_surface() {
+            let collision_center_pos = ball.shape.center + ball.direction * collision.way;
+            let remaining_distance = move_vector.length() - collision.way;
+            let reflected_direction: Vec2 = reflected_vector(ball.direction, collision.surface_normal).normalized();
+            ball.shape.center = collision_center_pos;
+            ball.direction = reflected_direction;
+            let remaining_move_vector = reflected_direction * remaining_distance;
+            log::debug!("move_vector: {:?}, collision: {:?}, remaining_move_vector: {:?}", &move_vector,collision, &remaining_move_vector);
+            if remaining_move_vector.length() > 0.0 {
+                self.proceed_ball_with(remaining_move_vector);
+            }
+        } else {
+            ball.shape.center = ball.shape.center + move_vector
+        }
+    }
+
+    fn check_collisions(&self, move_vector: Vec2) -> ContactCandidates {
+        // test collisions and keep the one(s) with shortest distance
+        let mut collision_candidates = ContactCandidates::new();
+
+        if let Some(c) = self.mechanic_state.ball.collision_test_left_wall(move_vector) {
+            collision_candidates.consider(ContactObjectSurface::of(c, None));
+        }
+        if let Some(c) = self.mechanic_state.ball.collision_test_right_wall(move_vector) {
+            collision_candidates.consider(ContactObjectSurface::of(c, None));
+        }
+        if let Some(c) = self.mechanic_state.ball.collision_test_top_wall(move_vector) {
+            collision_candidates.consider(ContactObjectSurface::of(c, None))
+        }
+
+        if let Some(c) = self.mechanic_state.ball.collision_check_with_rectangle(move_vector, &self.mechanic_state.panel.shape) {
+            collision_candidates.consider(ContactObjectSurface::of(c, None));
+        }
+
+        for (idx, brick) in self.mechanic_state.bricks.iter().enumerate() {
+            if let Some(c) = self.mechanic_state.ball.collision_check_with_rectangle(move_vector, &brick.shape) {
+                collision_candidates.consider(ContactObjectSurface::of(c, Some(BreakoutObject::Brick { idx })));
+            }
+        }
+        collision_candidates
     }
 }
 
@@ -142,13 +203,12 @@ pub struct GameState {
     pub ball: Ball,
     pub panel: Panel,
     pub finished: bool,
-    pub game_result: Option<GameResult>,
+    pub score: u32,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum GameResult {
-    Lost,
-    Won,
+pub struct GameResult {
+    score: u32,
 }
 
 impl Default for GameState {
@@ -158,7 +218,7 @@ impl Default for GameState {
             ball: BreakoutMechanics::initial_ball(),
             panel: BreakoutMechanics::initial_panel(),
             finished: false,
-            game_result: None,
+            score: 0,
         }
     }
 }
@@ -205,171 +265,9 @@ pub struct Ball {
     pub speed_per_sec: f32,
 }
 
-pub struct ContactCandidates {
-    surfaces: Vec<ContactObjectSurface>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct ContactObjectSurface {
-    pub way: f32,
-    /// final distance after the way
-    pub approximation: f32,
-    // ⊥ surface normal vector; perpendicular to surface ; normalized
-    pub surface_normal: Vec2,
-    pub object: Option<BreakoutObject>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum BreakoutObject {
-    Brick { idx: usize }
-}
-
-impl ContactObjectSurface {
-    pub fn of(surface: ContactSurface, object: Option<BreakoutObject>) -> Self {
-        ContactObjectSurface {
-            way: surface.way,
-            approximation: surface.approximation,
-            surface_normal: surface.surface_normal,
-            object,
-        }
-    }
-}
-
-impl From<&ContactObjectSurface> for ContactSurface {
-    fn from(value: &ContactObjectSurface) -> Self {
-        ContactSurface {
-            way: value.way,
-            approximation: value.approximation,
-            surface_normal: value.surface_normal,
-        }
-    }
-}
-
-impl ContactCandidates {
-    pub fn new() -> Self {
-        Self {
-            surfaces: Vec::with_capacity(2),
-        }
-    }
-
-    pub fn consider(&mut self, candidate: ContactObjectSurface) {
-        fn keep_shortest_way_plus_approximation(surfaces: &mut Vec<ContactObjectSurface>) {
-            fn path_len(e: &ContactObjectSurface) -> f32 {
-                e.way + e.approximation
-            }
-
-            let shortest_path = surfaces.iter()
-                .map(|e| path_len(e))
-                .fold(f32::INFINITY, |r, len| match len < r {
-                    false => r,
-                    true => len,
-                });
-
-            surfaces.drain_filter(|e| path_len(e) > shortest_path + SPACE_GRANULARITY);
-        }
-
-        assert!(candidate.approximation >= -CONTACT_PENETRATION_LIMIT && candidate.approximation <= CONTACT_PREDICTION);
-        self.surfaces.push(candidate);
-        if self.surfaces.len() > 1 {
-            keep_shortest_way_plus_approximation(&mut self.surfaces)
-        }
-    }
-
-    pub fn effective_collision(&self) -> Option<ContactSurface> {
-        match self.surfaces.len() {
-            0 => None,
-            1 => Some(self.surfaces.first().unwrap().into()),
-            _ => {
-                let normale = self.surfaces.iter()
-                    .fold(Vec2::new(0.0, 0.0), |sum, e| sum + e.surface_normal)
-                    .normalized();
-                let distance = self.surfaces.iter()
-                    .fold(0.0, |sum, e| sum + e.approximation)
-                    / self.surfaces.len() as f32;
-                let way = self.surfaces.iter()
-                    .fold(0.0, |sum, e| sum + e.way)
-                    / self.surfaces.len() as f32;
-                Some(ContactSurface {
-                    way,
-                    approximation: distance,
-                    surface_normal: normale,
-                })
-            }
-        }
-    }
-}
-
 impl Ball {
-    /// physically move one time step forward
-    pub fn proceed(&mut self, panel: &Panel, bricks: &mut Vec<Brick>) {
-        assert!(self.speed_per_sec > 0.0);
-        let move_vector =
-            self.direction.normalized() * self.speed_per_sec * TIME_GRANULARITY.as_secs_f32();
-        self.proceed_with(move_vector, panel, bricks);
-    }
-
-    fn proceed_with(&mut self, move_vector: Vec2, panel: &Panel, bricks: &mut Vec<Brick>) {
-        if move_vector.length() < SPACE_GRANULARITY {
-            return;
-        }
-
-        // test collisions and keep the one(s) with shortest distance
-        let mut collision_candidates = ContactCandidates::new();
-
-        if let Some(c) = self.collision_test_left_wall(move_vector) {
-            collision_candidates.consider(ContactObjectSurface::of(c, None));
-        }
-        if let Some(c) = self.collision_test_right_wall(move_vector) {
-            collision_candidates.consider(ContactObjectSurface::of(c, None));
-        }
-        if let Some(c) = self.collision_test_top_wall(move_vector) {
-            collision_candidates.consider(ContactObjectSurface::of(c, None))
-        }
-
-        if let Some(c) = self.collision_check_with_rectangle(move_vector, &panel.shape) {
-            collision_candidates.consider(ContactObjectSurface::of(c, None));
-        }
-
-        for (idx, brick) in bricks.iter().enumerate() {
-            if let Some(c) = self.collision_check_with_rectangle(move_vector, &brick.shape) {
-                collision_candidates.consider(ContactObjectSurface::of(c, Some(BreakoutObject::Brick { idx })));
-            }
-        }
-
-        let collisions = collision_candidates;
-
-        // remove brick(s), which have been really hit
-        for brick_idx in collisions.surfaces.iter()
-            .filter_map(|e| match e.object {
-                Some(BreakoutObject::Brick { idx }) => Some(idx),
-                _ => None,
-            })
-            .sorted_unstable()
-            .rev()
-        {
-            bricks.remove(brick_idx);
-        }
-
-        if let Some(collision) = collisions.effective_collision() {
-            let collision_center_pos = self.shape.center + self.direction * collision.way;
-            let remaining_distance = move_vector.length() - collision.way;
-            let reflected_direction: Vec2 =
-                reflected_vector(self.direction, collision.surface_normal).normalized();
-            self.shape.center = collision_center_pos;
-            self.direction = reflected_direction;
-            let remaining_move_vector = reflected_direction * remaining_distance;
-            log::debug!(
-                "move_vector: {:?}, collision: {:?}, remaining_move_vector: {:?}",
-                &move_vector,
-                collision,
-                &remaining_move_vector
-            );
-            if remaining_move_vector.length() > 0.0 {
-                self.proceed_with(remaining_move_vector, panel, bricks);
-            }
-        } else {
-            self.shape.center = self.shape.center + move_vector
-        }
+    fn move_vector(&self) -> Vec2 {
+        self.direction.normalized() * self.speed_per_sec * TIME_GRANULARITY.as_secs_f32()
     }
 
     fn collision_test_left_wall(&self, move_vector: Vec2) -> Option<ContactSurface> {
@@ -525,6 +423,101 @@ impl Ball {
     }
 }
 
+pub struct ContactCandidates {
+    surfaces: Vec<ContactObjectSurface>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ContactObjectSurface {
+    pub way: f32,
+    /// final distance after the way
+    pub approximation: f32,
+    // ⊥ surface normal vector; perpendicular to surface ; normalized
+    pub surface_normal: Vec2,
+    pub object: Option<BreakoutObject>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum BreakoutObject {
+    Brick { idx: usize }
+}
+
+impl ContactObjectSurface {
+    pub fn of(surface: ContactSurface, object: Option<BreakoutObject>) -> Self {
+        ContactObjectSurface {
+            way: surface.way,
+            approximation: surface.approximation,
+            surface_normal: surface.surface_normal,
+            object,
+        }
+    }
+}
+
+impl From<&ContactObjectSurface> for ContactSurface {
+    fn from(value: &ContactObjectSurface) -> Self {
+        ContactSurface {
+            way: value.way,
+            approximation: value.approximation,
+            surface_normal: value.surface_normal,
+        }
+    }
+}
+
+impl ContactCandidates {
+    pub fn new() -> Self {
+        Self {
+            surfaces: Vec::with_capacity(2),
+        }
+    }
+
+    pub fn consider(&mut self, candidate: ContactObjectSurface) {
+        fn keep_shortest_way_plus_approximation(surfaces: &mut Vec<ContactObjectSurface>) {
+            fn path_len(e: &ContactObjectSurface) -> f32 {
+                e.way + e.approximation
+            }
+
+            let shortest_path = surfaces.iter()
+                .map(|e| path_len(e))
+                .fold(f32::INFINITY, |r, len| match len < r {
+                    false => r,
+                    true => len,
+                });
+
+            surfaces.drain_filter(|e| path_len(e) > shortest_path + SPACE_GRANULARITY);
+        }
+
+        assert!(candidate.approximation >= -CONTACT_PENETRATION_LIMIT && candidate.approximation <= CONTACT_PREDICTION);
+        self.surfaces.push(candidate);
+        if self.surfaces.len() > 1 {
+            keep_shortest_way_plus_approximation(&mut self.surfaces)
+        }
+    }
+
+    /// We may have hit multiple surfaces, so here we determine the effective collision surface for a reflection
+    pub fn effective_collision_surface(&self) -> Option<ContactSurface> {
+        match self.surfaces.len() {
+            0 => None,
+            1 => Some(self.surfaces.first().unwrap().into()),
+            _ => {
+                let normale = self.surfaces.iter()
+                    .fold(Vec2::new(0.0, 0.0), |sum, e| sum + e.surface_normal)
+                    .normalized();
+                let distance = self.surfaces.iter()
+                    .fold(0.0, |sum, e| sum + e.approximation)
+                    / self.surfaces.len() as f32;
+                let way = self.surfaces.iter()
+                    .fold(0.0, |sum, e| sum + e.way)
+                    / self.surfaces.len() as f32;
+                Some(ContactSurface {
+                    way,
+                    approximation: distance,
+                    surface_normal: normale,
+                })
+            }
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct Panel {
     pub shape: AaBB,
@@ -642,7 +635,7 @@ mod test {
     use rstest::rstest;
 
     use crate::breakout::algebra_2d::{AaBB, Circle};
-    use crate::breakout::mechanics::{Ball, CONTACT_PENETRATION_LIMIT, CONTACT_PREDICTION, ContactSurface, MODEL_GRID_LEN_X, MODEL_GRID_LEN_Y};
+    use crate::breakout::mechanics::{Ball, CONTACT_PENETRATION_LIMIT, CONTACT_PREDICTION, ContactSurface};
 
     #[rstest]
     #[case(Pos2::new(10.0, 10.0), 5.0, Vec2::new(- 2.0, 2.0), None)]

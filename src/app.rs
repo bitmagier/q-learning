@@ -12,7 +12,6 @@ use crate::game_drawer::GameDrawer;
 
 pub const FRAME_SIZE_X: usize = MODEL_GRID_LEN_X as usize;
 pub const FRAME_SIZE_Y: usize = MODEL_GRID_LEN_Y as usize;
-pub const FRAME_SIZE: usize = (FRAME_SIZE_X * FRAME_SIZE_Y * 3) as usize;
 
 pub trait ExternalGameController {
     fn show_frame(&mut self, frame: ImageBuffer<Rgb<u8>, Vec<u8>>);

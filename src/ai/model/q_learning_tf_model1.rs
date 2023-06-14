@@ -6,19 +6,19 @@ use std::path::Path;
 use tensorflow::{Graph, SavedModelBundle, SessionOptions, Tensor};
 
 use crate::ai::model::model_function::{ModelFunction1, ModelFunction3};
-use crate::app::{FRAME_SIZE_X, FRAME_SIZE_Y};
 
 const KERAS_MODEL_DIR: &str = "keras_model/q_learning_model_1";
+#[allow(unused)]
 const KERAS_MODEL_CHECKPOINT_FILE: &str = "keras_model/q_learning_model_1_ckpt/checkpoint";
 
 /// series of frames to represent world state
 pub const WORLD_STATE_NUM_FRAMES: usize = 4;
 
 // 600x800 pixel (grey-scaled), series of `WORLD_STATE_FRAMES` frames
-pub const WORLD_STATE_DIMENSION: &[u64] = &[FRAME_SIZE_X as u64, FRAME_SIZE_Y as u64, WORLD_STATE_NUM_FRAMES as u64];
+//pub const WORLD_STATE_DIMENSION: &[u64] = &[FRAME_SIZE_X as u64, FRAME_SIZE_Y as u64, WORLD_STATE_NUM_FRAMES as u64];
 
-pub const ACTION_SPACE: u8 = 3;
-pub const BATCH_SIZE: u64 = 32;
+// pub const ACTION_SPACE: u8 = 3;
+// pub const BATCH_SIZE: u64 = 32;
 
 pub struct QLearningTfModel1 {
     pub graph: Graph,

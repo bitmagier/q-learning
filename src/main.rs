@@ -106,7 +106,7 @@ fn mechanics_thread(game_input: Arc<RwLock<GameInput>>, game_state: Arc<RwLock<G
             } else {
                 let state = mechanics.time_step(input);
                 if state.finished {
-                    log::debug!("{:?}", state.clone().game_result);
+                    log::info!("score: {:?}", state.clone().score);
                     break;
                 }
                 write_game_state(state);
