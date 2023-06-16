@@ -45,7 +45,7 @@ const CONTACT_PENETRATION_LIMIT: f32 = 0.0;
 
 #[derive(Clone)]
 pub struct BreakoutMechanics {
-    // x = 0 = left side; y = 0 = bottom
+    /// x = 0 = left side; y = 0 = bottom
     pub bricks: Vec<Brick>,
     pub ball: Ball,
     pub panel: Panel,
@@ -53,13 +53,8 @@ pub struct BreakoutMechanics {
     pub score: u32,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct GameResult {
-    score: u32,
-}
-
-impl Default for BreakoutMechanics {
-    fn default() -> Self {
+impl BreakoutMechanics {
+    pub fn new() -> Self {
         Self {
             bricks: BreakoutMechanics::initial_bricks(),
             ball: BreakoutMechanics::initial_ball(),
@@ -68,9 +63,7 @@ impl Default for BreakoutMechanics {
             score: 0,
         }
     }
-}
 
-impl BreakoutMechanics {
     fn initial_bricks() -> Vec<Brick> {
         fn create_brick(left_x: f32, upper_y: f32) -> Brick {
             Brick {
@@ -621,7 +614,7 @@ mod test {
     use rstest::rstest;
 
     use crate::breakout::algebra_2d::{AaBB, Circle};
-    use crate::breakout::mechanics::{Ball, CONTACT_PENETRATION_LIMIT, CONTACT_PREDICTION, ContactSurface, MODEL_GRID_LEN_X, MODEL_GRID_LEN_Y};
+    use crate::breakout::mechanics::{Ball, CONTACT_PENETRATION_LIMIT, CONTACT_PREDICTION, ContactSurface, MODEL_GRID_LEN_X};
 
     #[rstest]
     #[case(Pos2::new(10.0, 10.0), 5.0, Vec2::new(- 2.0, 2.0), None)]

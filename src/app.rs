@@ -18,21 +18,21 @@ pub trait ExternalGameController {
     fn read_input(&mut self) -> GameInput;
 }
 
-pub struct BreakoutApp<C: ExternalGameController> {
+pub struct BreakoutApp {
     pixels_per_point: f32,
     game_input: Arc<RwLock<GameInput>>,
     game_state: Arc<RwLock<BreakoutMechanics>>,
     mechanics_join_handle: JoinHandle<()>,
-    external_game_controller: Option<C>,
+    external_game_controller: Option<Box<dyn ExternalGameController>>,
 }
 
-impl<C: ExternalGameController> BreakoutApp<C> {
+impl BreakoutApp {
     pub fn new(
         cc: &eframe::CreationContext<'_>,
         game_input: Arc<RwLock<GameInput>>,
         game_state: Arc<RwLock<BreakoutMechanics>>,
         mechanics_join_handle: JoinHandle<()>,
-        external_game_controller: Option<C>,
+        external_game_controller: Option<Box<dyn ExternalGameController>>,
     ) -> Self {
         Self {
             pixels_per_point: cc.integration_info.native_pixels_per_point.unwrap_or(1.0),
@@ -89,8 +89,7 @@ impl<C: ExternalGameController> BreakoutApp<C> {
 
 /// see https://github.com/emilk/egui/blob/master/crates/egui_demo_lib/src/demo/paint_bezier.rs
 
-impl<C> eframe::App for BreakoutApp<C>
-where C: ExternalGameController {
+impl eframe::App for BreakoutApp {
     fn update(
         &mut self,
         ctx: &Context,

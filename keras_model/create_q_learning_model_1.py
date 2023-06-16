@@ -13,6 +13,8 @@ BATCH_SIZE = 32  # Size of batch taken from replay buffer
 class QLearningModel(tf.keras.Sequential):
     def __init__(self, *args, **kwargs):
         super(QLearningModel, self).__init__(*args, **kwargs)
+        # TODO original whitepaper used a resolution of 84x84 - we should try to condense the resolution
+        #  e.g. by more conv layers - to a minimum
         self.add(layers.Conv2D(32, 12, strides=6, activation='relu', input_shape=(600, 800, WORLD_STATE_FRAMES),
                                name='convolution_layer1'))
         self.add(layers.Conv2D(64, 6, strides=3, activation='relu', name='convolution_layer2'))
@@ -29,17 +31,26 @@ class QLearningModel(tf.keras.Sequential):
     # Predict action from environment state
     @tf.function(input_signature=[tf.TensorSpec(shape=[600, 800, WORLD_STATE_FRAMES], dtype=tf.float32, name='state')])
     def predict_single(self, state):
-        state_tensor = tf.convert_to_tensor(state)
-        state_tensor = tf.expand_dims(state_tensor, 0)
+        state_tensor = tf.expand_dims(state, 0)
         action_probs = self(state_tensor, training=False)
         # Take best action
         action = tf.argmax(action_probs[0])
         return {'action': action}
 
+    # WTF: the batch-optimized predict() function can not be exported or wrapped in a user function.
+    # So we have to stick with call()
+    @tf.function(input_signature=[
+        tf.TensorSpec(shape=[BATCH_SIZE, 600, 800, WORLD_STATE_FRAMES], dtype=tf.float32, name='state_batch')])
+    def predict(self, state_batch):
+        action_probs = self(state_batch, training=False)
+        # TODO review
+        actions = tf.argmax(action_probs, axis=1)
+        return {'actions': actions}
+
     @tf.function(input_signature=[
         tf.TensorSpec(shape=[BATCH_SIZE, 600, 800, WORLD_STATE_FRAMES], dtype=tf.float32,
                       name='state_samples'),
-        tf.TensorSpec(shape=[BATCH_SIZE, 1], dtype=tf.int8, name='action_samples'),
+        tf.TensorSpec(shape=[BATCH_SIZE, 1], dtype=tf.uint8, name='action_samples'),
         tf.TensorSpec(shape=[BATCH_SIZE, 1], dtype=tf.float32, name='updated_q_values')
     ])
     def train_model(self, state_samples, action_samples, updated_q_values):
@@ -61,8 +72,7 @@ class QLearningModel(tf.keras.Sequential):
         return {'loss': loss}
 
     # model function to persist model with current values
-    # - Official python guide: https://keras.io/guides/serialization_and_saving/
-    # - used that one: https://github.com/tensorflow/rust/issues/279#issuecomment-749339129
+    # That hint was very useful: https://github.com/tensorflow/rust/issues/279#issuecomment-749339129
 
     @tf.function(input_signature=[tf.TensorSpec(shape=None, dtype=tf.string, name='path')])
     def write_checkpoint(self, path):
@@ -81,11 +91,18 @@ class QLearningModel(tf.keras.Sequential):
 model = QLearningModel()
 model.summary()
 
+# https://keras.io/guides/serialization_and_saving/
+# https://towardsdatascience.com/training-keras-models-using-the-rust-tensorflow-bindings-941791249a7
+# https://www.tensorflow.org/guide/saved_model
+
 model.save('q_learning_model_1',
            save_format='tf',
            signatures={
                'predict_single': model.predict_single,
+               'predict': model.predict,
                'train_model': model.train_model,
                'write_checkpoint': model.write_checkpoint,
                'read_checkpoint': model.read_checkpoint
            })
+
+# saved_model_cli show --dir {export_path} --all
