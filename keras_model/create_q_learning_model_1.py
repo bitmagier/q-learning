@@ -5,6 +5,9 @@ from keras import layers, optimizers
 # https://keras.io/examples/rl/deep_q_network_breakout/
 # https://github.com/tensorflow/rust/tree/master/examples
 
+
+FRAME_SIZE_X = 600
+FRAME_SIZE_Y = 800
 WORLD_STATE_FRAMES = 4
 ACTION_SPACE = 3
 BATCH_SIZE = 32  # Size of batch taken from replay buffer
@@ -15,7 +18,8 @@ class QLearningModel(tf.keras.Sequential):
         super(QLearningModel, self).__init__(*args, **kwargs)
         # TODO original whitepaper used a resolution of 84x84 - we should try to condense the resolution
         #  e.g. by more conv layers - to a minimum
-        self.add(layers.Conv2D(32, 12, strides=6, activation='relu', input_shape=(600, 800, WORLD_STATE_FRAMES),
+        self.add(layers.Conv2D(32, 12, strides=6, activation='relu',
+                               input_shape=(FRAME_SIZE_X, FRAME_SIZE_Y, WORLD_STATE_FRAMES),
                                name='convolution_layer1'))
         self.add(layers.Conv2D(64, 6, strides=3, activation='relu', name='convolution_layer2'))
         self.add(layers.Conv2D(64, 4, strides=2, activation='relu', name='convolution_layer3'))
@@ -29,8 +33,9 @@ class QLearningModel(tf.keras.Sequential):
                      metrics=['accurate'])
 
     # Predict action from environment state
-    @tf.function(input_signature=[tf.TensorSpec(shape=[600, 800, WORLD_STATE_FRAMES], dtype=tf.float32, name='state')])
-    def predict_single(self, state):
+    @tf.function(input_signature=[
+        tf.TensorSpec(shape=[FRAME_SIZE_X, FRAME_SIZE_Y, WORLD_STATE_FRAMES], dtype=tf.float32, name='state')])
+    def predict_action(self, state):
         state_tensor = tf.expand_dims(state, 0)
         action_probs = self(state_tensor, training=False)
         # Take best action
@@ -40,15 +45,16 @@ class QLearningModel(tf.keras.Sequential):
     # WTF: the batch-optimized predict() function can not be exported or wrapped in a user function.
     # So we have to stick with call()
     @tf.function(input_signature=[
-        tf.TensorSpec(shape=[BATCH_SIZE, 600, 800, WORLD_STATE_FRAMES], dtype=tf.float32, name='state_batch')])
-    def predict(self, state_batch):
-        action_probs = self(state_batch, training=False)
-        # TODO review
-        actions = tf.argmax(action_probs, axis=1)
-        return {'actions': actions}
+        tf.TensorSpec(shape=[BATCH_SIZE, FRAME_SIZE_X, FRAME_SIZE_Y, WORLD_STATE_FRAMES], dtype=tf.float32,
+                      name='state_batch')])
+    def batch_predict_future_reward(self, state_batch):
+        reward_batch = tf.reduce_max(
+            self(state_batch, training=False),
+            axis=1)
+        return {'reward_batch': reward_batch}
 
     @tf.function(input_signature=[
-        tf.TensorSpec(shape=[BATCH_SIZE, 600, 800, WORLD_STATE_FRAMES], dtype=tf.float32,
+        tf.TensorSpec(shape=[BATCH_SIZE, FRAME_SIZE_X, FRAME_SIZE_Y, WORLD_STATE_FRAMES], dtype=tf.float32,
                       name='state_samples'),
         tf.TensorSpec(shape=[BATCH_SIZE, 1], dtype=tf.uint8, name='action_samples'),
         tf.TensorSpec(shape=[BATCH_SIZE, 1], dtype=tf.float32, name='updated_q_values')
@@ -74,17 +80,17 @@ class QLearningModel(tf.keras.Sequential):
     # model function to persist model with current values
     # That hint was very useful: https://github.com/tensorflow/rust/issues/279#issuecomment-749339129
 
-    @tf.function(input_signature=[tf.TensorSpec(shape=None, dtype=tf.string, name='path')])
-    def write_checkpoint(self, path):
+    @tf.function(input_signature=[tf.TensorSpec(shape=None, dtype=tf.string, name='file')])
+    def write_checkpoint(self, file):
         checkpoint = tf.train.Checkpoint(self)
-        path = checkpoint.write(path)
-        return {'path': tf.convert_to_tensor(path)}
+        file = checkpoint.write(file)
+        return {'file': tf.convert_to_tensor(file)}
 
-    @tf.function(input_signature=[tf.TensorSpec(shape=None, dtype=tf.string, name='path')])
-    def read_checkpoint(self, path):
+    @tf.function(input_signature=[tf.TensorSpec(shape=None, dtype=tf.string, name='file')])
+    def read_checkpoint(self, file):
         checkpoint = tf.train.Checkpoint(self)
-        path = tf.get_static_value(path)
-        checkpoint.read(path)
+        file = tf.get_static_value(file)
+        checkpoint.read(file)
         return {'dummy': tf.constant("")}
 
 
@@ -98,8 +104,8 @@ model.summary()
 model.save('q_learning_model_1',
            save_format='tf',
            signatures={
-               'predict_single': model.predict_single,
-               'predict': model.predict,
+               'predict_action': model.predict_action,
+               'batch_predict_future_reward': model.batch_predict_future_reward,
                'train_model': model.train_model,
                'write_checkpoint': model.write_checkpoint,
                'read_checkpoint': model.read_checkpoint

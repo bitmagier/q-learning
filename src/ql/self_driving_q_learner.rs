@@ -24,8 +24,6 @@ struct Parameter {
     /// Size of batch taken from replay buffer
     batch_size: usize,
     max_steps_per_episode: usize,
-    running_reward: f32,
-    episode_count: usize,
     // Number of frames to take random action and observe output
     epsilon_random_frames: usize,
     // Number of frames for exploration
@@ -35,8 +33,8 @@ struct Parameter {
     max_memory_length: usize,
     // Train the model after 4 actions
     update_after_actions: usize,
-    // How often to update the target network => TODO refine description
-    update_target_network: usize,
+    // After how many frames we want to update the target network
+    update_target_network_after_num_frames: usize,
 }
 
 impl Parameter {
@@ -55,19 +53,18 @@ impl Default for Parameter {
             epsilon_max: 1.0,
             batch_size: 32,
             max_steps_per_episode: 10000,
-            running_reward: 0.0,
-            episode_count: 0,
             epsilon_random_frames: 50000,
             epsilon_greedy_frames: 1000000.0,
             max_memory_length: 100000,
             update_after_actions: 4,
-            update_target_network: 10000,
+            update_target_network_after_num_frames: 10000,
         }
     }
 }
 
 /// Experience replay buffers
 struct ReplayBuffer {
+    // TODO consider a different type for performance reasons a.g. Dequeue
     action_history: Vec<Action>,
     state_history: Vec<Rc<State>>,
     state_next_history: Vec<Rc<State>>,
@@ -84,6 +81,16 @@ impl ReplayBuffer {
         self.reward_history.push(reward);
         self.done_history.push(done);
         self.episode_reward_history.push(episode_reward);
+    }
+
+    pub fn drop_first(&mut self) {
+        assert!(!self.state_history.is_empty());
+        self.action_history.remove(0);
+        self.state_history.remove(0);
+        self.state_next_history.remove(0);
+        self.reward_history.remove(0);
+        self.done_history.remove(0);
+        self.episode_reward_history.remove(0);
     }
 }
 
@@ -105,27 +112,30 @@ pub struct SelfDrivingQLearner {
     p: Parameter,
     model: QLearningTfModel1,
     model_target: QLearningTfModel1,
+    checkpoint_file: String
 }
 
 impl SelfDrivingQLearner {
-    pub fn from_scratch() -> Self {
+    pub fn from_scratch(checkpoint_file: String) -> Self {
         Self {
             p: Default::default(),
             model: QLearningTfModel1::init(),
             model_target: QLearningTfModel1::init(),
+            checkpoint_file
         }
     }
 
-    pub fn from_checkpoint(checkpoint_file: &str) -> Self {
+    pub fn from_checkpoint(checkpoint_file: String) -> Self {
         let model = QLearningTfModel1::init();
-        model.read_checkpoint(checkpoint_file);
-        let target_model = QLearningTfModel1::init();
-        target_model.read_checkpoint(checkpoint_file);
+        model.read_checkpoint(&checkpoint_file);
+        let model_target = QLearningTfModel1::init();
+        model_target.read_checkpoint(&checkpoint_file);
 
         Self {
             p: Parameter::default(),
             model,
-            model_target: target_model,
+            model_target,
+            checkpoint_file
         }
     }
 
@@ -251,12 +261,14 @@ impl SelfDrivingQLearner {
         let mut replay_buffer = ReplayBuffer::default();
 
         let mut frame_count: usize = 0;
+        let mut episode_count: usize = 0;
+        let mut running_reward: f32 = 0.0;
 
         loop {
             environment.reset();
             let (mut state, _, _) = environment.step(environment.no_action());
 
-            let mut episode_reward: Reward = 0;
+            let mut episode_reward: Reward = 0.0;
 
             for timestamp in [1..self.p.max_steps_per_episode] {
                 // TODO render attempts here if wish expressed (keypress 'r' maybe)
@@ -270,7 +282,7 @@ impl SelfDrivingQLearner {
                         thread_rng().gen_range(0..ACTION_SPACE)
                     } else {
                         // Predict best action Q-values from environment state
-                        self.model.predict_single(&state)
+                        self.model.predict_action(&state)
                     };
 
                 // Decay probability of taking random action
@@ -298,25 +310,71 @@ impl SelfDrivingQLearner {
                             .collect::<Vec<usize>>().try_into().unwrap()
                     };
 
-                    let state_samples= get_many(&replay_buffer.state_history, &indices);
-                    let state_next_samples = get_many(&replay_buffer.state_next_history, &indices);
-                    let reward_samples = get_many(&replay_buffer.reward_history, &indices);
-                    let action_samples = get_many(&replay_buffer.action_history, &indices);
-                    let done_samples = get_many(&replay_buffer.done_history, &indices);
+                    let state_samples = get_many_ref(&replay_buffer.state_history, &indices);
+                    let state_next_samples = get_many_ref(&replay_buffer.state_next_history, &indices);
+                    let reward_samples = get_many_val(&replay_buffer.reward_history, &indices);
+                    let action_samples = get_many_val(&replay_buffer.action_history, &indices);
+                    let done_samples = get_many_val(&replay_buffer.done_history, &indices).map(|e| {
+                        match e {
+                            true => 1.0_f32,
+                            false => 0.0
+                        }
+                    });
 
                     // Build the updated Q-values for the sampled future states
                     // Use the target model for stability
-                    let future_rewards = self.model_target.predict(state_next_samples);
+                    let future_rewards = self.model_target.batch_predict_future_reward(state_next_samples);
+                    // Q value = reward + discount factor * expected future reward
+                    let updated_q_values = array_add(&reward_samples, &array_mul(future_rewards, self.p.gamma));
 
+                    // If final frame set the last value to -1
+                    let updated_q_values: [f32; BATCH_SIZE] = updated_q_values.iter().zip(done_samples.iter())
+                        .map(|(updated_q_value, done)| updated_q_value * (1.0 - done) - done)
+                        .collect::<Vec<_>>()
+                        .try_into().unwrap();
 
-                    todo!()
+                    let loss = self.model.train(state_samples, action_samples, updated_q_values);
+
+                    if frame_count % self.p.update_target_network_after_num_frames == 0 {
+                        // update the target network with new weights
+                        self.model.write_checkpoint(&self.checkpoint_file);
+                        self.model_target.read_checkpoint(&self.checkpoint_file);
+                        log::info!("running reward: {:.2} at episode {}, frame_count: {}", running_reward, episode_count, frame_count);
+                    }
+
+                    // Limit the state and reward history
+                    if replay_buffer.reward_history.len() > self.p.max_memory_length {
+                        replay_buffer.drop_first();
+                    }
+
+                    if done {
+                        break
+                    }
                 }
             }
+
+            // Update running reward to check condition for solving
+            todo!()
+
         }
     }
 }
 
+fn array_add<const N: usize>(lhs: &[f32; N], rhs: &[f32; N]) -> [f32; N] {
+    lhs.iter().zip(rhs.iter())
+        .map(|(lhs, rhs)| lhs + rhs)
+        .collect::<Vec<_>>().try_into().unwrap()
+}
+
+fn array_mul<const N: usize>(slice: [f32; N], value: f32) -> [f32; N] {
+    slice.map(|e| e * value)
+}
+
 /// returns a slice of references to the values in ` vector` at the specified indices
-fn get_many<'a, const N: usize, T>(slice: &'a [T], indices: &[usize; N]) -> [&'a T; N] {
+fn get_many_ref<'a, const N: usize, T>(slice: &'a [T], indices: &[usize; N]) -> [&'a T; N] {
+    todo!()
+}
+
+fn get_many_val<'a, const N: usize, T: Copy>(slice: &'a [T], indices: &[usize; N]) -> [T; N] {
     todo!()
 }

@@ -6,7 +6,7 @@ use std::rc::Rc;
 
 use tensorflow::{Graph, SavedModelBundle, SessionOptions, Tensor};
 
-use crate::ql::breakout_environment::{Action, State};
+use crate::ql::breakout_environment::{Action, Reward, State};
 use crate::ql::environment::batch_to_tensor;
 use crate::ql::model::model_function::{ModelFunction1, ModelFunction3};
 
@@ -25,7 +25,7 @@ pub struct QLearningTfModel1 {
     pub graph: Graph,
     pub bundle: SavedModelBundle,
     fn_predict_single: ModelFunction1,
-    fn_predict: ModelFunction1,
+    fn_batch_predict_future_reward: ModelFunction1,
     fn_train_model: ModelFunction3,
     fn_write_checkpoint: ModelFunction1,
     fn_read_checkpoint: ModelFunction1,
@@ -44,21 +44,17 @@ impl QLearningTfModel1 {
         // One way to get output names via saved_model_cli:
         // saved_model_cli show --dir /path/to/saved-model/ --all
 
-        let fn_predict_single = ModelFunction1::new(&graph, &bundle, "predict_single", "state", "action");
-
-        let fn_predict = ModelFunction1::new(&graph, &bundle, "predict", "state_batch", "actions");
-
+        let fn_predict_single = ModelFunction1::new(&graph, &bundle, "predict_action", "state", "action");
+        let fn_batch_predict_future_reward = ModelFunction1::new(&graph, &bundle, "batch_predict_future_reward", "state_batch", "reward_batch");
         let fn_train_model = ModelFunction3::new(&graph, &bundle, "train_model", "state_samples", "action_samples", "updated_q_values", "loss");
-
-        let fn_write_checkpoint = ModelFunction1::new(&graph, &bundle, "write_checkpoint", "path", "path");
-
-        let fn_read_checkpoint = ModelFunction1::new(&graph, &bundle, "read_checkpoint", "path", "dummy");
+        let fn_write_checkpoint = ModelFunction1::new(&graph, &bundle, "write_checkpoint", "file", "file");
+        let fn_read_checkpoint = ModelFunction1::new(&graph, &bundle, "read_checkpoint", "file", "dummy");
 
         QLearningTfModel1 {
             graph,
             bundle,
             fn_predict_single,
-            fn_predict,
+            fn_batch_predict_future_reward,
             fn_train_model,
             fn_write_checkpoint,
             fn_read_checkpoint,
@@ -70,7 +66,7 @@ impl QLearningTfModel1 {
     /// # Arguments
     /// * `state` Game state Tensor [FRAME_SIZE_X, FRAME_SIZE_Y, WORLD_STATE_NUM_FRAMES]
     ///
-    pub fn predict_single(
+    pub fn predict_action(
         &self,
         state: &Rc<State>,
     ) -> Action {
@@ -81,19 +77,15 @@ impl QLearningTfModel1 {
         r as Action
     }
 
-    pub fn predict(
+    pub fn batch_predict_future_reward(
         &self,
         states: [&Rc<State>; BATCH_SIZE],
-    ) -> [Action; BATCH_SIZE] {
+    ) -> [Reward; BATCH_SIZE] {
         let states = State::batch_to_tensor(&states);
-        let r: Tensor<i64> = self.fn_predict.apply(&self.bundle.session, &states);
+        let r: Tensor<f32> = self.fn_batch_predict_future_reward.apply(&self.bundle.session, &states);
         assert_eq!(r.dims(), &[BATCH_SIZE as u64]);
-        assert_eq!(r.len(), BATCH_SIZE);
-        assert!(r.iter().all(|e| (0_i64..ACTION_SPACE as i64).contains(e)));
-        let mut result: [Action; BATCH_SIZE] = r.iter().map(|&e| e as u8)
-            .collect::<Vec<_>>()
-            .try_into().expect("try_into could be possible - if not we need to code it manually");
-        result
+
+        (*r).as_ref().try_into().unwrap()
     }
 
     /// Performs a single training step using a a batch of data.
@@ -119,17 +111,17 @@ impl QLearningTfModel1 {
 
     pub fn write_checkpoint(
         &self,
-        path: &str,
+        file: &str,
     ) -> String {
-        let r = self.fn_write_checkpoint.apply::<String, String>(&self.bundle.session, &Tensor::from(path.to_string()));
+        let r = self.fn_write_checkpoint.apply::<String, String>(&self.bundle.session, &Tensor::from(file.to_string()));
         r[0].clone()
     }
 
     pub fn read_checkpoint(
         &self,
-        path: &str,
+        file: &str,
     ) {
-        let r = self.fn_read_checkpoint.apply::<String, String>(&self.bundle.session, &Tensor::from(path.to_string()));
+        let _ = self.fn_read_checkpoint.apply::<String, String>(&self.bundle.session, &Tensor::from(file.to_string()));
     }
 }
 
@@ -152,7 +144,7 @@ mod test {
     fn test_predict_single() {
         let model = QLearningTfModel1::init();
         let state = Tensor::new(&[FRAME_SIZE_X as u64, FRAME_SIZE_Y as u64, WORLD_STATE_NUM_FRAMES as u64]);
-        model.predict_single(&state);
+        model.predict_action(&state);
     }
 
     // #[test]

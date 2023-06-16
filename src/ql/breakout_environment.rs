@@ -8,7 +8,7 @@ use crate::ql::frame_ring_buffer::FrameRingBuffer;
 
 pub type Action = u8;
 pub type State = FrameRingBuffer;
-pub type Reward = u32;
+pub type Reward = f32;
 
 
 pub trait BreakoutDrawer {
@@ -55,7 +55,7 @@ impl Environment for BreakoutEnvironment {
         self.frame_buffer.add(frame);
 
         let state = Rc::new(self.frame_buffer.clone());
-        let reward = self.mechanics.score - prev_score;
+        let reward = (self.mechanics.score - prev_score) as f32;
         let done = self.mechanics.finished;
 
         (state, reward, done)
