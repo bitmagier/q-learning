@@ -3,11 +3,12 @@ use std::rc::Rc;
 use image::{ImageBuffer, imageops, Rgb};
 
 use crate::breakout::mechanics::{BreakoutMechanics, GameInput, PanelControl};
-use crate::ql::environment::Environment;
 use crate::ql::frame_ring_buffer::FrameRingBuffer;
+use crate::ql::model::environment::Environment;
+use super::{FRAME_SIZE_X, FRAME_SIZE_Y, WORLD_STATE_NUM_FRAMES};
 
 pub type Action = u8;
-pub type State = FrameRingBuffer;
+pub type State = FrameRingBuffer<WORLD_STATE_NUM_FRAMES>;
 pub type Reward = f32;
 
 
@@ -18,7 +19,7 @@ pub trait BreakoutDrawer {
 pub struct BreakoutEnvironment {
     mechanics: BreakoutMechanics,
     drawer: Box<dyn BreakoutDrawer>,
-    frame_buffer: FrameRingBuffer,
+    frame_buffer: FrameRingBuffer<WORLD_STATE_NUM_FRAMES>,
 }
 
 impl BreakoutEnvironment {
@@ -26,7 +27,7 @@ impl BreakoutEnvironment {
         Self {
             mechanics: BreakoutMechanics::new(),
             drawer,
-            frame_buffer: FrameRingBuffer::default(),
+            frame_buffer: FrameRingBuffer::new(FRAME_SIZE_X, FRAME_SIZE_Y),
         }
     }
 }
@@ -38,7 +39,7 @@ impl Environment for BreakoutEnvironment {
 
     fn reset(&mut self) {
         self.mechanics = BreakoutMechanics::new();
-        self.frame_buffer = FrameRingBuffer::default()
+        self.frame_buffer = FrameRingBuffer::new(FRAME_SIZE_X, FRAME_SIZE_Y)
     }
 
     fn no_action(&self) -> Self::Action {

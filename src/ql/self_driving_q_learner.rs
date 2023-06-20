@@ -5,9 +5,10 @@ use std::rc::Rc;
 use rand::prelude::*;
 
 use crate::pure_game_drawer::PureGameDrawer;
-use crate::ql::breakout_environment::{Action, BreakoutEnvironment, Reward, State};
-use crate::ql::environment::Environment;
-use crate::ql::model::q_learning_tf_model1::{ACTION_SPACE, BATCH_SIZE, QLearningTfModel1};
+use crate::ql::model::{ACTION_SPACE, BATCH_SIZE};
+use crate::ql::model::environment::Environment;
+use crate::ql::model::breakout_environment::{Action, BreakoutEnvironment, Reward, State};
+use crate::ql::model::q_learning_tf_model1::QLearningTfModel1;
 
 type AppResult<T> = Result<T, Box<dyn std::error::Error>>;
 
@@ -112,7 +113,7 @@ pub struct SelfDrivingQLearner {
     p: Parameter,
     model: QLearningTfModel1,
     model_target: QLearningTfModel1,
-    checkpoint_file: String
+    checkpoint_file: String,
 }
 
 impl SelfDrivingQLearner {
@@ -121,7 +122,7 @@ impl SelfDrivingQLearner {
             p: Default::default(),
             model: QLearningTfModel1::init(),
             model_target: QLearningTfModel1::init(),
-            checkpoint_file
+            checkpoint_file,
         }
     }
 
@@ -135,7 +136,7 @@ impl SelfDrivingQLearner {
             p: Parameter::default(),
             model,
             model_target,
-            checkpoint_file
+            checkpoint_file,
         }
     }
 
@@ -306,7 +307,7 @@ impl SelfDrivingQLearner {
                     let indices: [usize; BATCH_SIZE] = {
                         let range = replay_buffer.done_history.len();
                         (0..BATCH_SIZE)
-                            .map(|n| thread_rng().gen_range(0..range))
+                            .map(|_| thread_rng().gen_range(0..range))
                             .collect::<Vec<usize>>().try_into().unwrap()
                     };
 
@@ -333,7 +334,7 @@ impl SelfDrivingQLearner {
                         .collect::<Vec<_>>()
                         .try_into().unwrap();
 
-                    let loss = self.model.train(state_samples, action_samples, updated_q_values);
+                    self.model.train(state_samples, action_samples, updated_q_values);
 
                     if frame_count % self.p.update_target_network_after_num_frames == 0 {
                         // update the target network with new weights
@@ -348,14 +349,13 @@ impl SelfDrivingQLearner {
                     }
 
                     if done {
-                        break
+                        break;
                     }
                 }
             }
 
             // Update running reward to check condition for solving
             todo!()
-
         }
     }
 }

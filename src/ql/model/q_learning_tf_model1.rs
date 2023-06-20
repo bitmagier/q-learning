@@ -6,20 +6,11 @@ use std::rc::Rc;
 
 use tensorflow::{Graph, SavedModelBundle, SessionOptions, Tensor};
 
-use crate::ql::breakout_environment::{Action, Reward, State};
-use crate::ql::environment::batch_to_tensor;
+use crate::ql::model::{ACTION_SPACE, BATCH_SIZE};
+use crate::ql::model::breakout_environment::{Action, Reward, State};
 use crate::ql::model::model_function::{ModelFunction1, ModelFunction3};
 
 const KERAS_MODEL_DIR: &str = "keras_model/q_learning_model_1";
-
-/// series of frames to represent world state
-pub const WORLD_STATE_NUM_FRAMES: usize = 4;
-
-// 600x800 pixel (grey-scaled), series of `WORLD_STATE_FRAMES` frames
-// pub const WORLD_STATE_DIMENSION: &[u64] = &[FRAME_SIZE_X as u64, FRAME_SIZE_Y as u64, WORLD_STATE_NUM_FRAMES as u64];
-
-pub const ACTION_SPACE: u8 = 3;
-pub const BATCH_SIZE: usize = 32;
 
 pub struct QLearningTfModel1 {
     pub graph: Graph,
@@ -46,7 +37,7 @@ impl QLearningTfModel1 {
 
         let fn_predict_single = ModelFunction1::new(&graph, &bundle, "predict_action", "state", "action");
         let fn_batch_predict_future_reward = ModelFunction1::new(&graph, &bundle, "batch_predict_future_reward", "state_batch", "reward_batch");
-        let fn_train_model = ModelFunction3::new(&graph, &bundle, "train_model", "state_samples", "action_samples", "updated_q_values", "loss");
+        let fn_train_model = ModelFunction3::new(&graph, &bundle, "train_model", "state_batch", "action_batch", "updated_q_values", "loss");
         let fn_write_checkpoint = ModelFunction1::new(&graph, &bundle, "write_checkpoint", "file", "file");
         let fn_read_checkpoint = ModelFunction1::new(&graph, &bundle, "read_checkpoint", "file", "dummy");
 
@@ -92,20 +83,28 @@ impl QLearningTfModel1 {
     /// Returns the model's loss
     ///
     /// # Arguments
-    /// * `state_samples` Tensor [BATCH_SIZE, FRAME_SIZE_X, FRAME_SIZE_Y, WORLD_STATE_NUM_FRAMES]
-    /// * `action_samples` Tensor [BATCH_SIZE, 1]
+    /// * `state_batch` Tensor [BATCH_SIZE, FRAME_SIZE_X, FRAME_SIZE_Y, WORLD_STATE_NUM_FRAMES]
+    /// * `action_batch` Tensor [BATCH_SIZE, 1]
     /// * `updated_q_values` Tensor [BATCH_SIZE, 1]
     ///
     pub fn train(
         &self,
-        state_samples: [&Rc<State>; BATCH_SIZE],
-        action_samples: [Action; BATCH_SIZE],
+        state_batch: [&Rc<State>; BATCH_SIZE],
+        action_batch: [Action; BATCH_SIZE],
         updated_q_values: [f32; BATCH_SIZE],
     ) -> f32 {
-        let state_samples = State::batch_to_tensor(&state_samples);
-        let action_samples = batch_to_tensor(&action_samples);
-        let updated_q_values = batch_to_tensor(&updated_q_values);
-        let r = self.fn_train_model.apply(&self.bundle.session, &state_samples, &action_samples, &updated_q_values);
+        let state_batch_tensor = State::batch_to_tensor(&state_batch);
+
+        let mut action_batch_tensor = Tensor::new(&[BATCH_SIZE as u64, 1]);
+        for (i, action) in action_batch.into_iter().enumerate() {
+            action_batch_tensor.set(&[i as u64, 0], action);
+        }
+
+        let mut updated_q_values_tensor = Tensor::new(&[BATCH_SIZE as u64, 1]);
+        for (i, q) in updated_q_values.into_iter().enumerate() {
+            updated_q_values_tensor.set(&[i as u64, 0], q);
+        }
+        let r = self.fn_train_model.apply::<_, _, _, f32>(&self.bundle.session, &state_batch_tensor, &action_batch_tensor, &updated_q_values_tensor);
         r[0]
     }
 
@@ -121,7 +120,7 @@ impl QLearningTfModel1 {
         &self,
         file: &str,
     ) {
-        let _ = self.fn_read_checkpoint.apply::<String, String>(&self.bundle.session, &Tensor::from(file.to_string()));
+        self.fn_read_checkpoint.apply::<_, String>(&self.bundle.session, &Tensor::from(file.to_string()));
     }
 }
 
@@ -129,11 +128,14 @@ impl QLearningTfModel1 {
 #[cfg(test)]
 mod test {
     use std::env::temp_dir;
+    use std::rc::Rc;
 
-    use tensorflow::Tensor;
+    use rand::prelude::*;
 
-    use crate::app::{FRAME_SIZE_X, FRAME_SIZE_Y};
-    use crate::ql::model::q_learning_tf_model1::{QLearningTfModel1, WORLD_STATE_NUM_FRAMES};
+    use crate::ql::frame_ring_buffer::FrameRingBuffer;
+    use crate::ql::model::{ACTION_SPACE, BATCH_SIZE, FRAME_SIZE_X, FRAME_SIZE_Y};
+    use crate::ql::model::breakout_environment::{Action, State};
+    use crate::ql::model::q_learning_tf_model1::QLearningTfModel1;
 
     #[test]
     fn test_load_model() {
@@ -143,20 +145,28 @@ mod test {
     #[test]
     fn test_predict_single() {
         let model = QLearningTfModel1::init();
-        let state = Tensor::new(&[FRAME_SIZE_X as u64, FRAME_SIZE_Y as u64, WORLD_STATE_NUM_FRAMES as u64]);
-        model.predict_action(&state);
+        let state = Rc::new(FrameRingBuffer::new(FRAME_SIZE_X, FRAME_SIZE_Y));
+        let action = model.predict_action(&state);
+        println!("action: {}", action)
     }
 
-    // #[test]
-    // fn test_train() {
-    //     let model = QLearningTfModel1::init();
-    //     let state_samples = Tensor::new(&[BATCH_SIZE as u64, FRAME_SIZE_X as u64, FRAME_SIZE_Y as u64, WORLD_STATE_NUM_FRAMES as u64]);
-    //     let state_samples = // TODO generate BATCH_SIZE RingBuffers
-    //     let action_samples = Tensor::new(&[BATCH_SIZE as u64, 1]);
-    //     let updated_q_values = Tensor::new(&[BATCH_SIZE as u64, 1]);
-    //
-    //     let _loss = model.train(&state_samples, &action_samples, &updated_q_values);
-    // }
+    #[test]
+    fn test_batch_predict_future_reward() {
+        let model = QLearningTfModel1::init();
+        let states = (0..BATCH_SIZE).map(|_| Rc::new(FrameRingBuffer::new(FRAME_SIZE_X, FRAME_SIZE_Y))).collect::<Vec<_>>();
+        let state_batch: [&Rc<State>; BATCH_SIZE] = states.iter().collect::<Vec<_>>().try_into().unwrap();
+        let _future_rewards = model.batch_predict_future_reward(state_batch);
+    }
+
+    #[test]
+    fn test_train() {
+        let model = QLearningTfModel1::init();
+        let states = (0..BATCH_SIZE).map(|_| Rc::new(FrameRingBuffer::random(FRAME_SIZE_X, FRAME_SIZE_Y))).collect::<Vec<_>>();
+        let state_batch: [&Rc<State>; BATCH_SIZE] = states.iter().collect::<Vec<_>>().try_into().unwrap();
+        let action_batch = [0; BATCH_SIZE].map(|_| thread_rng().gen_range(0..ACTION_SPACE) as Action);
+        let updated_q_values = [0; BATCH_SIZE].map(|_| thread_rng().gen_range(0.0..3.0));
+        model.train(state_batch, action_batch, updated_q_values);
+    }
 
     #[test]
     fn test_save_and_load_model_ckpt() {

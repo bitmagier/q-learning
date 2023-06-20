@@ -1,6 +1,6 @@
 use image::{ImageBuffer, Rgb};
 use crate::breakout::mechanics::BreakoutMechanics;
-use crate::ql::breakout_environment::BreakoutDrawer;
+use crate::ql::model::breakout_environment::BreakoutDrawer;
 
 pub struct PureGameDrawer {}
 

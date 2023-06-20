@@ -1,10 +1,11 @@
+import keras
 import tensorflow as tf
-from keras import layers, optimizers
+from keras import layers, optimizers, losses
 
 # These are the top references to follow while finding a suitable implementation:
 # https://keras.io/examples/rl/deep_q_network_breakout/
 # https://github.com/tensorflow/rust/tree/master/examples
-
+# Deepmind paper "Playing Atari with Deep Reinforcement Learning": https://arxiv.org/pdf/1312.5602v1.pdf
 
 FRAME_SIZE_X = 600
 FRAME_SIZE_Y = 800
@@ -18,19 +19,21 @@ class QLearningModel(tf.keras.Sequential):
         super(QLearningModel, self).__init__(*args, **kwargs)
         # TODO original whitepaper used a resolution of 84x84 - we should try to condense the resolution
         #  e.g. by more conv layers - to a minimum
-        self.add(layers.Conv2D(32, 12, strides=6, activation='relu',
-                               input_shape=(FRAME_SIZE_X, FRAME_SIZE_Y, WORLD_STATE_FRAMES),
-                               name='convolution_layer1'))
-        self.add(layers.Conv2D(64, 6, strides=3, activation='relu', name='convolution_layer2'))
+        self.add(tf.keras.Input(shape=(FRAME_SIZE_X, FRAME_SIZE_Y, WORLD_STATE_FRAMES,)))
+        self.add(layers.Conv2D(32, 16, strides=8, activation='relu', name='convolution_layer1'))
+        self.add(layers.Conv2D(32, 8, strides=4, activation='relu', name='convolution_layer2'))
         self.add(layers.Conv2D(64, 4, strides=2, activation='relu', name='convolution_layer3'))
+        self.add(layers.Conv2D(64, 3, strides=1, activation='relu', name='convolution_layer4'))
         self.add(layers.Flatten(name='flatten'))
         self.add(layers.Dense(512, activation='relu', name='full_layer'))
         self.add(layers.Dense(ACTION_SPACE, activation='linear', name='action_layer'))
 
-        self.compile(optimizer=optimizers.Adam(learning_rate=0.00025, clipnorm=1.0),
+        self.compile(optimizer=keras.optimizers.Adam(learning_rate=0.00025, clipnorm=1.0),
                      # Using huber loss for stability
-                     loss=tf.keras.losses.Huber(),
-                     metrics=['accurate'])
+                     loss=keras.losses.Huber(),
+                     metrics=['accuracy'],
+                     # jit_compile = True
+                     )
 
     # Predict action from environment state
     @tf.function(input_signature=[
@@ -44,6 +47,7 @@ class QLearningModel(tf.keras.Sequential):
 
     # WTF: the batch-optimized predict() function can not be exported or wrapped in a user function.
     # So we have to stick with call()
+    # => Maybe we try a model based on tf.Module instead of tf.keras.Model
     @tf.function(input_signature=[
         tf.TensorSpec(shape=[BATCH_SIZE, FRAME_SIZE_X, FRAME_SIZE_Y, WORLD_STATE_FRAMES], dtype=tf.float32,
                       name='state_batch')])
@@ -55,18 +59,17 @@ class QLearningModel(tf.keras.Sequential):
 
     @tf.function(input_signature=[
         tf.TensorSpec(shape=[BATCH_SIZE, FRAME_SIZE_X, FRAME_SIZE_Y, WORLD_STATE_FRAMES], dtype=tf.float32,
-                      name='state_samples'),
-        tf.TensorSpec(shape=[BATCH_SIZE, 1], dtype=tf.uint8, name='action_samples'),
+                      name='state_batch'),
+        tf.TensorSpec(shape=[BATCH_SIZE, 1], dtype=tf.uint8, name='action_batch'),
         tf.TensorSpec(shape=[BATCH_SIZE, 1], dtype=tf.float32, name='updated_q_values')
     ])
-    def train_model(self, state_samples, action_samples, updated_q_values):
+    def train_model(self, state_batch, action_batch, updated_q_values):
         # Create a mask - so we only calculate loss on the updated Q-values
-        masks = tf.one_hot(action_samples, ACTION_SPACE)
+        masks = tf.one_hot(action_batch, ACTION_SPACE)
 
         with tf.GradientTape() as tape:
             # Train the model on the states and updated Q-values
-            q_values = self(state_samples)
-
+            q_values = self(state_batch, training=True)
             # Apply the masks to the Q-values to get the Q-value for action taken
             q_action = tf.reduce_sum(tf.multiply(q_values, masks), axis=1)
             # Calculate loss between new Q-value and old Q-value
@@ -74,11 +77,9 @@ class QLearningModel(tf.keras.Sequential):
 
         # Backpropagation
         grads = tape.gradient(loss, self.trainable_variables)
-        self.optimizer.apply_gradients(zip(grads, self.trainable_variables))
-        return {'loss': loss}
+        r = self.optimizer.apply_gradients(zip(grads, self.trainable_variables))
 
-    # model function to persist model with current values
-    # That hint was very useful: https://github.com/tensorflow/rust/issues/279#issuecomment-749339129
+        return {'loss': loss}
 
     @tf.function(input_signature=[tf.TensorSpec(shape=None, dtype=tf.string, name='file')])
     def write_checkpoint(self, file):

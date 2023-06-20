@@ -1,7 +1,5 @@
 use std::rc::Rc;
 
-use tensorflow::{Tensor, TensorType};
-
 pub trait Environment {
     type State;
     type Action;
@@ -21,10 +19,3 @@ pub trait Environment {
     fn step(&mut self, action: Self::Action) -> (Rc<Self::State>, Self::Reward, bool);
 }
 
-
-pub fn to_tensor<T: TensorType>(value: T) -> Tensor<T> {
-    Tensor::from(value)
-}
-pub fn batch_to_tensor<const N: usize, T: TensorType>(batch: &[T; N]) -> Tensor<T> {
-    Tensor::from(batch)
-}

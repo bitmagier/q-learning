@@ -1,20 +1,41 @@
 use std::rc::Rc;
-use image::{ImageBuffer, Luma, Pixel};
-use tensorflow::Tensor;
 
-use crate::app::{FRAME_SIZE_X, FRAME_SIZE_Y};
-use crate::ql::model::q_learning_tf_model1::{BATCH_SIZE, WORLD_STATE_NUM_FRAMES};
+use image::{ImageBuffer, Luma, Pixel};
+use rand::Rng;
+use tensorflow::Tensor;
 
 pub type GrayFrame = ImageBuffer<Luma<u8>, Vec<u8>>;
 
-#[derive(Clone)]
-pub struct FrameRingBuffer {
-    /// four most recent frames
-    buffer: [GrayFrame; WORLD_STATE_NUM_FRAMES],
+#[derive(Clone, Debug)]
+pub struct FrameRingBuffer<const NUM_FRAMES: usize> {
+    frame_size_x: usize,
+    frame_size_y: usize,
+    /// `NUM_FRAMES` most recent frames
+    buffer: [GrayFrame; NUM_FRAMES],
     next_slot: usize,
 }
 
-impl FrameRingBuffer {
+impl<const NUM_FRAMES: usize> FrameRingBuffer<NUM_FRAMES> {
+    pub fn new(frame_size_x: usize, frame_size_y: usize) -> Self {
+        Self {
+            frame_size_x,
+            frame_size_y,
+            buffer: (0..NUM_FRAMES).map(|_| GrayFrame::new(frame_size_x as u32, frame_size_y as u32))
+                .collect::<Vec<_>>().try_into().unwrap(),
+            next_slot: 0,
+        }
+    }
+
+    pub fn random(frame_size_x: usize, frame_size_y: usize) -> Self {
+        Self {
+            frame_size_x,
+            frame_size_y,
+            buffer: (0..NUM_FRAMES).map(|_| GrayFrame::from_fn(frame_size_x as u32, frame_size_y as u32, |x,y| Luma::from([rand::thread_rng().gen::<u8>()])))
+                .collect::<Vec<_>>().try_into().unwrap(),
+            next_slot: 0,
+        }
+    }
+
     pub fn add(&mut self, element: GrayFrame) {
         self.buffer[self.next_slot] = element;
         self.next_slot = match self.next_slot + 1 {
@@ -35,16 +56,15 @@ impl FrameRingBuffer {
 
     pub fn to_tensor(&self) -> Tensor<f32> {
         let mut tensor = Tensor::new(&[
-            FRAME_SIZE_X as u64,
-            FRAME_SIZE_Y as u64,
-            WORLD_STATE_NUM_FRAMES as u64]
+            self.frame_size_x as u64,
+            self.frame_size_y as u64,
+            NUM_FRAMES as u64]
         );
-        for hist in 0..WORLD_STATE_NUM_FRAMES {
+        for hist in 0..NUM_FRAMES {
             let frame = &self.buffer[hist];
-            debug_assert_eq!(frame.len(), (FRAME_SIZE_X * FRAME_SIZE_Y));
-            for y in 0..FRAME_SIZE_Y {
-                for x in 0..FRAME_SIZE_X {
-                    let pixel = frame.get_pixel(x as u32, y as u32);
+            for y in 0..self.frame_size_y as u32 {
+                for x in 0..self.frame_size_x as u32 {
+                    let pixel = frame.get_pixel(x, y);
                     tensor.set(&[x as u64, y as u64, hist as u64], pixel.channels()[0] as f32)
                 }
             }
@@ -52,35 +72,27 @@ impl FrameRingBuffer {
         tensor
     }
 
-    pub fn batch_to_tensor<const N: usize>(batch: &[&Rc<FrameRingBuffer>; N]) -> Tensor<f32> {
+    pub fn batch_to_tensor<const N: usize>(batch: &[&Rc<FrameRingBuffer<NUM_FRAMES>>; N]) -> Tensor<f32> {
+        let frame_size_x = batch[0].frame_size_x;
+        let frame_size_y = batch[0].frame_size_y;
         let mut tensor = Tensor::new(&[
-            BATCH_SIZE as u64,
-            FRAME_SIZE_X as u64,
-            FRAME_SIZE_Y as u64,
-            WORLD_STATE_NUM_FRAMES as u64
+            N as u64,
+            frame_size_x as u64,
+            frame_size_y as u64,
+            NUM_FRAMES as u64
         ]);
-        for (batch_num, state) in batch.into_iter().enumerate() {
-            for hist in 0..WORLD_STATE_NUM_FRAMES {
+        for (batch_num, &state) in batch.into_iter().enumerate() {
+            for hist in 0..NUM_FRAMES {
                 let frame = &state.buffer[hist];
-                debug_assert_eq!(frame.len(), (FRAME_SIZE_X * FRAME_SIZE_Y));
-                for y in 0..FRAME_SIZE_Y {
-                    for x in 0..FRAME_SIZE_X {
-                        let pixel = frame.get_pixel(x as u32, y as u32);
+                debug_assert_eq!(frame.len(), (frame_size_x * frame_size_y));
+                for y in 0..frame_size_y as u32 {
+                    for x in 0..frame_size_x as u32 {
+                        let pixel = frame.get_pixel(x, y);
                         tensor.set(&[batch_num as u64, x as u64, y as u64, hist as u64], pixel.channels()[0] as f32)
                     }
                 }
             }
         }
         tensor
-    }
-}
-
-impl Default for FrameRingBuffer {
-    fn default() -> Self {
-        Self {
-            buffer: (0..4).map(|e| GrayFrame::new(FRAME_SIZE_X as u32, FRAME_SIZE_Y as u32))
-                .collect::<Vec<_>>().try_into().unwrap(),
-            next_slot: 0,
-        }
     }
 }
