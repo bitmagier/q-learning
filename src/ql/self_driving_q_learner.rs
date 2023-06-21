@@ -334,7 +334,7 @@ impl SelfDrivingQLearner {
                         .collect::<Vec<_>>()
                         .try_into().unwrap();
 
-                    self.model.train(state_samples, action_samples, updated_q_values);
+                    let loss = self.model.train(state_samples, action_samples, updated_q_values);
 
                     if frame_count % self.p.update_target_network_after_num_frames == 0 {
                         // update the target network with new weights

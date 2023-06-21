@@ -17,7 +17,7 @@ pub struct QLearningTfModel1 {
     pub bundle: SavedModelBundle,
     fn_predict_single: ModelFunction1,
     fn_batch_predict_future_reward: ModelFunction1,
-    fn_train_model: ModelFunction3,
+    fn_train_model: ModelFunction3<1>,
     fn_write_checkpoint: ModelFunction1,
     fn_read_checkpoint: ModelFunction1,
 }
@@ -37,7 +37,7 @@ impl QLearningTfModel1 {
 
         let fn_predict_single = ModelFunction1::new(&graph, &bundle, "predict_action", "state", "action");
         let fn_batch_predict_future_reward = ModelFunction1::new(&graph, &bundle, "batch_predict_future_reward", "state_batch", "reward_batch");
-        let fn_train_model = ModelFunction3::new(&graph, &bundle, "train_model", "state_batch", "action_batch", "updated_q_values", "loss");
+        let fn_train_model = ModelFunction3::new(&graph, &bundle, "train_model", "state_batch", "action_batch", "updated_q_values", &["loss"]);
         let fn_write_checkpoint = ModelFunction1::new(&graph, &bundle, "write_checkpoint", "file", "file");
         let fn_read_checkpoint = ModelFunction1::new(&graph, &bundle, "read_checkpoint", "file", "dummy");
 
@@ -87,6 +87,9 @@ impl QLearningTfModel1 {
     /// * `action_batch` Tensor [BATCH_SIZE, 1]
     /// * `updated_q_values` Tensor [BATCH_SIZE, 1]
     ///
+    /// # Returns
+    ///   calculated loss
+    ///
     pub fn train(
         &self,
         state_batch: [&Rc<State>; BATCH_SIZE],
@@ -104,7 +107,7 @@ impl QLearningTfModel1 {
         for (i, q) in updated_q_values.into_iter().enumerate() {
             updated_q_values_tensor.set(&[i as u64, 0], q);
         }
-        let r = self.fn_train_model.apply::<_, _, _, f32>(&self.bundle.session, &state_batch_tensor, &action_batch_tensor, &updated_q_values_tensor);
+        let [r] = self.fn_train_model.apply::<_, _, _, f32>(&self.bundle.session, &state_batch_tensor, &action_batch_tensor, &updated_q_values_tensor);
         r[0]
     }
 
@@ -127,9 +130,9 @@ impl QLearningTfModel1 {
 
 #[cfg(test)]
 mod test {
-    use std::env::temp_dir;
     use std::rc::Rc;
 
+    use itertools::*;
     use rand::prelude::*;
 
     use crate::ql::frame_ring_buffer::FrameRingBuffer;
@@ -165,14 +168,14 @@ mod test {
         let state_batch: [&Rc<State>; BATCH_SIZE] = states.iter().collect::<Vec<_>>().try_into().unwrap();
         let action_batch = [0; BATCH_SIZE].map(|_| thread_rng().gen_range(0..ACTION_SPACE) as Action);
         let updated_q_values = [0; BATCH_SIZE].map(|_| thread_rng().gen_range(0.0..3.0));
-        model.train(state_batch, action_batch, updated_q_values);
+        let loss = model.train(state_batch, action_batch, updated_q_values);
+        log::info!("loss: {}", loss);
     }
 
     #[test]
     fn test_save_and_load_model_ckpt() {
-        let keras_model_checkpoint_dir = temp_dir().join("q_learning_model_1_ckpt");
-        std::fs::create_dir(&keras_model_checkpoint_dir).expect("temp dir creation");
-        let keras_model_checkpoint_file = keras_model_checkpoint_dir.join("checkpoint");
+        let keras_model_checkpoint_dir = tempfile::tempdir().unwrap();
+        let keras_model_checkpoint_file = keras_model_checkpoint_dir.path().join("checkpoint");
         let model = QLearningTfModel1::init();
 
         let path = model.write_checkpoint(keras_model_checkpoint_file.to_str().unwrap());

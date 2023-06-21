@@ -77,7 +77,10 @@ class QLearningModel(tf.keras.Sequential):
 
         # Backpropagation
         grads = tape.gradient(loss, self.trainable_variables)
-        r = self.optimizer.apply_gradients(zip(grads, self.trainable_variables))
+        self.optimizer.apply_gradients(zip(grads, self.trainable_variables))
+
+        # Note / Warning: I just don't know tensorflow's graph mode well enough to judge whether
+        # (or not) we need to return a resulting value of the backpropagation above in order to trigger its calculation.
 
         return {'loss': loss}
 
