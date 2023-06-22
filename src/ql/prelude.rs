@@ -1,7 +1,8 @@
-use std::fmt::{Debug, Display};
+use std::fmt::Display;
 use std::rc::Rc;
 
-use tensorflow::{Tensor, TensorType};
+use tensorflow::Tensor;
+
 use crate::ql::model::q_learning_model1::ModelActionType;
 
 pub trait State {

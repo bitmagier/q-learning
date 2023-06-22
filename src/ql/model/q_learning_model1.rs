@@ -147,10 +147,9 @@ impl<E: Environment> GenericQLearningModel1<E> {
 mod test {
     use std::rc::Rc;
 
-    use itertools::*;
     use rand::prelude::*;
-    use crate::ql::breakout_environment::{BreakoutAction, FRAME_SIZE_X, FRAME_SIZE_Y};
 
+    use crate::ql::breakout_environment::{BreakoutAction, FRAME_SIZE_X, FRAME_SIZE_Y};
     use crate::ql::frame_ring_buffer::FrameRingBuffer;
     use crate::ql::model::q_learning_model1::{BATCH_SIZE, QLearningModel1};
     use crate::ql::prelude::Action;

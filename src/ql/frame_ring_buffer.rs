@@ -31,7 +31,7 @@ impl<const NUM_FRAMES: usize> FrameRingBuffer<NUM_FRAMES> {
         Self {
             frame_size_x,
             frame_size_y,
-            buffer: (0..NUM_FRAMES).map(|_| GrayFrame::from_fn(frame_size_x as u32, frame_size_y as u32, |x, y| Luma::from([rand::thread_rng().gen::<u8>()])))
+            buffer: (0..NUM_FRAMES).map(|_| GrayFrame::from_fn(frame_size_x as u32, frame_size_y as u32, |_, _| Luma::from([rand::thread_rng().gen::<u8>()])))
                 .collect::<Vec<_>>().try_into().unwrap(),
             next_slot: 0,
         }

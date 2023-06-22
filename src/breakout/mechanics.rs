@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use egui::{Pos2, Vec2};
 use itertools::Itertools;
+use rand::Rng;
 
 use crate::breakout::algebra_2d::{AaBB, Circle, contact_test_circle_aabb, ContactSurface, reflected_vector, vector_angle};
 
@@ -97,7 +98,7 @@ impl BreakoutMechanics {
                 center: Pos2::new(MODEL_GRID_LEN_X * 0.5, MODEL_GRID_LEN_Y * 0.5),
                 radius: BALL_RADIUS,
             },
-            direction: Vec2::from((-0.2, -1.0)),
+            direction: Vec2::from((rand::thread_rng().gen_range(-0.35..-0.15), -1.0)),
             speed_per_sec: BALL_SPEED_PER_SEC,
         }
     }
@@ -615,7 +616,7 @@ mod test {
 
     use crate::breakout::algebra_2d::{AaBB, Circle};
     use crate::breakout::mechanics::{Ball, CONTACT_PENETRATION_LIMIT, CONTACT_PREDICTION, ContactSurface};
-    use super::{MODEL_GRID_LEN_X, MODEL_GRID_LEN_Y};
+    use super::MODEL_GRID_LEN_X;
 
     #[rstest]
     #[case(Pos2::new(10.0, 10.0), 5.0, Vec2::new(- 2.0, 2.0), None)]
