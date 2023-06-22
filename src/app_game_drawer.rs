@@ -3,12 +3,12 @@ use egui::epaint::{CircleShape, RectShape};
 
 use crate::breakout::mechanics::{Assert, Ball, BreakoutMechanics, Brick, MODEL_GRID_LEN_X, MODEL_GRID_LEN_Y, Panel};
 
-pub struct GameDrawer {
+pub struct AppGameDrawer {
     canvas_size: Vec2,
     game_state: BreakoutMechanics,
 }
 
-impl GameDrawer {
+impl AppGameDrawer {
     pub fn new(canvas_size: Vec2, game_state: BreakoutMechanics) -> Self {
         Self {
             canvas_size,

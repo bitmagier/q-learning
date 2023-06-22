@@ -3,6 +3,7 @@ use std::rc::Rc;
 use image::{ImageBuffer, Luma, Pixel};
 use rand::Rng;
 use tensorflow::Tensor;
+use crate::ql::prelude::State;
 
 pub type GrayFrame = ImageBuffer<Luma<u8>, Vec<u8>>;
 
@@ -30,7 +31,7 @@ impl<const NUM_FRAMES: usize> FrameRingBuffer<NUM_FRAMES> {
         Self {
             frame_size_x,
             frame_size_y,
-            buffer: (0..NUM_FRAMES).map(|_| GrayFrame::from_fn(frame_size_x as u32, frame_size_y as u32, |x,y| Luma::from([rand::thread_rng().gen::<u8>()])))
+            buffer: (0..NUM_FRAMES).map(|_| GrayFrame::from_fn(frame_size_x as u32, frame_size_y as u32, |x, y| Luma::from([rand::thread_rng().gen::<u8>()])))
                 .collect::<Vec<_>>().try_into().unwrap(),
             next_slot: 0,
         }
@@ -53,8 +54,10 @@ impl<const NUM_FRAMES: usize> FrameRingBuffer<NUM_FRAMES> {
         };
         &self.buffer[slot]
     }
+}
 
-    pub fn to_tensor(&self) -> Tensor<f32> {
+impl<const NUM_FRAMES: usize> State for FrameRingBuffer<NUM_FRAMES> {
+    fn to_tensor(&self) -> Tensor<f32> {
         let mut tensor = Tensor::new(&[
             self.frame_size_x as u64,
             self.frame_size_y as u64,
@@ -72,7 +75,7 @@ impl<const NUM_FRAMES: usize> FrameRingBuffer<NUM_FRAMES> {
         tensor
     }
 
-    pub fn batch_to_tensor<const N: usize>(batch: &[&Rc<FrameRingBuffer<NUM_FRAMES>>; N]) -> Tensor<f32> {
+    fn batch_to_tensor<const N: usize>(batch: &[&Rc<FrameRingBuffer<NUM_FRAMES>>; N]) -> Tensor<f32> {
         let frame_size_x = batch[0].frame_size_x;
         let frame_size_y = batch[0].frame_size_y;
         let mut tensor = Tensor::new(&[

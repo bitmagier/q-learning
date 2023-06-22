@@ -16,9 +16,8 @@ use crate::breakout::mechanics::{BreakoutMechanics, GameInput, TIME_GRANULARITY}
 
 pub mod breakout;
 mod app;
-mod game_drawer;
+mod app_game_drawer;
 pub mod ql;
-mod pure_game_drawer;
 
 #[derive(Clone, Copy, Eq, PartialEq, PartialOrd, Ord, ValueEnum)]
 enum GameMode {

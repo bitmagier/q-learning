@@ -8,7 +8,7 @@ use image::{ImageBuffer, imageops, Rgb, RgbImage};
 use image::imageops::FilterType;
 
 use crate::breakout::mechanics::{BreakoutMechanics, GameInput, MODEL_GRID_LEN_X, MODEL_GRID_LEN_Y, PanelControl};
-use crate::game_drawer::GameDrawer;
+use crate::app_game_drawer::AppGameDrawer;
 
 pub const FRAME_SIZE_X: usize = MODEL_GRID_LEN_X as usize;
 pub const FRAME_SIZE_Y: usize = MODEL_GRID_LEN_Y as usize;
@@ -63,7 +63,7 @@ impl BreakoutApp {
         let canvas_size = painter.clip_rect().size();
 
         let game_state = self.read_game_state();
-        let drawer = GameDrawer::new(canvas_size, game_state);
+        let drawer = AppGameDrawer::new(canvas_size, game_state);
         for mut shape in drawer.shapes() {
             shape.translate(paint_offset.to_vec2());
             painter.add(shape);

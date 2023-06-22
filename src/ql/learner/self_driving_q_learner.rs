@@ -1,16 +1,10 @@
-// TODO needs an independent presentation layer (decoupled from the egui event loop) for drawing the game state
-
 use std::rc::Rc;
 
 use rand::prelude::*;
 
-use crate::pure_game_drawer::PureGameDrawer;
-use crate::ql::model::{ACTION_SPACE, BATCH_SIZE};
-use crate::ql::model::environment::Environment;
-use crate::ql::model::breakout_environment::{Action, BreakoutEnvironment, Reward, State};
-use crate::ql::model::q_learning_tf_model1::QLearningTfModel1;
-
-type AppResult<T> = Result<T, Box<dyn std::error::Error>>;
+use crate::ql::learner::replay_buffer::ReplayBuffers;
+use crate::ql::model::q_learning_model1::{BATCH_SIZE, GenericQLearningModel1, QLearningModel1};
+use crate::ql::prelude::{Action, Environment};
 
 struct Parameter {
     seed: usize,
@@ -30,8 +24,10 @@ struct Parameter {
     // Number of frames for exploration
     epsilon_greedy_frames: f32,
     // Maximum replay length
-    // Note: The Deepmind paper suggests 1000000 however this causes memory issues
-    max_memory_length: usize,
+    // Note from python reference code: The Deepmind paper suggests 1000000 however this causes memory issues
+    step_history_buffer_len: usize,
+    // this determines directly the number of recent goal-achieving episodes required to consider the learning task done
+    episode_reward_history_buffer_len: usize,
     // Train the model after 4 actions
     update_after_actions: usize,
     // After how many frames we want to update the target network
@@ -56,80 +52,40 @@ impl Default for Parameter {
             max_steps_per_episode: 10000,
             epsilon_random_frames: 50000,
             epsilon_greedy_frames: 1000000.0,
-            max_memory_length: 100000,
+            step_history_buffer_len: 100000,
+            episode_reward_history_buffer_len: 100,
             update_after_actions: 4,
             update_target_network_after_num_frames: 10000,
         }
     }
 }
 
-/// Experience replay buffers
-struct ReplayBuffer {
-    // TODO consider a different type for performance reasons a.g. Dequeue
-    action_history: Vec<Action>,
-    state_history: Vec<Rc<State>>,
-    state_next_history: Vec<Rc<State>>,
-    reward_history: Vec<Reward>,
-    done_history: Vec<bool>,
-    episode_reward_history: Vec<Reward>,
-}
-
-impl ReplayBuffer {
-    pub fn push(&mut self, action: Action, state: Rc<State>, state_next: Rc<State>, reward: Reward, done: bool, episode_reward: Reward) {
-        self.action_history.push(action);
-        self.state_history.push(state);
-        self.state_next_history.push(state_next);
-        self.reward_history.push(reward);
-        self.done_history.push(done);
-        self.episode_reward_history.push(episode_reward);
-    }
-
-    pub fn drop_first(&mut self) {
-        assert!(!self.state_history.is_empty());
-        self.action_history.remove(0);
-        self.state_history.remove(0);
-        self.state_next_history.remove(0);
-        self.reward_history.remove(0);
-        self.done_history.remove(0);
-        self.episode_reward_history.remove(0);
-    }
-}
-
-impl Default for ReplayBuffer {
-    fn default() -> Self {
-        Self {
-            action_history: vec![],
-            state_history: vec![],
-            state_next_history: vec![],
-            reward_history: vec![],
-            done_history: vec![],
-            episode_reward_history: vec![],
-        }
-    }
-}
-
 /// Directly connected to GameMechanics and drives the speed of the game with it's response
-pub struct SelfDrivingQLearner {
+pub struct SelfDrivingQLearner<E: Environment> {
     p: Parameter,
-    model: QLearningTfModel1,
-    model_target: QLearningTfModel1,
+    model: GenericQLearningModel1<E>,
+    model_target: GenericQLearningModel1<E>,
     checkpoint_file: String,
+    environment: E,
 }
 
-impl SelfDrivingQLearner {
-    pub fn from_scratch(checkpoint_file: String) -> Self {
+impl<E: Environment> SelfDrivingQLearner<E> {
+    // let drawer = Box::new(PureGameDrawer {});
+    // let mut environment = BreakoutEnvironment::new(drawer);
+    pub fn from_scratch(environment: E, checkpoint_file: String) -> Self {
         Self {
             p: Default::default(),
-            model: QLearningTfModel1::init(),
-            model_target: QLearningTfModel1::init(),
+            model: GenericQLearningModel1::init(),
+            model_target: GenericQLearningModel1::init(),
             checkpoint_file,
+            environment,
         }
     }
 
-    pub fn from_checkpoint(checkpoint_file: String) -> Self {
-        let model = QLearningTfModel1::init();
+    pub fn from_checkpoint(environment: E, checkpoint_file: String) -> Self {
+        let model = GenericQLearningModel1::init();
         model.read_checkpoint(&checkpoint_file);
-        let model_target = QLearningTfModel1::init();
+        let model_target = GenericQLearningModel1::init();
         model_target.read_checkpoint(&checkpoint_file);
 
         Self {
@@ -137,6 +93,7 @@ impl SelfDrivingQLearner {
             model,
             model_target,
             checkpoint_file,
+            environment,
         }
     }
 
@@ -257,30 +214,28 @@ impl SelfDrivingQLearner {
      ```
      */
     pub fn run(&mut self) {
-        let drawer = Box::new(PureGameDrawer {});
-        let mut environment = BreakoutEnvironment::new(drawer);
-        let mut replay_buffer = ReplayBuffer::default();
+        let mut replay_buffers = ReplayBuffers::new(self.p.step_history_buffer_len, self.p.episode_reward_history_buffer_len);
 
-        let mut frame_count: usize = 0;
+        let mut step_count: usize = 0;
         let mut episode_count: usize = 0;
         let mut running_reward: f32 = 0.0;
 
         loop {
-            environment.reset();
-            let (mut state, _, _) = environment.step(environment.no_action());
+            self.environment.reset();
+            let (mut state, _, _) = self.environment.step(E::no_action());
 
-            let mut episode_reward: Reward = 0.0;
+            let mut episode_reward: f32 = 0.0;
 
             for timestamp in [1..self.p.max_steps_per_episode] {
-                // TODO render attempts here if wish expressed (keypress 'r' maybe)
-                frame_count += 1;
+                step_count += 1;
 
                 // Use epsilon-greedy for exploration
-                let action: Action =
-                    if frame_count < self.p.epsilon_random_frames
+                let action: E::Action =
+                    if step_count < self.p.epsilon_random_frames
                         || self.p.epsilon > thread_rng().gen::<f32>() {
                         // Take random action
-                        thread_rng().gen_range(0..ACTION_SPACE)
+                        let a = thread_rng().gen_range(0..<E as Environment>::Action::ACTION_SPACE);
+                        Action::try_from_numeric(a).unwrap()
                     } else {
                         // Predict best action Q-values from environment state
                         self.model.predict_action(&state)
@@ -293,34 +248,29 @@ impl SelfDrivingQLearner {
                 );
 
                 // Apply the sampled action in our environment
-                let (state_next, reward, done) = environment.step(action);
+                let (state_next, reward, done) = self.environment.step(action);
 
                 episode_reward += reward;
 
                 // Save actions and states in replay buffer
-                replay_buffer.push(action, Rc::clone(&state), Rc::clone(&state_next), reward, done, episode_reward);
+                replay_buffers.add_step_items(action, Rc::clone(&state), Rc::clone(&state_next), reward, done);
                 state = state_next;
 
                 // Update every fourth frame and once batch size is over 32
-                if frame_count % self.p.update_after_actions == 0 && replay_buffer.done_history.len() > BATCH_SIZE {
+                if step_count % self.p.update_after_actions == 0 && replay_buffers.done_history.len() > BATCH_SIZE {
                     // Get indices of samples for replay buffers
                     let indices: [usize; BATCH_SIZE] = {
-                        let range = replay_buffer.done_history.len();
+                        let range = replay_buffers.done_history.len();
                         (0..BATCH_SIZE)
                             .map(|_| thread_rng().gen_range(0..range))
                             .collect::<Vec<usize>>().try_into().unwrap()
                     };
 
-                    let state_samples = get_many_ref(&replay_buffer.state_history, &indices);
-                    let state_next_samples = get_many_ref(&replay_buffer.state_next_history, &indices);
-                    let reward_samples = get_many_val(&replay_buffer.reward_history, &indices);
-                    let action_samples = get_many_val(&replay_buffer.action_history, &indices);
-                    let done_samples = get_many_val(&replay_buffer.done_history, &indices).map(|e| {
-                        match e {
-                            true => 1.0_f32,
-                            false => 0.0
-                        }
-                    });
+                    let state_samples = replay_buffers.state_history.get_many(&indices);
+                    let state_next_samples = replay_buffers.state_next_history.get_many(&indices);
+                    let reward_samples = replay_buffers.reward_history.get_many_as_val(&indices);
+                    let action_samples = replay_buffers.action_history.get_many_as_val(&indices);
+                    let done_samples = replay_buffers.done_history.get_many_as_val(&indices).map(|e| bool_to_f32(e));
 
                     // Build the updated Q-values for the sampled future states
                     // Use the target model for stability
@@ -335,17 +285,13 @@ impl SelfDrivingQLearner {
                         .try_into().unwrap();
 
                     let loss = self.model.train(state_samples, action_samples, updated_q_values);
+                    log::debug!("training loss: {}", loss);
 
-                    if frame_count % self.p.update_target_network_after_num_frames == 0 {
+                    if step_count % self.p.update_target_network_after_num_frames == 0 {
                         // update the target network with new weights
                         self.model.write_checkpoint(&self.checkpoint_file);
                         self.model_target.read_checkpoint(&self.checkpoint_file);
-                        log::info!("running reward: {:.2} at episode {}, frame_count: {}", running_reward, episode_count, frame_count);
-                    }
-
-                    // Limit the state and reward history
-                    if replay_buffer.reward_history.len() > self.p.max_memory_length {
-                        replay_buffer.drop_first();
+                        log::info!("running reward: {:.2} at episode {}, step count (frames): {}", running_reward, episode_count, step_count);
                     }
 
                     if done {
@@ -355,8 +301,22 @@ impl SelfDrivingQLearner {
             }
 
             // Update running reward to check condition for solving
-            todo!()
+            replay_buffers.add_episode_reward(episode_reward);
+            running_reward = replay_buffers.avg_episode_rewards();
+            episode_count += 1;
+
+            if running_reward >= E::total_reward_goal() {
+                log::info!("Solved at episode {}!", episode_count);
+                break;
+            }
         }
+    }
+}
+
+fn bool_to_f32(v: bool) -> f32 {
+    match v {
+        true => 1.0,
+        false => 0.0
     }
 }
 
@@ -370,11 +330,6 @@ fn array_mul<const N: usize>(slice: [f32; N], value: f32) -> [f32; N] {
     slice.map(|e| e * value)
 }
 
-/// returns a slice of references to the values in ` vector` at the specified indices
-fn get_many_ref<'a, const N: usize, T>(slice: &'a [T], indices: &[usize; N]) -> [&'a T; N] {
-    todo!()
-}
 
-fn get_many_val<'a, const N: usize, T: Copy>(slice: &'a [T], indices: &[usize; N]) -> [T; N] {
-    todo!()
-}
+// TODO needs an independent presentation layer (decoupled from the egui event loop) for drawing the game state
+// TODO render attempts if wish expressed (keypress 'r' maybe)
