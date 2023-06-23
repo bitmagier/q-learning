@@ -13,6 +13,10 @@ use crate::ql::prelude::{Action, Environment, State};
 
 const KERAS_MODEL_DIR: &str = "keras_model/q_learning_model_1";
 
+pub const FRAME_SIZE_X: usize = 600;
+pub const FRAME_SIZE_Y: usize = 600;
+/// series of recent frames to represent world state
+pub const WORLD_STATE_NUM_FRAMES: usize = 4;
 pub const BATCH_SIZE: usize = 32;
 
 pub type ModelActionType = u8;
@@ -149,8 +153,9 @@ mod tests {
     use std::rc::Rc;
 
     use rand::prelude::*;
+    use crate::ql::breakout_environment::BreakoutAction;
 
-    use crate::ql::breakout_environment::{BreakoutAction, FRAME_SIZE_X, FRAME_SIZE_Y};
+    use super::{FRAME_SIZE_X, FRAME_SIZE_Y};
     use crate::ql::frame_ring_buffer::FrameRingBuffer;
     use crate::ql::model::q_learning_model1::{BATCH_SIZE, BreakoutQLearningModel1};
     use crate::ql::prelude::Action;

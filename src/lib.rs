@@ -4,3 +4,4 @@ extern crate tensorflow;
 
 pub mod breakout;
 pub mod ql;
+pub mod util;

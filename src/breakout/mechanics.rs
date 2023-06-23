@@ -10,7 +10,7 @@ use crate::breakout::algebra_2d::{AaBB, Circle, contact_test_circle_aabb, Contac
 
 /// TOP / LEFT corner is 0/0
 pub const MODEL_GRID_LEN_X: f32 = 600.0;
-pub const MODEL_GRID_LEN_Y: f32 = 800.0;
+pub const MODEL_GRID_LEN_Y: f32 = 600.0;
 
 const CEILING_HEIGHT_Y: f32 = 0.0;
 
@@ -19,7 +19,7 @@ pub const TIME_GRANULARITY: Duration = Duration::from_millis(20);
 
 const PANEL_LEN_X: f32 = 60.0;
 const PANEL_LEN_Y: f32 = 10.0;
-const PANEL_CENTER_POS_Y: f32 = 770.0;
+const PANEL_CENTER_POS_Y: f32 = MODEL_GRID_LEN_Y - 30.0;
 
 const PANEL_MAX_SPEED_PER_SECOND: f32 = 160.0;
 

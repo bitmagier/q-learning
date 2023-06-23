@@ -8,7 +8,7 @@ from keras import layers, optimizers, losses
 # Deepmind paper "Playing Atari with Deep Reinforcement Learning": https://arxiv.org/pdf/1312.5602v1.pdf
 
 FRAME_SIZE_X = 600
-FRAME_SIZE_Y = 800
+FRAME_SIZE_Y = 600
 WORLD_STATE_FRAMES = 4
 ACTION_SPACE = 3
 BATCH_SIZE = 32  # Size of batch taken from replay buffer
@@ -17,8 +17,6 @@ BATCH_SIZE = 32  # Size of batch taken from replay buffer
 class QLearningModel(tf.keras.Sequential):
     def __init__(self, *args, **kwargs):
         super(QLearningModel, self).__init__(*args, **kwargs)
-        # TODO original whitepaper used a resolution of 84x84 - we should try to condense the resolution
-        #  e.g. by more conv layers - to a minimum
         self.add(tf.keras.Input(shape=(FRAME_SIZE_X, FRAME_SIZE_Y, WORLD_STATE_FRAMES,)))
         self.add(layers.Conv2D(32, 16, strides=8, activation='relu', name='convolution_layer1'))
         self.add(layers.Conv2D(32, 8, strides=4, activation='relu', name='convolution_layer2'))

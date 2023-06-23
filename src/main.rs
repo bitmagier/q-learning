@@ -5,9 +5,9 @@ use std::thread;
 use std::time::Instant;
 
 use clap::{Parser, ValueEnum};
-use log::LevelFilter;
 
 use q_learning_breakout::breakout::mechanics::{BreakoutMechanics, GameInput, TIME_GRANULARITY};
+use q_learning_breakout::util;
 
 use crate::app::{BreakoutApp, ExternalGameController};
 
@@ -39,7 +39,7 @@ struct Args {
 }
 
 fn main() -> eframe::Result<()> {
-    init_logging();
+    util::init_logging();
 
     let args: Args = Args::parse();
 
@@ -62,14 +62,6 @@ fn main() -> eframe::Result<()> {
         let mechanics_join_handle = thread::spawn(move || mechanics_thread(m_game_input, m_game_state, egui_ctx));
         Box::new(BreakoutApp::new(cc, game_input, game_state, mechanics_join_handle, external_game_controller))
     }))
-}
-
-fn init_logging() {
-    env_logger::builder()
-        .format_target(false)
-        .format_timestamp_secs()
-        .filter_level(LevelFilter::Info)
-        .init()
 }
 
 fn mechanics_thread(game_input: Arc<RwLock<GameInput>>, game_state: Arc<RwLock<BreakoutMechanics>>, egui_ctx: egui::Context) {
