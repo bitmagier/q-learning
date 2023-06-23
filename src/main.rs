@@ -1,7 +1,3 @@
-#![feature(drain_filter)]
-#![feature(tuple_trait)]
-extern crate tensorflow;
-
 use std::fmt::{Display, Formatter};
 use std::ops::{Add, Div};
 use std::sync::{Arc, RwLock};
@@ -11,13 +7,11 @@ use std::time::Instant;
 use clap::{Parser, ValueEnum};
 use log::LevelFilter;
 
-use crate::app::{BreakoutApp, ExternalGameController};
-use crate::breakout::mechanics::{BreakoutMechanics, GameInput, TIME_GRANULARITY};
+use q_learning_breakout::breakout::mechanics::{BreakoutMechanics, GameInput, TIME_GRANULARITY};
 
-pub mod breakout;
+use crate::app::{BreakoutApp, ExternalGameController};
+
 mod app;
-mod app_game_drawer;
-pub mod ql;
 
 #[derive(Clone, Copy, Eq, PartialEq, PartialOrd, Ord, ValueEnum)]
 enum GameMode {

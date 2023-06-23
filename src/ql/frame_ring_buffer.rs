@@ -5,6 +5,7 @@ use rand::Rng;
 use tensorflow::Tensor;
 use crate::ql::prelude::State;
 
+// Gray-scaled image
 pub type GrayFrame = ImageBuffer<Luma<u8>, Vec<u8>>;
 
 #[derive(Clone, Debug)]

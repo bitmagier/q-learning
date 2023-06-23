@@ -145,7 +145,7 @@ impl<E: Environment> QLearningModel1<E> {
 
 
 #[cfg(test)]
-mod test {
+mod tests {
     use std::rc::Rc;
 
     use rand::prelude::*;

@@ -1,7 +1,7 @@
 use egui::{Color32, Pos2, Rect, Rounding, Shape, Stroke, Vec2};
 use egui::epaint::{CircleShape, RectShape};
 
-use crate::breakout::mechanics::{Assert, Ball, BreakoutMechanics, Brick, MODEL_GRID_LEN_X, MODEL_GRID_LEN_Y, Panel};
+use super::mechanics::{Assert, Ball, BreakoutMechanics, Brick, MODEL_GRID_LEN_X, MODEL_GRID_LEN_Y, Panel};
 
 pub struct AppGameDrawer {
     canvas_size: Vec2,

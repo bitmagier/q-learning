@@ -4,19 +4,15 @@ use std::rc::Rc;
 use image::imageops;
 
 use crate::breakout::mechanics::{BreakoutMechanics, GameInput, PanelControl};
-use crate::ql::breakout_drawer::BreakoutDrawer;
+use crate::ql::breakout_drawer::{BreakoutDrawer, FRAME_SIZE_X, FRAME_SIZE_Y};
 use crate::ql::frame_ring_buffer::FrameRingBuffer;
 use crate::ql::model::q_learning_model1::ModelActionType;
 use crate::ql::prelude::{Action, Environment};
 
-// 600x800 pixel (grey-scaled), series of `WORLD_STATE_FRAMES` frames
-pub const FRAME_SIZE_X: usize = crate::app::FRAME_SIZE_X;
-pub const FRAME_SIZE_Y: usize = crate::app::FRAME_SIZE_Y;
-/// series of frames to represent world state
+/// series of recent frames to represent world state
 pub const WORLD_STATE_NUM_FRAMES: usize = 4;
 
-
-pub type BreakoutState = FrameRingBuffer<4>;
+pub type BreakoutState = FrameRingBuffer<WORLD_STATE_NUM_FRAMES>;
 
 #[derive(Debug, Clone, Copy)]
 pub enum BreakoutAction {

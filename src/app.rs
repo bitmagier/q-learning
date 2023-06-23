@@ -7,8 +7,8 @@ use egui::{Context, Id, LayerId, Order, Painter, Vec2};
 use image::{ImageBuffer, imageops, Rgb, RgbImage};
 use image::imageops::FilterType;
 
-use crate::breakout::mechanics::{BreakoutMechanics, GameInput, MODEL_GRID_LEN_X, MODEL_GRID_LEN_Y, PanelControl};
-use crate::app_game_drawer::AppGameDrawer;
+use q_learning_breakout::breakout::mechanics::{BreakoutMechanics, GameInput, MODEL_GRID_LEN_X, MODEL_GRID_LEN_Y, PanelControl};
+use q_learning_breakout::breakout::app_game_drawer::AppGameDrawer;
 
 pub const FRAME_SIZE_X: usize = MODEL_GRID_LEN_X as usize;
 pub const FRAME_SIZE_Y: usize = MODEL_GRID_LEN_Y as usize;

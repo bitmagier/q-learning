@@ -610,7 +610,7 @@ fn accelerate(speed_per_sec: f32, acceleration_per_sec: f32, speed_limit_abs: f3
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use egui::{Pos2, Vec2};
     use rstest::rstest;
 

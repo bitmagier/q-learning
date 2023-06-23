@@ -1,34 +1,35 @@
+use std::path::Path;
 use std::rc::Rc;
 
 use rand::prelude::*;
 
-use crate::ql::learner::replay_buffer::ReplayBuffers;
+use crate::ql::learn::replay_buffer::ReplayBuffers;
 use crate::ql::model::q_learning_model1::{BATCH_SIZE, QLearningModel1};
 use crate::ql::prelude::{Action, Environment};
+
 use super::misc::Immutable;
 
-
-struct Parameter {
+pub struct Parameter {
     /// Discount factor for past rewards
-    gamma: f32,
+    pub gamma: f32,
     /// Maximum epsilon greedy parameter
-    epsilon_max: f32,
+    pub epsilon_max: f32,
     /// Minimum epsilon greedy parameter
-    epsilon_min: f32,
-    max_steps_per_episode: usize,
+    pub epsilon_min: f32,
+    pub max_steps_per_episode: usize,
     // Number of frames to take random action and observe output
-    epsilon_random_frames: usize,
+    pub epsilon_random_frames: usize,
     // Number of frames for exploration
-    epsilon_greedy_frames: f32,
+    pub epsilon_greedy_frames: f32,
     // Maximum replay length
     // Note from python reference code: The Deepmind paper suggests 1000000 however this causes memory issues
-    step_history_buffer_len: usize,
+    pub step_history_buffer_len: usize,
     // this determines directly the number of recent goal-achieving episodes required to consider the learning task done
-    episode_reward_history_buffer_len: usize,
+    pub episode_reward_history_buffer_len: usize,
     // Train the model after 4 actions
-    update_after_actions: usize,
+    pub update_after_actions: usize,
     // After how many frames we want to update the target network
-    update_target_network_after_num_frames: usize,
+    pub update_target_network_after_num_frames: usize,
 }
 
 impl Parameter {
@@ -184,9 +185,12 @@ pub struct SelfDrivingQLearner<E: Environment> {
 }
 
 impl<E: Environment> SelfDrivingQLearner<E> {
-    pub fn from_scratch(environment: E, checkpoint_file: String) -> Self {
+    pub fn from_scratch(environment: E, param: Parameter, checkpoint_file: &Path) -> Self {
+        let checkpoint_file = checkpoint_file.to_str()
+            .expect("file name should have a UTF-8 compatible path")
+            .to_owned();
         Self {
-            param: Immutable::new(Default::default()),
+            param: Immutable::new(param),
             model: QLearningModel1::init(),
             model_target: QLearningModel1::init(),
             checkpoint_file,
@@ -194,14 +198,17 @@ impl<E: Environment> SelfDrivingQLearner<E> {
         }
     }
 
-    pub fn from_checkpoint(environment: E, checkpoint_file: String) -> Self {
+    pub fn from_checkpoint(environment: E, param: Parameter, checkpoint_file: &Path) -> Self {
+        let checkpoint_file = checkpoint_file.to_str()
+            .expect("file name should have a UTF-8 compatible path")
+            .to_owned();
         let model = QLearningModel1::init();
         model.read_checkpoint(&checkpoint_file);
         let model_target = QLearningModel1::init();
         model_target.read_checkpoint(&checkpoint_file);
 
         Self {
-            param: Immutable::new(Parameter::default()),
+            param: Immutable::new(param),
             model,
             model_target,
             checkpoint_file,
@@ -209,7 +216,7 @@ impl<E: Environment> SelfDrivingQLearner<E> {
         }
     }
 
-    pub fn run(&mut self) {
+    pub fn learn_until_mastered(&mut self) {
         let mut replay_buffers = ReplayBuffers::new(self.param.step_history_buffer_len, self.param.episode_reward_history_buffer_len);
 
         let mut step_count: usize = 0;
@@ -329,7 +336,3 @@ fn array_mul<const N: usize>(slice: [f32; N], value: f32) -> [f32; N] {
     slice.map(|e| e * value)
 }
 
-#[cfg(test)]
-mod test {
-
-}
