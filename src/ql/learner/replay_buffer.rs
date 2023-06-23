@@ -36,6 +36,7 @@ impl<T> ReplayBuffer<T> {
 }
 
 impl<T: Copy> ReplayBuffer<T> {
+    /// returns a slice of values of `slice` at the specified `indices`
     pub fn get_many_as_val<const N: usize>(&self, indices: &[usize; N]) -> [T; N] {
         debug_assert!(!indices.iter().any(|&e| e >= self.buffer.len()));
         indices.map(|i| self.buffer[i])

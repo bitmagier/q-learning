@@ -14,11 +14,12 @@ use crate::ql::prelude::{Action, Environment, State};
 const KERAS_MODEL_DIR: &str = "keras_model/q_learning_model_1";
 
 pub const BATCH_SIZE: usize = 32;
+
 pub type ModelActionType = u8;
 
-pub type QLearningModel1 = GenericQLearningModel1<BreakoutEnvironment>;
+pub type BreakoutQLearningModel1 = QLearningModel1<BreakoutEnvironment>;
 
-pub struct GenericQLearningModel1<E: Environment> {
+pub struct QLearningModel1<E: Environment> {
     pub graph: Graph,
     pub bundle: SavedModelBundle,
     fn_predict_single: ModelFunction1,
@@ -26,10 +27,10 @@ pub struct GenericQLearningModel1<E: Environment> {
     fn_train_model: ModelFunction3<1>,
     fn_write_checkpoint: ModelFunction1,
     fn_read_checkpoint: ModelFunction1,
-    _phantom: PhantomData<E>
+    _phantom: PhantomData<E>,
 }
 
-impl<E: Environment> GenericQLearningModel1<E> {
+impl<E: Environment> QLearningModel1<E> {
     pub fn init() -> Self {
         // we load the model as a graph from the path it was saved in
         let model_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join(KERAS_MODEL_DIR);
@@ -48,7 +49,7 @@ impl<E: Environment> GenericQLearningModel1<E> {
         let fn_write_checkpoint = ModelFunction1::new(&graph, &bundle, "write_checkpoint", "file", "file");
         let fn_read_checkpoint = ModelFunction1::new(&graph, &bundle, "read_checkpoint", "file", "dummy");
 
-        GenericQLearningModel1 {
+        QLearningModel1 {
             graph,
             bundle,
             fn_predict_single,
@@ -70,15 +71,16 @@ impl<E: Environment> GenericQLearningModel1<E> {
         state: &Rc<E::State>,
     ) -> E::Action {
         let state = state.to_tensor();
-        let r= self.fn_predict_single.apply::<_, i64>(&self.bundle.session, &state);
-        E::Action::try_from_numeric(r[0] as ModelActionType).expect("action value should be in proper range")
+        let r = self.fn_predict_single.apply::<_, i64>(&self.bundle.session, &state);
+        Action::try_from_numeric(r[0] as ModelActionType)
+            .expect("action value should be in proper range")
     }
 
     pub fn batch_predict_future_reward(
         &self,
         states: [&Rc<E::State>; BATCH_SIZE],
     ) -> [f32; BATCH_SIZE] {
-        let states = E::State::batch_to_tensor(&states);
+        let states = State::batch_to_tensor(&states);
         let r: Tensor<f32> = self.fn_batch_predict_future_reward.apply(&self.bundle.session, &states);
         assert_eq!(r.dims(), &[BATCH_SIZE as u64]);
 
@@ -102,7 +104,7 @@ impl<E: Environment> GenericQLearningModel1<E> {
         action_batch: [E::Action; BATCH_SIZE],
         updated_q_values: [f32; BATCH_SIZE],
     ) -> f32 {
-        let state_batch_tensor = E::State::batch_to_tensor(&state_batch);
+        let state_batch_tensor = State::batch_to_tensor(&state_batch);
 
         let mut action_batch_tensor = Tensor::new(&[BATCH_SIZE as u64, 1]);
         for (i, action) in action_batch.into_iter().enumerate() {
@@ -142,7 +144,6 @@ impl<E: Environment> GenericQLearningModel1<E> {
 }
 
 
-
 #[cfg(test)]
 mod test {
     use std::rc::Rc;
@@ -151,17 +152,17 @@ mod test {
 
     use crate::ql::breakout_environment::{BreakoutAction, FRAME_SIZE_X, FRAME_SIZE_Y};
     use crate::ql::frame_ring_buffer::FrameRingBuffer;
-    use crate::ql::model::q_learning_model1::{BATCH_SIZE, QLearningModel1};
+    use crate::ql::model::q_learning_model1::{BATCH_SIZE, BreakoutQLearningModel1};
     use crate::ql::prelude::Action;
 
     #[test]
     fn test_load_model() {
-        QLearningModel1::init();
+        BreakoutQLearningModel1::init();
     }
 
     #[test]
     fn test_predict_single() {
-        let model = QLearningModel1::init();
+        let model = BreakoutQLearningModel1::init();
         let state = Rc::new(FrameRingBuffer::new(FRAME_SIZE_X, FRAME_SIZE_Y));
         let action = model.predict_action(&state);
         log::info!("action: {}", action)
@@ -169,7 +170,7 @@ mod test {
 
     #[test]
     fn test_batch_predict_future_reward() {
-        let model = QLearningModel1::init();
+        let model = BreakoutQLearningModel1::init();
         let states = (0..BATCH_SIZE).map(|_| Rc::new(FrameRingBuffer::new(FRAME_SIZE_X, FRAME_SIZE_Y))).collect::<Vec<_>>();
         let state_batch: [&Rc<_>; BATCH_SIZE] = states.iter().collect::<Vec<_>>().try_into().unwrap();
         let _future_rewards = model.batch_predict_future_reward(state_batch);
@@ -177,7 +178,7 @@ mod test {
 
     #[test]
     fn test_train() {
-        let model = QLearningModel1::init();
+        let model = BreakoutQLearningModel1::init();
         let states = (0..BATCH_SIZE).map(|_| Rc::new(FrameRingBuffer::random(FRAME_SIZE_X, FRAME_SIZE_Y))).collect::<Vec<_>>();
         let state_batch: [&Rc<_>; BATCH_SIZE] = states.iter().collect::<Vec<_>>().try_into().unwrap();
         let action_batch = [0; BATCH_SIZE]
@@ -192,7 +193,7 @@ mod test {
     fn test_save_and_load_model_ckpt() {
         let keras_model_checkpoint_dir = tempfile::tempdir().unwrap();
         let keras_model_checkpoint_file = keras_model_checkpoint_dir.path().join("checkpoint");
-        let model = QLearningModel1::init();
+        let model = BreakoutQLearningModel1::init();
 
         let path = model.write_checkpoint(keras_model_checkpoint_file.to_str().unwrap());
         log::info!("saved model to '{}'", path);

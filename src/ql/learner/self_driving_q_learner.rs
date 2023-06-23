@@ -3,18 +3,18 @@ use std::rc::Rc;
 use rand::prelude::*;
 
 use crate::ql::learner::replay_buffer::ReplayBuffers;
-use crate::ql::model::q_learning_model1::{BATCH_SIZE, GenericQLearningModel1};
+use crate::ql::model::q_learning_model1::{BATCH_SIZE, QLearningModel1};
 use crate::ql::prelude::{Action, Environment};
+use super::misc::Immutable;
+
 
 struct Parameter {
     /// Discount factor for past rewards
     gamma: f32,
-    ///  Epsilon greedy parameter
-    epsilon: f32,
-    /// Minimum epsilon greedy parameter
-    epsilon_min: f32,
     /// Maximum epsilon greedy parameter
     epsilon_max: f32,
+    /// Minimum epsilon greedy parameter
+    epsilon_min: f32,
     max_steps_per_episode: usize,
     // Number of frames to take random action and observe output
     epsilon_random_frames: usize,
@@ -41,9 +41,8 @@ impl Default for Parameter {
     fn default() -> Self {
         Self {
             gamma: 0.99,
-            epsilon: 1.0,
-            epsilon_min: 0.1,
             epsilon_max: 1.0,
+            epsilon_min: 0.1,
             max_steps_per_episode: 10000,
             epsilon_random_frames: 50000,
             epsilon_greedy_frames: 1000000.0,
@@ -56,9 +55,12 @@ impl Default for Parameter {
 }
 
 /**
-  Directly connected to GameMechanics and drives the speed of the game with it's response.
+    A self-driving Q learning algorithm.
+    It's directly connected to a (Game-) Environment and drives the speed of the steps in that environment with it's response.
 
-  Original python (script)[https://keras.io/examples/rl/deep_q_network_breakout/]
+    You may find some basic fundamentals of Reinforcement learning useful. Here is a short wrapup in the sources under 'analysis/reinforcement_learning.md'.
+
+    (Original python script)[https://keras.io/examples/rl/deep_q_network_breakout/]
 ```python
   while True:  # Run until solved
     state = np.array(env.reset())
@@ -174,9 +176,9 @@ impl Default for Parameter {
  ```
  */
 pub struct SelfDrivingQLearner<E: Environment> {
-    p: Parameter,
-    model: GenericQLearningModel1<E>,
-    model_target: GenericQLearningModel1<E>,
+    param: Immutable<Parameter>,
+    model: QLearningModel1<E>,
+    model_target: QLearningModel1<E>,
     checkpoint_file: String,
     environment: E,
 }
@@ -184,22 +186,22 @@ pub struct SelfDrivingQLearner<E: Environment> {
 impl<E: Environment> SelfDrivingQLearner<E> {
     pub fn from_scratch(environment: E, checkpoint_file: String) -> Self {
         Self {
-            p: Default::default(),
-            model: GenericQLearningModel1::init(),
-            model_target: GenericQLearningModel1::init(),
+            param: Immutable::new(Default::default()),
+            model: QLearningModel1::init(),
+            model_target: QLearningModel1::init(),
             checkpoint_file,
             environment,
         }
     }
 
     pub fn from_checkpoint(environment: E, checkpoint_file: String) -> Self {
-        let model = GenericQLearningModel1::init();
+        let model = QLearningModel1::init();
         model.read_checkpoint(&checkpoint_file);
-        let model_target = GenericQLearningModel1::init();
+        let model_target = QLearningModel1::init();
         model_target.read_checkpoint(&checkpoint_file);
 
         Self {
-            p: Parameter::default(),
+            param: Immutable::new(Parameter::default()),
             model,
             model_target,
             checkpoint_file,
@@ -208,11 +210,14 @@ impl<E: Environment> SelfDrivingQLearner<E> {
     }
 
     pub fn run(&mut self) {
-        let mut replay_buffers = ReplayBuffers::new(self.p.step_history_buffer_len, self.p.episode_reward_history_buffer_len);
+        let mut replay_buffers = ReplayBuffers::new(self.param.step_history_buffer_len, self.param.episode_reward_history_buffer_len);
 
         let mut step_count: usize = 0;
         let mut episode_count: usize = 0;
         let mut running_reward: f32 = 0.0;
+
+        ///  Epsilon greedy parameter
+        let mut epsilon: f32 = self.param.epsilon_max;
 
         loop {
             self.environment.reset();
@@ -220,13 +225,13 @@ impl<E: Environment> SelfDrivingQLearner<E> {
 
             let mut episode_reward: f32 = 0.0;
 
-            for _timestamp in [1..self.p.max_steps_per_episode] {
+            for _timestamp in [1..self.param.max_steps_per_episode] {
                 step_count += 1;
 
                 // Use epsilon-greedy for exploration
                 let action: E::Action =
-                    if step_count < self.p.epsilon_random_frames
-                        || self.p.epsilon > thread_rng().gen::<f32>() {
+                    if step_count < self.param.epsilon_random_frames
+                        || epsilon > thread_rng().gen::<f32>() {
                         // Take random action
                         let a = thread_rng().gen_range(0..<E as Environment>::Action::ACTION_SPACE);
                         Action::try_from_numeric(a).unwrap()
@@ -236,9 +241,9 @@ impl<E: Environment> SelfDrivingQLearner<E> {
                     };
 
                 // Decay probability of taking random action
-                self.p.epsilon = f32::max(
-                    self.p.epsilon - self.p.epsilon_interval() / self.p.epsilon_greedy_frames,
-                    self.p.epsilon_min,
+                epsilon = f32::max(
+                    epsilon - self.param.epsilon_interval() / self.param.epsilon_greedy_frames,
+                    self.param.epsilon_min,
                 );
 
                 // Apply the sampled action in our environment
@@ -251,7 +256,7 @@ impl<E: Environment> SelfDrivingQLearner<E> {
                 state = state_next;
 
                 // Update every fourth frame and once batch size is over 32
-                if step_count % self.p.update_after_actions == 0 && replay_buffers.done_history.len() > BATCH_SIZE {
+                if step_count % self.param.update_after_actions == 0 && replay_buffers.done_history.len() > BATCH_SIZE {
                     // Get indices of samples for replay buffers
                     let indices: [usize; BATCH_SIZE] = {
                         let range = replay_buffers.done_history.len();
@@ -270,7 +275,7 @@ impl<E: Environment> SelfDrivingQLearner<E> {
                     // Use the target model for stability
                     let future_rewards = self.model_target.batch_predict_future_reward(state_next_samples);
                     // Q value = reward + discount factor * expected future reward
-                    let updated_q_values = array_add(&reward_samples, &array_mul(future_rewards, self.p.gamma));
+                    let updated_q_values = array_add(&reward_samples, &array_mul(future_rewards, self.param.gamma));
 
                     // If final frame set the last value to -1
                     let updated_q_values: [f32; BATCH_SIZE] = updated_q_values.iter().zip(done_samples.iter())
@@ -281,7 +286,7 @@ impl<E: Environment> SelfDrivingQLearner<E> {
                     let loss = self.model.train(state_samples, action_samples, updated_q_values);
                     log::debug!("training loss: {}", loss);
 
-                    if step_count % self.p.update_target_network_after_num_frames == 0 {
+                    if step_count % self.param.update_target_network_after_num_frames == 0 {
                         // update the target network with new weights
                         self.model.write_checkpoint(&self.checkpoint_file);
                         self.model_target.read_checkpoint(&self.checkpoint_file);
@@ -324,3 +329,7 @@ fn array_mul<const N: usize>(slice: [f32; N], value: f32) -> [f32; N] {
     slice.map(|e| e * value)
 }
 
+#[cfg(test)]
+mod test {
+
+}
