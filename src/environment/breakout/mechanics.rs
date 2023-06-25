@@ -6,7 +6,7 @@ use egui::{Pos2, Vec2};
 use itertools::Itertools;
 use rand::Rng;
 
-use crate::breakout::algebra_2d::{AaBB, Circle, contact_test_circle_aabb, ContactSurface, reflected_vector, vector_angle};
+use crate::environment::breakout::algebra_2d::{AaBB, Circle, contact_test_circle_aabb, ContactSurface, reflected_vector, vector_angle};
 
 /// TOP / LEFT corner is 0/0
 pub const MODEL_GRID_LEN_X: f32 = 600.0;
@@ -40,7 +40,7 @@ const BALL_RADIUS: f32 = 10.0;
 const BALL_SPEED_PER_SEC: f32 = 200.0;
 
 // max object distance to detect a collision
-pub const CONTACT_PREDICTION: f32 = 0.8;
+pub(super) const CONTACT_PREDICTION: f32 = 0.8;
 const CONTACT_PENETRATION_LIMIT: f32 = 0.0;
 
 
@@ -614,9 +614,8 @@ mod tests {
     use egui::{Pos2, Vec2};
     use rstest::rstest;
 
-    use crate::breakout::algebra_2d::{AaBB, Circle};
-    use crate::breakout::mechanics::{Ball, CONTACT_PENETRATION_LIMIT, CONTACT_PREDICTION, ContactSurface};
-    use super::MODEL_GRID_LEN_X;
+    use super::super::algebra_2d::*;
+    use super::super::mechanics::*;
 
     #[rstest]
     #[case(Pos2::new(10.0, 10.0), 5.0, Vec2::new(- 2.0, 2.0), None)]

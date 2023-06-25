@@ -1,5 +1,5 @@
 use image::{ImageBuffer, Rgb};
-use crate::breakout::mechanics::BreakoutMechanics;
+use crate::environment::breakout::mechanics::BreakoutMechanics;
 
 
 pub trait BreakoutDrawer {

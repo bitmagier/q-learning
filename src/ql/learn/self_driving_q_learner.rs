@@ -30,6 +30,7 @@ pub struct Parameter {
     pub update_after_actions: usize,
     // After how many frames we want to update the target network
     pub update_target_network_after_num_frames: usize,
+    pub stats_after_steps: usize
 }
 
 impl Parameter {
@@ -51,6 +52,7 @@ impl Default for Parameter {
             episode_reward_history_buffer_len: 100,
             update_after_actions: 4,
             update_target_network_after_num_frames: 10000,
+            stats_after_steps: 20
         }
     }
 }
@@ -232,7 +234,7 @@ impl<E: Environment> SelfDrivingQLearner<E> {
 
             let mut episode_reward: f32 = 0.0;
 
-            for _timestamp in [1..self.param.max_steps_per_episode] {
+            for _ in [0..self.param.max_steps_per_episode] {
                 step_count += 1;
 
                 // Use epsilon-greedy for exploration
@@ -291,7 +293,10 @@ impl<E: Environment> SelfDrivingQLearner<E> {
                         .try_into().unwrap();
 
                     let loss = self.model.train(state_samples, action_samples, updated_q_values);
-                    log::debug!("training loss: {}", loss);
+
+                    if step_count % self.param.stats_after_steps == 0 {
+                        log::debug!("step: {}, episode: {}, running_reward: {}, training loss: {}, ", step_count, episode_count, running_reward, loss);
+                    }
 
                     if step_count % self.param.update_target_network_after_num_frames == 0 {
                         // update the target network with new weights

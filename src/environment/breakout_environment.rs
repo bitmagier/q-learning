@@ -3,13 +3,11 @@ use std::rc::Rc;
 
 use image::imageops;
 
-use crate::breakout::mechanics::{BreakoutMechanics, GameInput, PanelControl};
-use crate::ql::breakout_drawer::BreakoutDrawer;
-use crate::ql::frame_ring_buffer::FrameRingBuffer;
-use crate::ql::model::q_learning_model1::{FRAME_SIZE_X, FRAME_SIZE_Y, ModelActionType};
+use crate::environment::breakout::breakout_drawer::BreakoutDrawer;
+use crate::environment::breakout::mechanics::{BreakoutMechanics, GameInput, PanelControl};
+use crate::environment::util::frame_ring_buffer::FrameRingBuffer;
+use crate::ql::model::q_learning_model1::{FRAME_SIZE_X, FRAME_SIZE_Y, ModelActionType, WORLD_STATE_NUM_FRAMES};
 use crate::ql::prelude::{Action, Environment};
-
-use super::model::q_learning_model1::WORLD_STATE_NUM_FRAMES;
 
 pub type BreakoutState = FrameRingBuffer<WORLD_STATE_NUM_FRAMES>;
 

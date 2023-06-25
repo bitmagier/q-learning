@@ -6,8 +6,8 @@ use plotters::prelude::*;
 use rand::Rng;
 use tensorflow::Tensor;
 
-use q_learning_breakout::ql::model::q_learning_model1::{BATCH_SIZE, FRAME_SIZE_X, FRAME_SIZE_Y, ModelActionType, WORLD_STATE_NUM_FRAMES};
-use q_learning_breakout::ql::prelude::{Action, Environment, State};
+use crate::ql::model::q_learning_model1::{BATCH_SIZE, FRAME_SIZE_X, FRAME_SIZE_Y, ModelActionType, WORLD_STATE_NUM_FRAMES};
+use crate::ql::prelude::{Action, Environment, State};
 
 #[derive(Clone, Default)]
 pub struct SlotThrowState {
@@ -17,10 +17,12 @@ pub struct SlotThrowState {
     slot_with: isize,
     slot_move_vector: isize,
     player_middle_pos_x: isize,
+    steps: usize,
 }
 
 impl SlotThrowState {
     fn step(&mut self) {
+        self.steps += 1;
         (self.slot_middle_pos_x, self.slot_move_vector) =
             match self.slot_middle_pos_x + self.slot_move_vector {
                 x if x < 0 => (-x, -self.slot_move_vector),
@@ -30,7 +32,7 @@ impl SlotThrowState {
     }
 
     fn hit_position(&self) -> bool {
-        let range = (self.slot_middle_pos_x - self.slot_with / 4) .. (self.slot_middle_pos_x + self.slot_with / 4);
+        let range = (self.slot_middle_pos_x - self.slot_with / 4)..(self.slot_middle_pos_x + self.slot_with / 4);
         range.contains(&(self.player_middle_pos_x))
     }
 
@@ -140,7 +142,7 @@ impl Action for SlotThrowAction {
 /// There are only 2 possible actions: do nothing or throw.
 /// The goal is to hit the slot with every throw if possible.
 /// ---
-/// ```
+/// ```txt
 /// ========  =====
 ///
 ///
@@ -149,14 +151,14 @@ impl Action for SlotThrowAction {
 /// ---
 pub(crate) struct SlotThrowEnvironment {
     state: SlotThrowState,
-    steps: usize,
+    max_game_steps: usize
 }
 
 impl SlotThrowEnvironment {
     pub fn new() -> Self {
         let mut env = Self {
             state: SlotThrowState::default(),
-            steps: 0,
+            max_game_steps: 500
         };
         env.reset();
         env
@@ -172,11 +174,11 @@ impl Environment for SlotThrowEnvironment {
             frame_size_x: FRAME_SIZE_X as isize,
             frame_size_y: FRAME_SIZE_Y as isize,
             slot_middle_pos_x: rand::thread_rng().gen_range(50..550),
-            slot_with: 30,
+            slot_with: 80,
             slot_move_vector: 5,
             player_middle_pos_x: rand::thread_rng().gen_range(200..480),
+            steps: 0
         };
-        self.steps = 0
     }
 
     fn no_action() -> Self::Action {
@@ -184,31 +186,26 @@ impl Environment for SlotThrowEnvironment {
     }
 
     fn step(&mut self, action: Self::Action) -> (Rc<Self::State>, f32, bool) {
-        match action {
+        let (reward, mut done) = match action {
             SlotThrowAction::None => {
-                let state = Rc::new(self.state.clone());
-                let reward = 0.0;
-                let done = false;
-                (state, reward, done)
+                (-0.001, false)
             }
             SlotThrowAction::Throw => {
-                let (reward, done) = match action {
-                    SlotThrowAction::None => {
-                        (-0.001, false)
-                    }
-                    SlotThrowAction::Throw => {
-                        if self.state.hit_position() {
-                            (100.0, true)
-                        } else {
-                            (-20.0, false)
-                        }
-                    }
-                };
-                self.state.step();
-                let state = Rc::new(self.state.clone());
-                (state, reward, done)
+                if self.state.hit_position() {
+                    (100.0, true)
+                } else {
+                    (-20.0, false)
+                }
+            }
+        };
+        if !done {
+            self.state.step();
+            if self.state.steps > self.max_game_steps {
+                done = true
             }
         }
+        let state = Rc::new(self.state.clone());
+        (state, reward, done)
     }
 
     fn total_reward_goal() -> f32 {

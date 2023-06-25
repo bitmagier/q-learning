@@ -1,45 +1,34 @@
+use std::ops::{Add, Div};
 use std::sync::{Arc, RwLock};
+use std::thread;
 use std::thread::JoinHandle;
-
-use eframe::Frame;
+use std::time::Instant;
 use eframe::glow;
 use egui::{Context, Id, LayerId, Order, Painter, Vec2};
-use image::{ImageBuffer, imageops, Rgb, RgbImage};
-use image::imageops::FilterType;
-
-use q_learning_breakout::breakout::mechanics::{BreakoutMechanics, GameInput, MODEL_GRID_LEN_X, MODEL_GRID_LEN_Y, PanelControl};
-use q_learning_breakout::breakout::app_game_drawer::AppGameDrawer;
+use q_learning_breakout::environment::breakout::app_game_drawer::AppGameDrawer;
+use q_learning_breakout::environment::breakout::mechanics::*;
+use q_learning_breakout::util;
 
 pub const FRAME_SIZE_X: usize = MODEL_GRID_LEN_X as usize;
 pub const FRAME_SIZE_Y: usize = MODEL_GRID_LEN_Y as usize;
 
-pub trait ExternalGameController {
-    fn show_frame(&mut self, frame: ImageBuffer<Rgb<u8>, Vec<u8>>);
-    fn read_input(&mut self) -> GameInput;
-}
-
 pub struct BreakoutApp {
-    pixels_per_point: f32,
     game_input: Arc<RwLock<GameInput>>,
     game_state: Arc<RwLock<BreakoutMechanics>>,
     mechanics_join_handle: JoinHandle<()>,
-    external_game_controller: Option<Box<dyn ExternalGameController>>,
 }
 
 impl BreakoutApp {
     pub fn new(
-        cc: &eframe::CreationContext<'_>,
+        _cc: &eframe::CreationContext<'_>,
         game_input: Arc<RwLock<GameInput>>,
         game_state: Arc<RwLock<BreakoutMechanics>>,
         mechanics_join_handle: JoinHandle<()>,
-        external_game_controller: Option<Box<dyn ExternalGameController>>,
     ) -> Self {
         Self {
-            pixels_per_point: cc.integration_info.native_pixels_per_point.unwrap_or(1.0),
             game_input,
             game_state,
             mechanics_join_handle,
-            external_game_controller,
         }
     }
 
@@ -93,18 +82,14 @@ impl eframe::App for BreakoutApp {
     fn update(
         &mut self,
         ctx: &Context,
-        frame: &mut Frame,
+        frame: &mut eframe::Frame,
     ) {
         if self.mechanics_join_handle.is_finished() {
             frame.close()
         }
         frame.set_window_size(Vec2::new(FRAME_SIZE_X as f32, FRAME_SIZE_Y as f32));
 
-        let player_input = if let Some(c) = &mut self.external_game_controller {
-            c.read_input()
-        } else {
-            self.read_ui_control(ctx)
-        };
+        let player_input = self.read_ui_control(ctx);
         self.write_game_input(player_input);
 
         let game_painter = ctx.layer_painter(LayerId::new(Order::Foreground, Id::new("game")));
@@ -117,30 +102,64 @@ impl eframe::App for BreakoutApp {
     ) {
         *self.game_input.write().unwrap() = GameInput { control: PanelControl::None, exit: true };
     }
+}
 
-    fn post_rendering(
-        &mut self,
-        window_size_px: [u32; 2],
-        frame: &Frame,
-    ) {
-        let display_scaling_factor = self.pixels_per_point;
-        assert_eq!((window_size_px[0] as f32 / display_scaling_factor).round() as usize, FRAME_SIZE_X);
-        assert_eq!((window_size_px[1] as f32 / display_scaling_factor).round() as usize, FRAME_SIZE_Y);
+fn mechanics_thread(game_input: Arc<RwLock<GameInput>>, game_state: Arc<RwLock<BreakoutMechanics>>, egui_ctx: Context) {
+    let read_input = || -> GameInput {
+        let read_handle = game_input.read().unwrap();
+        let input = read_handle.clone();
+        drop(read_handle);
+        input
+    };
 
-        if let Some(c) = &mut self.external_game_controller {
-            let gl = frame.gl().expect("need a GL context").clone();
-            let painter = eframe::egui_glow::Painter::new(gl, "", None).expect("should be able to create glow painter");
-            let raw_frame = painter.read_screen_rgb(window_size_px);
-            let normalized_frame: ImageBuffer<Rgb<u8>, Vec<u8>> = normalize_frame(raw_frame, window_size_px, display_scaling_factor);
-            c.show_frame(normalized_frame)
+    let write_game_state = |state| {
+        let mut write_handle = game_state.write().unwrap();
+        *write_handle = state;
+        drop(write_handle);
+    };
+
+    let mut mechanics = BreakoutMechanics::new();
+    let mut next_step_time = Instant::now().add(TIME_GRANULARITY);
+    let sleep_time_ms = TIME_GRANULARITY.div(5);
+    loop {
+        if Instant::now().ge(&next_step_time) {
+            next_step_time = next_step_time.add(TIME_GRANULARITY);
+            let input = read_input();
+            if input.exit {
+                break;
+            } else {
+                mechanics.time_step(input);
+                if mechanics.finished {
+                    log::info!("score: {:?}", &mechanics.score);
+                    break;
+                }
+                write_game_state(mechanics.clone());
+            }
+            egui_ctx.request_repaint();
         }
+        thread::sleep(sleep_time_ms);
     }
 }
 
-fn normalize_frame(raw_frame: Vec<u8>, frame_size_px: [u32; 2], display_scale_factor: f32) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
-    let image = RgbImage::from_raw(frame_size_px[0], frame_size_px[1], raw_frame).expect("frame dimension should match");
-    let scaling_factor = 1.0 / display_scale_factor;
-    let new_width: u32 = (frame_size_px[0] as f32 * scaling_factor).round() as u32;
-    let new_height: u32 = (frame_size_px[1] as f32 * scaling_factor).round() as u32;
-    imageops::resize(&image, new_width, new_height, FilterType::Nearest)
+fn breakout_user_game() -> eframe::Result<()> {
+    let game_input = Arc::new(RwLock::new(GameInput::none()));
+    let game_state = Arc::new(RwLock::new(BreakoutMechanics::new()));
+
+    let m_game_input = Arc::clone(&game_input);
+    let m_game_state = Arc::clone(&game_state);
+
+    let mut native_options = eframe::NativeOptions::default();
+    native_options.default_theme = eframe::Theme::Dark;
+    eframe::run_native("Breakout", native_options, Box::new(|cc| {
+        let egui_ctx = cc.egui_ctx.clone();
+        let mechanics_join_handle = thread::spawn(move || mechanics_thread(m_game_input, m_game_state, egui_ctx));
+        Box::new(BreakoutApp::new(cc, game_input, game_state, mechanics_join_handle))
+    }))
 }
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    util::init_logging();
+    breakout_user_game()?;
+    Ok(())
+}
+

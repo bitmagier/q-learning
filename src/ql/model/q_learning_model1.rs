@@ -7,7 +7,7 @@ use std::rc::Rc;
 
 use tensorflow::{Graph, SavedModelBundle, SessionOptions, Tensor};
 
-use crate::ql::breakout_environment::BreakoutEnvironment;
+use crate::environment::breakout_environment::BreakoutEnvironment;
 use crate::ql::model::model_function::{ModelFunction1, ModelFunction3};
 use crate::ql::prelude::{Action, Environment, State};
 
@@ -153,10 +153,10 @@ mod tests {
     use std::rc::Rc;
 
     use rand::prelude::*;
-    use crate::ql::breakout_environment::BreakoutAction;
+    use crate::environment::breakout_environment::BreakoutAction;
+    use crate::environment::util::frame_ring_buffer::FrameRingBuffer;
 
     use super::{FRAME_SIZE_X, FRAME_SIZE_Y};
-    use crate::ql::frame_ring_buffer::FrameRingBuffer;
     use crate::ql::model::q_learning_model1::{BATCH_SIZE, BreakoutQLearningModel1};
     use crate::ql::prelude::Action;
 
