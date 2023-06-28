@@ -4,10 +4,13 @@ use std::rc::Rc;
 use rand::prelude::*;
 
 use crate::ql::learn::replay_buffer::ReplayBuffers;
-use crate::ql::model::q_learning_model1::{BATCH_SIZE, QLearningModel1};
-use crate::ql::prelude::{Action, Environment};
+use crate::ql::model::q_learning_model::QLearningModelTrait;
+use crate::ql::prelude::{Action, Environment, ModelActionType};
 
 use super::misc::Immutable;
+
+// best place?
+// const BATCH_SIZE: usize = 32;
 
 pub struct Parameter {
     /// Discount factor for past rewards
@@ -30,7 +33,7 @@ pub struct Parameter {
     pub update_after_actions: usize,
     // After how many frames we want to update the target network
     pub update_target_network_after_num_frames: usize,
-    pub stats_after_steps: usize
+    pub stats_after_steps: usize,
 }
 
 impl Parameter {
@@ -52,7 +55,7 @@ impl Default for Parameter {
             episode_reward_history_buffer_len: 100,
             update_after_actions: 4,
             update_target_network_after_num_frames: 10000,
-            stats_after_steps: 20
+            stats_after_steps: 20,
         }
     }
 }
@@ -178,44 +181,44 @@ impl Default for Parameter {
         break
  ```
  */
-pub struct SelfDrivingQLearner<E: Environment> {
+pub struct SelfDrivingQLearner<E, const BATCH_SIZE: usize, M>
+where E: Environment,
+      M: QLearningModelTrait<E, BATCH_SIZE> {
     param: Immutable<Parameter>,
-    model: QLearningModel1<E>,
-    model_target: QLearningModel1<E>,
-    checkpoint_file: String,
+    trained_model: M,
+    target_model: M,
+    write_checkpoint_file: String,
     environment: E,
 }
 
-impl<E: Environment> SelfDrivingQLearner<E> {
-    pub fn from_scratch(environment: E, param: Parameter, checkpoint_file: &Path) -> Self {
-        let checkpoint_file = checkpoint_file.to_str()
+impl<E, const BATCH_SIZE: usize, M> SelfDrivingQLearner<E, BATCH_SIZE, M>
+where E: Environment,
+      M: QLearningModelTrait<E, BATCH_SIZE> {
+    
+    pub fn from_scratch(environment: E,
+                        param: Parameter,
+                        model_instance1: M,
+                        model_instance2: M,
+                        write_checkpoint_file: &Path,
+    ) -> Self {
+        assert_eq!(model_instance1.dims(), model_instance2.dims());
+        let write_checkpoint_file = write_checkpoint_file.to_str()
             .expect("file name should have a UTF-8 compatible path")
             .to_owned();
         Self {
             param: Immutable::new(param),
-            model: QLearningModel1::init(),
-            model_target: QLearningModel1::init(),
-            checkpoint_file,
+            trained_model: model_instance1,
+            target_model: model_instance2,
+            write_checkpoint_file,
             environment,
         }
     }
 
-    pub fn from_checkpoint(environment: E, param: Parameter, checkpoint_file: &Path) -> Self {
+    pub fn load_model_checkpoint(&mut self, checkpoint_file: &Path) {
         let checkpoint_file = checkpoint_file.to_str()
-            .expect("file name should have a UTF-8 compatible path")
-            .to_owned();
-        let model = QLearningModel1::init();
-        model.read_checkpoint(&checkpoint_file);
-        let model_target = QLearningModel1::init();
-        model_target.read_checkpoint(&checkpoint_file);
-
-        Self {
-            param: Immutable::new(param),
-            model,
-            model_target,
-            checkpoint_file,
-            environment,
-        }
+            .expect("file name should have a UTF-8 compatible path");
+        self.trained_model.read_checkpoint(&checkpoint_file);
+        self.target_model.read_checkpoint(&checkpoint_file);
     }
 
     pub fn learn_until_mastered(&mut self) {
@@ -246,7 +249,7 @@ impl<E: Environment> SelfDrivingQLearner<E> {
                         Action::try_from_numeric(a).unwrap()
                     } else {
                         // Predict best action Q-values from environment state
-                        self.model.predict_action(&state)
+                        self.trained_model.predict_action(&state)
                     };
 
                 // Decay probability of taking random action
@@ -264,7 +267,7 @@ impl<E: Environment> SelfDrivingQLearner<E> {
                 replay_buffers.add_step_items(action, Rc::clone(&state), Rc::clone(&state_next), reward, done);
                 state = state_next;
 
-                // Update every fourth frame and once batch size is over 32
+                // Update every fourth frame, once batch size is over 32
                 if step_count % self.param.update_after_actions == 0 && replay_buffers.done_history.len() > BATCH_SIZE {
                     // Get indices of samples for replay buffers
                     let indices: [usize; BATCH_SIZE] = {
@@ -282,7 +285,7 @@ impl<E: Environment> SelfDrivingQLearner<E> {
 
                     // Build the updated Q-values for the sampled future states
                     // Use the target model for stability
-                    let future_rewards = self.model_target.batch_predict_future_reward(state_next_samples);
+                    let future_rewards = self.target_model.batch_predict_future_reward(state_next_samples);
                     // Q value = reward + discount factor * expected future reward
                     let updated_q_values = array_add(&reward_samples, &array_mul(future_rewards, self.param.gamma));
 
@@ -292,7 +295,7 @@ impl<E: Environment> SelfDrivingQLearner<E> {
                         .collect::<Vec<_>>()
                         .try_into().unwrap();
 
-                    let loss = self.model.train(state_samples, action_samples, updated_q_values);
+                    let loss = self.trained_model.train(state_samples, action_samples, updated_q_values);
 
                     if step_count % self.param.stats_after_steps == 0 {
                         log::debug!("step: {}, episode: {}, running_reward: {}, training loss: {}, ", step_count, episode_count, running_reward, loss);
@@ -300,8 +303,8 @@ impl<E: Environment> SelfDrivingQLearner<E> {
 
                     if step_count % self.param.update_target_network_after_num_frames == 0 {
                         // update the target network with new weights
-                        self.model.write_checkpoint(&self.checkpoint_file);
-                        self.model_target.read_checkpoint(&self.checkpoint_file);
+                        self.trained_model.write_checkpoint(&self.write_checkpoint_file);
+                        self.target_model.read_checkpoint(&self.write_checkpoint_file);
                         log::info!("running reward: {:.2} at episode {}, step count (frames): {}", running_reward, episode_count, step_count);
                     }
 

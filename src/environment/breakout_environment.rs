@@ -6,8 +6,12 @@ use image::imageops;
 use crate::environment::breakout::breakout_drawer::BreakoutDrawer;
 use crate::environment::breakout::mechanics::{BreakoutMechanics, GameInput, PanelControl};
 use crate::environment::util::frame_ring_buffer::FrameRingBuffer;
-use crate::ql::model::q_learning_model1::{FRAME_SIZE_X, FRAME_SIZE_Y, ModelActionType, WORLD_STATE_NUM_FRAMES};
-use crate::ql::prelude::{Action, Environment};
+use crate::ql::prelude::{Action, Environment, ModelActionType};
+
+
+const FRAME_SIZE_X: usize = 600;
+const FRAME_SIZE_Y: usize = 600;
+const WORLD_STATE_NUM_FRAMES: usize = 4;
 
 pub type BreakoutState = FrameRingBuffer<WORLD_STATE_NUM_FRAMES>;
 

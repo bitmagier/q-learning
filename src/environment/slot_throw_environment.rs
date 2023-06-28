@@ -6,8 +6,12 @@ use plotters::prelude::*;
 use rand::Rng;
 use tensorflow::Tensor;
 
-use crate::ql::model::q_learning_model1::{BATCH_SIZE, FRAME_SIZE_X, FRAME_SIZE_Y, ModelActionType, WORLD_STATE_NUM_FRAMES};
-use crate::ql::prelude::{Action, Environment, State};
+use crate::ql::prelude::{Action, Environment, ModelActionType, State};
+
+const BATCH_SIZE: usize = 32;
+const FRAME_SIZE_X: usize = 50;
+const FRAME_SIZE_Y: usize = 50;
+const WORLD_STATE_NUM_FRAMES: usize = 4;
 
 #[derive(Clone, Default)]
 pub struct SlotThrowState {
@@ -149,7 +153,7 @@ impl Action for SlotThrowAction {
 ///       °
 /// ```
 /// ---
-pub(crate) struct SlotThrowEnvironment {
+pub struct SlotThrowEnvironment {
     state: SlotThrowState,
     max_game_steps: usize
 }

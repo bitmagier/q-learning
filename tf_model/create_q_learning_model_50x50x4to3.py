@@ -7,21 +7,20 @@ from keras import layers, optimizers, losses
 # https://github.com/tensorflow/rust/tree/master/examples
 # Deepmind paper "Playing Atari with Deep Reinforcement Learning": https://arxiv.org/pdf/1312.5602v1.pdf
 
-FRAME_SIZE_X = 600
-FRAME_SIZE_Y = 600
+FRAME_SIZE_X = 50
+FRAME_SIZE_Y = 50
 WORLD_STATE_FRAMES = 4
 ACTION_SPACE = 3
 BATCH_SIZE = 32  # Size of batch taken from replay buffer
 
 
-class QLearningModel(tf.keras.Sequential):
+class QLearningModel600x600x4to3(tf.keras.Sequential):
     def __init__(self, *args, **kwargs):
-        super(QLearningModel, self).__init__(*args, **kwargs)
+        super(QLearningModel600x600x4to3, self).__init__(*args, **kwargs)
         self.add(tf.keras.Input(shape=(FRAME_SIZE_X, FRAME_SIZE_Y, WORLD_STATE_FRAMES,)))
-        self.add(layers.Conv2D(32, 16, strides=8, activation='relu', name='convolution_layer1'))
-        self.add(layers.Conv2D(32, 8, strides=4, activation='relu', name='convolution_layer2'))
-        self.add(layers.Conv2D(64, 4, strides=2, activation='relu', name='convolution_layer3'))
-        self.add(layers.Conv2D(64, 3, strides=1, activation='relu', name='convolution_layer4'))
+        self.add(layers.Conv2D(32, 6, strides=3, activation='relu', name='convolution_layer1'))
+        self.add(layers.Conv2D(64, 4, strides=2, activation='relu', name='convolution_layer2'))
+        self.add(layers.Conv2D(64, 3, strides=1, activation='relu', name='convolution_layer3'))
         self.add(layers.Flatten(name='flatten'))
         self.add(layers.Dense(512, activation='relu', name='full_layer'))
         self.add(layers.Dense(ACTION_SPACE, activation='linear', name='action_layer'))
@@ -96,14 +95,14 @@ class QLearningModel(tf.keras.Sequential):
         return {'dummy': tf.constant("")}
 
 
-model = QLearningModel()
+model = QLearningModel600x600x4to3()
 model.summary()
 
 # https://keras.io/guides/serialization_and_saving/
 # https://towardsdatascience.com/training-keras-models-using-the-rust-tensorflow-bindings-941791249a7
 # https://www.tensorflow.org/guide/saved_model
 
-model.save('q_learning_model_1',
+model.save('saved/q_learning_model_50x50x4to3',
            save_format='tf',
            signatures={
                'predict_action': model.predict_action,

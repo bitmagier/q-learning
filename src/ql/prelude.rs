@@ -3,12 +3,12 @@ use std::rc::Rc;
 
 use tensorflow::Tensor;
 
-use crate::ql::model::q_learning_model1::ModelActionType;
-
 pub trait State {
     fn to_tensor(&self) -> Tensor<f32>;
     fn batch_to_tensor<const N: usize>(batch: &[&Rc<Self>; N]) -> Tensor<f32>;
 }
+
+pub type ModelActionType = u8;
 
 /// Action type placeholder
 pub trait Action: Display + Sized + Clone + Copy {
