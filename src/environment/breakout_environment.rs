@@ -2,10 +2,12 @@ use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 
 use image::imageops;
+use tensorflow::Tensor;
 
 use crate::environment::breakout::breakout_drawer::BreakoutDrawer;
 use crate::environment::breakout::mechanics::{BreakoutMechanics, GameInput, PanelControl};
 use crate::environment::util::frame_ring_buffer::FrameRingBuffer;
+use crate::ql::model::tensorflow::tf::{TensorflowEnvironment, ToTensor};
 use crate::ql::prelude::{Action, Environment, ModelActionType, State};
 
 const FRAME_SIZE_X: usize = 600;
@@ -83,8 +85,11 @@ impl BreakoutEnvironment {
     }
 }
 
-impl Environment<BreakoutState, BreakoutAction> for BreakoutEnvironment
+impl Environment for BreakoutEnvironment
 {
+    type S = BreakoutState;
+    type A = BreakoutAction;
+
     fn reset(&mut self) {
         self.mechanics = BreakoutMechanics::new();
         self.frame_buffer = FrameRingBuffer::new(FRAME_SIZE_X, FRAME_SIZE_Y)
@@ -113,5 +118,19 @@ impl Environment<BreakoutState, BreakoutAction> for BreakoutEnvironment
     fn total_reward_goal() -> f32 {
         // hanging the goal a little lower than the exact value to avoid obstructive blur effects introduced by float calculations
         -0.05 + BreakoutMechanics::new().bricks.len() as f32
+    }
+}
+
+impl TensorflowEnvironment for BreakoutEnvironment {
+    fn state_dims(state: &Self::S) -> &[u64] {
+        state.dims()
+    }
+
+    fn state_to_tensor(state: &Self::S) -> Tensor<f32> {
+        state.to_tensor()
+    }
+
+    fn state_batch_to_tensor<const BATCH_SIZE: usize>(batch: &[&Rc<Self::S>; BATCH_SIZE]) -> Tensor<f32> {
+        Self::S::batch_to_tensor(batch)
     }
 }

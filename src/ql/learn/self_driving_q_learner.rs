@@ -1,11 +1,10 @@
-use std::marker::PhantomData;
 use std::path::Path;
 use std::rc::Rc;
 
 use rand::prelude::*;
 
 use crate::ql::learn::replay_buffer::ReplayBuffers;
-use crate::ql::prelude::{Action, Environment, QLearningModel, State};
+use crate::ql::prelude::{Action, Environment, QLearningModel};
 
 use super::misc::Immutable;
 
@@ -181,27 +180,21 @@ impl Default for Parameter {
         break
  ```
  */
-pub struct SelfDrivingQLearner<E, M, S, A, const BATCH_SIZE: usize>
-where E: Environment<S, A>,
-      M: QLearningModel<E, S, A, BATCH_SIZE>,
-      S: State,
-      A: Action
+pub struct SelfDrivingQLearner<E, M, const BATCH_SIZE: usize>
+where E: Environment,
+      M: QLearningModel<BATCH_SIZE, E=E> 
 {
     environment: E,
     param: Immutable<Parameter>,
     trained_model: M,
     target_model: M,
     write_checkpoint_file: String,
-    _p1: PhantomData<S>,
-    _p2: PhantomData<A>,
 }
 
-impl<E, M, S, A, const BATCH_SIZE: usize> SelfDrivingQLearner<E, M, S, A, BATCH_SIZE>
+impl<E, M, const BATCH_SIZE: usize> SelfDrivingQLearner<E, M, BATCH_SIZE> 
 where
-    E: Environment<S, A>,
-    M: QLearningModel<E, S, A, BATCH_SIZE>,
-    S: State,
-    A: Action
+    E: Environment,
+    M: QLearningModel<BATCH_SIZE, E=E>,
 {
     pub fn from_scratch(environment: E,
                         param: Parameter,
@@ -218,8 +211,6 @@ where
             trained_model: model_instance1,
             target_model: model_instance2,
             write_checkpoint_file,
-            _p1: PhantomData::default(),
-            _p2: PhantomData::default(),
         }
     }
 
@@ -250,11 +241,11 @@ where
                 step_count += 1;
 
                 // Use epsilon-greedy for exploration
-                let action: A =
+                let action: E::A =
                     if step_count < self.param.epsilon_random_frames
                         || epsilon > thread_rng().gen::<f32>() {
                         // Take random action
-                        let a = thread_rng().gen_range(0..A::ACTION_SPACE);
+                        let a = thread_rng().gen_range(0..E::A::ACTION_SPACE);
                         Action::try_from_numeric(a).unwrap()
                     } else {
                         // Predict best action Q-values from environment state

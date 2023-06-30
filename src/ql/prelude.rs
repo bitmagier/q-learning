@@ -16,13 +16,16 @@ pub trait Action: Display + Sized + Clone + Copy {
 }
 
 /// Learning environment, modeling the world of a learning agent
-pub trait Environment<S: State, A: Action>
+pub trait Environment
 {
+    type S: State;
+    type A: Action;
+
     /// Resets the environment to a defined starting point
     fn reset(&mut self);
 
     /// The Action-variant which represents no particular action
-    fn no_action() -> A;
+    fn no_action() -> Self::A;
 
     /// Performs one time/action-step
     ///
@@ -31,7 +34,7 @@ pub trait Environment<S: State, A: Action>
     ///   - immediate reward earned during performing that step
     ///   - done flag (e.g. game ended)
     ///
-    fn step(&mut self, action: A) -> (Rc<S>, f32, bool);
+    fn step(&mut self, action: Self::A) -> (Rc<Self::S>, f32, bool);
 
     /// Total reward considering the task solved
     /// (expected to be a constant - not a moving target)
@@ -40,11 +43,9 @@ pub trait Environment<S: State, A: Action>
 }
 
 /// 'physical' AI model abstraction
-pub trait QLearningModel<E, S, A, const BATCH_SIZE: usize>
-where E: Environment<S, A>,
-      S: State,
-      A: Action
-{
+pub trait QLearningModel<const BATCH_SIZE: usize> {
+    type E: Environment;
+    
     /// Predicts the next action based on the current state.
     ///
     /// # Arguments
@@ -53,11 +54,11 @@ where E: Environment<S, A>,
     ///   having one pixel encoded in a single float number
     ///
     fn predict_action(&self,
-                      state: &Rc<S>,
-    ) -> A;
+                      state: &Rc<<Self::E as Environment>::S>,
+    ) -> <Self::E as Environment>::A;
 
     fn batch_predict_future_reward(&self,
-                                   states: [&Rc<S>; BATCH_SIZE],
+                                   states: [&Rc<<Self::E as Environment>::S>; BATCH_SIZE],
     ) -> [f32; BATCH_SIZE];
 
     /// Performs a single training step using a a batch of data.
@@ -72,8 +73,8 @@ where E: Environment<S, A>,
     ///   calculated loss
     ///
     fn train(&self,
-             state_batch: [&Rc<S>; BATCH_SIZE],
-             action_batch: [A; BATCH_SIZE],
+             state_batch: [&Rc<<Self::E as Environment>::S>; BATCH_SIZE],
+             action_batch: [<Self::E as Environment>::A; BATCH_SIZE],
              updated_q_values: [f32; BATCH_SIZE],
     ) -> f32;
 

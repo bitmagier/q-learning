@@ -3,8 +3,7 @@ use std::rc::Rc;
 use image::{ImageBuffer, Luma, Pixel};
 use rand::Rng;
 use tensorflow::Tensor;
-
-use crate::ql::model::q_learning_model::ToTensor;
+use crate::ql::model::tensorflow::tf::ToTensor;
 
 // Gray-scaled image
 pub type GrayFrame = ImageBuffer<Luma<u8>, Vec<u8>>;
