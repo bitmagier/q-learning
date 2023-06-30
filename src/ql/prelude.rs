@@ -38,8 +38,7 @@ pub trait Environment
 
     /// Total reward considering the task solved
     /// (expected to be a constant - not a moving target)
-    // TODO anyway - make this dependent on &self, to allow Environment Implementations to be parameterized
-    fn total_reward_goal() -> f32;
+    fn total_reward_goal(&self) -> f32;
 }
 
 /// 'physical' AI model abstraction

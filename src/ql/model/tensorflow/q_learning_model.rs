@@ -8,17 +8,19 @@ use crate::ql::model::tensorflow::model_function::{ModelFunction1, ModelFunction
 use crate::ql::model::tensorflow::tf::TensorflowEnvironment;
 use crate::ql::prelude::{Action, ModelActionType, QLearningModel};
 
-pub struct QLearningTensorflowModel<E> {
+pub struct QLearningTensorflowModel<E: TensorflowEnvironment> {
     bundle: SavedModelBundle,
     fn_predict_single: ModelFunction1,
     fn_batch_predict_future_reward: ModelFunction1,
     fn_train_model: ModelFunction3<1>,
     fn_write_checkpoint: ModelFunction1,
     fn_read_checkpoint: ModelFunction1,
-    p: PhantomData<E>
+    p: PhantomData<E>,
 }
 
-impl<E> QLearningTensorflowModel<E> {
+impl<E> QLearningTensorflowModel<E>
+where E: TensorflowEnvironment
+{
     /// Init
     ///
     /// # Arguments
@@ -49,20 +51,20 @@ impl<E> QLearningTensorflowModel<E> {
             fn_train_model,
             fn_write_checkpoint,
             fn_read_checkpoint,
-            p: PhantomData::default()
+            p: PhantomData::default(),
         }
     }
 
-    // fn check_state_batch_dims<T: ToTensor>(state_batch: &[&Rc<T>], tensor: &Tensor<f32>) {
-    //     let declared_state_dims = || state_batch[0].dims();
-    //     assert_eq!(tensor.dims().len(), 1 + declared_state_dims().len());
-    //     // BATCH_SIZE
-    //     assert_eq!(tensor.dims()[0], state_batch.len() as u64);
-    //     assert_eq!(tensor.dims().split_first().unwrap().1, declared_state_dims());
-    // }
+    fn check_state_batch_dims(state_batch: &[&Rc<E::S>], tensor: &Tensor<f32>) {
+        let declared_state_dims = || E::state_dims(&state_batch[0]);
+        assert_eq!(tensor.dims().len(), 1 + declared_state_dims().len());
+        // check BATCH_SIZE
+        assert_eq!(tensor.dims()[0], state_batch.len() as u64);
+        assert_eq!(tensor.dims().split_first().unwrap().1, declared_state_dims());
+    }
 }
 
-impl<E, const BATCH_SIZE: usize> QLearningModel<BATCH_SIZE> for QLearningTensorflowModel<E> 
+impl<E, const BATCH_SIZE: usize> QLearningModel<BATCH_SIZE> for QLearningTensorflowModel<E>
 where E: TensorflowEnvironment
 {
     type E = E;
@@ -90,7 +92,7 @@ where E: TensorflowEnvironment
                                    state_batch: [&Rc<E::S>; BATCH_SIZE],
     ) -> [f32; BATCH_SIZE] {
         let state_batch_tensor = E::state_batch_to_tensor(&state_batch);
-        // Self::check_state_batch_dims(&state_batch, &state_batch_tensor);
+        Self::check_state_batch_dims(&state_batch, &state_batch_tensor);
 
         let r: Tensor<f32> = self.fn_batch_predict_future_reward.apply(&self.bundle.session, &state_batch_tensor);
         assert_eq!(r.dims(), &[BATCH_SIZE as u64]);
@@ -114,7 +116,7 @@ where E: TensorflowEnvironment
              updated_q_values: [f32; BATCH_SIZE],
     ) -> f32 {
         let state_batch_tensor = E::state_batch_to_tensor(&state_batch);
-        // Self::check_state_batch_dims(&state_batch, &state_batch_tensor);
+        Self::check_state_batch_dims(&state_batch, &state_batch_tensor);
 
         let mut action_batch_tensor = Tensor::new(&[BATCH_SIZE as u64, 1]);
         for (i, action) in action_batch.into_iter().enumerate() {
@@ -186,8 +188,7 @@ mod tests {
         // let action: BreakoutAction = model.predict_action(&state);
         // TODO how to make this required type annotation unnecessary? 
         let action = <QLearningTensorflowModel<BreakoutEnvironment> as QLearningModel<BATCH_SIZE>>::predict_action(&model, &state);
-        
-        
+
         log::info!("action: {}", action)
     }
 
@@ -218,11 +219,11 @@ mod tests {
         let keras_model_checkpoint_file = keras_model_checkpoint_dir.path().join("checkpoint");
         let model = QLearningTensorflowModel::<BreakoutEnvironment>::init(&model_dir());
 
-         
+
         // let path = model.write_checkpoint(keras_model_checkpoint_file.to_str().unwrap());
         // TODO ged rid of this currently required type annotation
         let path = <QLearningTensorflowModel<BreakoutEnvironment> as QLearningModel<BATCH_SIZE>>::write_checkpoint(&model, keras_model_checkpoint_file.to_str().unwrap());
-        
+
         log::info!("saved model to '{}'", path);
 
         // model.read_checkpoint(&keras_model_checkpoint_file.to_str().unwrap());

@@ -85,8 +85,7 @@ impl BreakoutEnvironment {
     }
 }
 
-impl Environment for BreakoutEnvironment
-{
+impl Environment for BreakoutEnvironment {
     type S = BreakoutState;
     type A = BreakoutAction;
 
@@ -115,7 +114,7 @@ impl Environment for BreakoutEnvironment
         (state, reward, done)
     }
 
-    fn total_reward_goal() -> f32 {
+    fn total_reward_goal(&self) -> f32 {
         // hanging the goal a little lower than the exact value to avoid obstructive blur effects introduced by float calculations
         -0.05 + BreakoutMechanics::new().bricks.len() as f32
     }

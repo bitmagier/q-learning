@@ -2,8 +2,10 @@ use std::rc::Rc;
 use tensorflow::Tensor;
 use crate::ql::prelude::Environment;
 
+// TODO not really sure how to merge these traits functions 
+
 pub trait ToTensor {
-    /// Diemsions, the object is represented towards the model.
+    /// The dimensions, the object is represented towards the model.
     ///
     /// # Examples
     /// E.g we would use dimensions `[600,600,4]` for an environment state, which is represented 
@@ -19,7 +21,7 @@ pub trait ToTensor {
 }
 
 pub trait TensorflowEnvironment: Environment {
-    /// Diemsions, how the state-object is represented towards the model.
+    /// The dimensions, the object is represented towards the model.
     ///
     /// # Examples
     /// E.g we would use dimensions `[600,600,4]` for an environment state, which is represented 

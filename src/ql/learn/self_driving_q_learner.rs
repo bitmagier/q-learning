@@ -319,7 +319,7 @@ where
             running_reward = replay_buffers.avg_episode_rewards();
             episode_count += 1;
 
-            if running_reward >= E::total_reward_goal() {
+            if running_reward >= self.environment.total_reward_goal() {
                 log::info!("Solved at episode {}!", episode_count);
                 break;
             }
