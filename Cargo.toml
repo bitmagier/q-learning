@@ -33,5 +33,3 @@ maintenance = { status = "as-is" }
 [[bin]]
 name = "breakout-egui-user-game"
 
-[[bin]]
-name = "slot-throw-q-learning"

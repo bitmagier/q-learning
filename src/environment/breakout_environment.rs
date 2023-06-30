@@ -6,7 +6,7 @@ use image::imageops;
 use crate::environment::breakout::breakout_drawer::BreakoutDrawer;
 use crate::environment::breakout::mechanics::{BreakoutMechanics, GameInput, PanelControl};
 use crate::environment::util::frame_ring_buffer::FrameRingBuffer;
-use crate::ql::prelude::{Action, Environment, ModelActionType, State};
+use crate::ql::prelude::{Action, Environment, EnvTypes, ModelActionType, State};
 
 const FRAME_SIZE_X: usize = 600;
 const FRAME_SIZE_Y: usize = 600;
@@ -83,21 +83,19 @@ impl BreakoutEnvironment {
     }
 }
 
-impl Environment for BreakoutEnvironment
+impl<T> Environment<T, BreakoutState, BreakoutAction> for BreakoutEnvironment
+where T: EnvTypes<BreakoutState, BreakoutAction>
 {
-    type State = BreakoutState;
-    type Action = BreakoutAction;
-
     fn reset(&mut self) {
         self.mechanics = BreakoutMechanics::new();
         self.frame_buffer = FrameRingBuffer::new(FRAME_SIZE_X, FRAME_SIZE_Y)
     }
 
-    fn no_action() -> Self::Action {
+    fn no_action() -> BreakoutAction {
         Self::map_game_input_to_model_action(GameInput::action(PanelControl::None))
     }
 
-    fn step(&mut self, action: Self::Action) -> (Rc<BreakoutState>, f32, bool) {
+    fn step(&mut self, action: BreakoutAction) -> (Rc<BreakoutState>, f32, bool) {
         let prev_score = self.mechanics.score;
         let game_input: GameInput = Self::map_model_action_to_game_input(action);
         self.mechanics.time_step(game_input);

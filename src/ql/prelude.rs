@@ -15,16 +15,19 @@ pub trait Action: Display + Sized + Clone + Copy {
     fn try_from_numeric(value: ModelActionType) -> Result<Self, String>;
 }
 
-/// Learning environment, modeling the world of a learning agent
-pub trait Environment {
-    type State: State;
-    type Action: Action;
+pub trait EnvTypes<S: State, A: Action> {}
 
+/// Learning environment, modeling the world of a learning agent
+pub trait Environment<T, S, A>
+where T: EnvTypes<S, A>,
+      S: State,
+      A: Action
+{
     /// Resets the environment to a defined starting point
     fn reset(&mut self);
 
     /// The Action-variant which represents no particular action
-    fn no_action() -> Self::Action;
+    fn no_action() -> A;
 
     /// Performs one time/action-step
     ///
@@ -33,15 +36,20 @@ pub trait Environment {
     ///   - immediate reward earned during performing that step
     ///   - done flag (e.g. game ended)
     ///
-    fn step(&mut self, action: Self::Action) -> (Rc<Self::State>, f32, bool);
+    fn step(&mut self, action: A) -> (Rc<S>, f32, bool);
 
     /// Total reward considering the task solved
     /// (expected to be a constant - not a moving target)
+    // TODO anyway - make this dependent on &self, to allow Environment Implementations to be parameterized
     fn total_reward_goal() -> f32;
 }
 
 /// 'physical' AI model abstraction
-pub trait QLearningModel<S: State, A: Action, const BATCH_SIZE: usize> {
+pub trait QLearningModel<T, S, A, const BATCH_SIZE: usize>
+where T: EnvTypes<S, A>,
+      S: State,
+      A: Action
+{
     /// Predicts the next action based on the current state.
     ///
     /// # Arguments

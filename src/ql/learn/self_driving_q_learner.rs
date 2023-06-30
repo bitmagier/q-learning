@@ -5,7 +5,7 @@ use std::rc::Rc;
 use rand::prelude::*;
 
 use crate::ql::learn::replay_buffer::ReplayBuffers;
-use crate::ql::prelude::{Action, Environment, ModelActionType, QLearningModel, State};
+use crate::ql::prelude::{Action, Environment, EnvTypes, QLearningModel, State};
 
 use super::misc::Immutable;
 
@@ -181,26 +181,30 @@ impl Default for Parameter {
         break
  ```
  */
-pub struct SelfDrivingQLearner<M, S, A, E, const BATCH_SIZE: usize>
-where M: QLearningModel<S, A, BATCH_SIZE>, 
+pub struct SelfDrivingQLearner<E, M, T, S, A, const BATCH_SIZE: usize>
+where E: Environment<T, S, A>,
+      M: QLearningModel<T, S, A, BATCH_SIZE>,
+      T: EnvTypes<S, A>,
       S: State,
-      A: Action,
-      E: Environment
+      A: Action
 {
     environment: E,
     param: Immutable<Parameter>,
     trained_model: M,
     target_model: M,
     write_checkpoint_file: String,
-    p1: PhantomData<S>,
-    p2: PhantomData<A>
+    p1: PhantomData<T>,
+    p2: PhantomData<S>,
+    p3: PhantomData<A>,
 }
 
-impl<M, S, A, E, const BATCH_SIZE: usize> SelfDrivingQLearner<M, S, A, E, BATCH_SIZE>
-where M: QLearningModel<S, A, BATCH_SIZE>,
-      S: State,
-      A: Action,
-      E: Environment
+impl<E, M, T, S, A, const BATCH_SIZE: usize> SelfDrivingQLearner<E, M, T, S, A, BATCH_SIZE>
+where
+    E: Environment<T, S, A>,
+    M: QLearningModel<T, S, A, BATCH_SIZE>,
+    T: EnvTypes<S, A>,
+    S: State,
+    A: Action
 {
     pub fn from_scratch(environment: E,
                         param: Parameter,
@@ -208,7 +212,6 @@ where M: QLearningModel<S, A, BATCH_SIZE>,
                         model_instance2: M,
                         write_checkpoint_file: &Path,
     ) -> Self {
-        assert_eq!(model_instance1.dims(), model_instance2.dims());
         let write_checkpoint_file = write_checkpoint_file.to_str()
             .expect("file name should have a UTF-8 compatible path")
             .to_owned();
@@ -220,6 +223,7 @@ where M: QLearningModel<S, A, BATCH_SIZE>,
             write_checkpoint_file,
             p1: PhantomData::default(),
             p2: PhantomData::default(),
+            p3: PhantomData::default(),
         }
     }
 
@@ -250,11 +254,11 @@ where M: QLearningModel<S, A, BATCH_SIZE>,
                 step_count += 1;
 
                 // Use epsilon-greedy for exploration
-                let action: E::Action =
+                let action: A =
                     if step_count < self.param.epsilon_random_frames
                         || epsilon > thread_rng().gen::<f32>() {
                         // Take random action
-                        let a = thread_rng().gen_range(0..E::Action::ACTION_SPACE);
+                        let a = thread_rng().gen_range(0..A::ACTION_SPACE);
                         Action::try_from_numeric(a).unwrap()
                     } else {
                         // Predict best action Q-values from environment state

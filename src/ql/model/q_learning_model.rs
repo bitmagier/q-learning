@@ -1,10 +1,11 @@
+use std::marker::PhantomData;
 use std::path::Path;
 use std::rc::Rc;
 
 use tensorflow::{Graph, SavedModelBundle, SessionOptions, Tensor};
 
 use crate::ql::model::model_function::{ModelFunction1, ModelFunction3};
-use crate::ql::prelude::{Action, Environment, ModelActionType, QLearningModel, State};
+use crate::ql::prelude::{Action, EnvTypes, ModelActionType, QLearningModel, State};
 
 pub trait ToTensor {
     /// Diemsions, the object is represented towards the model.
@@ -23,16 +24,27 @@ pub trait ToTensor {
 }
 
 
-pub struct QLearningTensorflowModel {
+pub struct QLearningTensorflowModel<T, S, A>
+where T: EnvTypes<S, A>,
+      S: State + ToTensor,
+      A: Action
+{
     bundle: SavedModelBundle,
     fn_predict_single: ModelFunction1,
     fn_batch_predict_future_reward: ModelFunction1,
     fn_train_model: ModelFunction3<1>,
     fn_write_checkpoint: ModelFunction1,
     fn_read_checkpoint: ModelFunction1,
+    p1: PhantomData<T>,
+    p2: PhantomData<S>,
+    p3: PhantomData<A>
 }
 
-impl QLearningTensorflowModel {
+impl<T, S, A> QLearningTensorflowModel<T, S, A>
+where T: EnvTypes<S, A>,
+      S: State + ToTensor,
+      A: Action
+{
     /// Init
     ///
     /// # Arguments
@@ -62,10 +74,13 @@ impl QLearningTensorflowModel {
             fn_train_model,
             fn_write_checkpoint,
             fn_read_checkpoint,
+            p1: PhantomData::default(),
+            p2: PhantomData::default(),
+            p3: PhantomData::default(),
         }
     }
 
-    fn check_state_batch_dims<S: ToTensor>(state_batch: &[&Rc<S>], tensor: &Tensor<f32>) {
+    fn check_state_batch_dims(state_batch: &[&Rc<S>], tensor: &Tensor<f32>) {
         let declared_state_dims = || state_batch[0].dims();
         assert_eq!(tensor.dims().len(), 1 + declared_state_dims().len());
         // BATCH_SIZE
@@ -74,10 +89,10 @@ impl QLearningTensorflowModel {
     }
 }
 
-impl<S, A, const BATCH_SIZE: usize> QLearningModel<S, A, BATCH_SIZE> for QLearningTensorflowModel
-where
-    S: State + ToTensor,
-    A: Action
+impl<T, S, A, const BATCH_SIZE: usize> QLearningModel<T, S, A, BATCH_SIZE> for QLearningTensorflowModel<T, S, A>
+where T: EnvTypes<S, A>,
+      S: State + ToTensor,
+      A: Action
 {
     /// Predicts the next action based on the current state.
     ///
@@ -171,7 +186,7 @@ mod tests {
 
     use rand::prelude::*;
 
-    use crate::environment::breakout_environment::{BreakoutAction, BreakoutEnvironment};
+    use crate::environment::breakout_environment::BreakoutAction;
     use crate::environment::util::frame_ring_buffer::FrameRingBuffer;
     use crate::ql::prelude::Action;
 
@@ -196,7 +211,7 @@ mod tests {
     fn test_predict_single() {
         let model = QLearningTensorflowModel::init(&model_dir());
         let state = Rc::new(FrameRingBuffer::new(FRAME_SIZE_X, FRAME_SIZE_Y));
-        let action = model.predict_action(&state);
+        let action: BreakoutAction = model.predict_action(&state);
         log::info!("action: {}", action)
     }
 
