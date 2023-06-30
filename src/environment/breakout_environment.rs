@@ -6,14 +6,15 @@ use image::imageops;
 use crate::environment::breakout::breakout_drawer::BreakoutDrawer;
 use crate::environment::breakout::mechanics::{BreakoutMechanics, GameInput, PanelControl};
 use crate::environment::util::frame_ring_buffer::FrameRingBuffer;
-use crate::ql::prelude::{Action, Environment, ModelActionType};
-
+use crate::ql::prelude::{Action, Environment, ModelActionType, State};
 
 const FRAME_SIZE_X: usize = 600;
 const FRAME_SIZE_Y: usize = 600;
 const WORLD_STATE_NUM_FRAMES: usize = 4;
 
 pub type BreakoutState = FrameRingBuffer<WORLD_STATE_NUM_FRAMES>;
+
+impl State for BreakoutState {}
 
 #[derive(Debug, Clone, Copy)]
 pub enum BreakoutAction {
@@ -63,9 +64,27 @@ impl BreakoutEnvironment {
             frame_buffer: FrameRingBuffer::new(FRAME_SIZE_X, FRAME_SIZE_Y),
         }
     }
+
+    fn map_model_action_to_game_input(model_action: BreakoutAction) -> GameInput {
+        GameInput::action(
+            match model_action {
+                BreakoutAction::None => PanelControl::None,
+                BreakoutAction::Left => PanelControl::AccelerateLeft,
+                BreakoutAction::Right => PanelControl::AccelerateRight
+            })
+    }
+
+    fn map_game_input_to_model_action(game_input: GameInput) -> BreakoutAction {
+        match game_input.control {
+            PanelControl::None => BreakoutAction::None,
+            PanelControl::AccelerateLeft => BreakoutAction::Left,
+            PanelControl::AccelerateRight => BreakoutAction::Right
+        }
+    }
 }
 
-impl Environment for BreakoutEnvironment {
+impl Environment for BreakoutEnvironment
+{
     type State = BreakoutState;
     type Action = BreakoutAction;
 
@@ -78,7 +97,7 @@ impl Environment for BreakoutEnvironment {
         Self::map_game_input_to_model_action(GameInput::action(PanelControl::None))
     }
 
-    fn step(&mut self, action: Self::Action) -> (Rc<Self::State>, f32, bool) {
+    fn step(&mut self, action: Self::Action) -> (Rc<BreakoutState>, f32, bool) {
         let prev_score = self.mechanics.score;
         let game_input: GameInput = Self::map_model_action_to_game_input(action);
         self.mechanics.time_step(game_input);
@@ -95,26 +114,7 @@ impl Environment for BreakoutEnvironment {
     }
 
     fn total_reward_goal() -> f32 {
-        // hanging the goal a little lower than the exact value because of float calc / compare blur effects
-        (BreakoutMechanics::new().bricks.len() as f32) - 0.01
-    }
-}
-
-impl BreakoutEnvironment {
-    fn map_model_action_to_game_input(model_action: <BreakoutEnvironment as Environment>::Action) -> GameInput {
-        GameInput::action(
-            match model_action {
-                BreakoutAction::None => PanelControl::None,
-                BreakoutAction::Left => PanelControl::AccelerateLeft,
-                BreakoutAction::Right => PanelControl::AccelerateRight
-            })
-    }
-
-    fn map_game_input_to_model_action(game_input: GameInput) -> <BreakoutEnvironment as Environment>::Action {
-        match game_input.control {
-            PanelControl::None => BreakoutAction::None,
-            PanelControl::AccelerateLeft => BreakoutAction::Left,
-            PanelControl::AccelerateRight => BreakoutAction::Right
-        }
+        // hanging the goal a little lower than the exact value to avoid obstructive blur effects introduced by float calculations
+        -0.05 + BreakoutMechanics::new().bricks.len() as f32
     }
 }

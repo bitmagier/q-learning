@@ -1,11 +1,11 @@
+use std::marker::PhantomData;
 use std::path::Path;
 use std::rc::Rc;
 
 use rand::prelude::*;
 
 use crate::ql::learn::replay_buffer::ReplayBuffers;
-use crate::ql::model::q_learning_model::QLearningModelTrait;
-use crate::ql::prelude::{Action, Environment, ModelActionType};
+use crate::ql::prelude::{Action, Environment, ModelActionType, QLearningModel, State};
 
 use super::misc::Immutable;
 
@@ -181,20 +181,27 @@ impl Default for Parameter {
         break
  ```
  */
-pub struct SelfDrivingQLearner<E, const BATCH_SIZE: usize, M>
-where E: Environment,
-      M: QLearningModelTrait<E, BATCH_SIZE> {
+pub struct SelfDrivingQLearner<M, S, A, E, const BATCH_SIZE: usize>
+where M: QLearningModel<S, A, BATCH_SIZE>, 
+      S: State,
+      A: Action,
+      E: Environment
+{
+    environment: E,
     param: Immutable<Parameter>,
     trained_model: M,
     target_model: M,
     write_checkpoint_file: String,
-    environment: E,
+    p1: PhantomData<S>,
+    p2: PhantomData<A>
 }
 
-impl<E, const BATCH_SIZE: usize, M> SelfDrivingQLearner<E, BATCH_SIZE, M>
-where E: Environment,
-      M: QLearningModelTrait<E, BATCH_SIZE> {
-    
+impl<M, S, A, E, const BATCH_SIZE: usize> SelfDrivingQLearner<M, S, A, E, BATCH_SIZE>
+where M: QLearningModel<S, A, BATCH_SIZE>,
+      S: State,
+      A: Action,
+      E: Environment
+{
     pub fn from_scratch(environment: E,
                         param: Parameter,
                         model_instance1: M,
@@ -206,11 +213,13 @@ where E: Environment,
             .expect("file name should have a UTF-8 compatible path")
             .to_owned();
         Self {
+            environment,
             param: Immutable::new(param),
             trained_model: model_instance1,
             target_model: model_instance2,
             write_checkpoint_file,
-            environment,
+            p1: PhantomData::default(),
+            p2: PhantomData::default(),
         }
     }
 
@@ -245,7 +254,7 @@ where E: Environment,
                     if step_count < self.param.epsilon_random_frames
                         || epsilon > thread_rng().gen::<f32>() {
                         // Take random action
-                        let a = thread_rng().gen_range(0..<E as Environment>::Action::ACTION_SPACE);
+                        let a = thread_rng().gen_range(0..E::Action::ACTION_SPACE);
                         Action::try_from_numeric(a).unwrap()
                     } else {
                         // Predict best action Q-values from environment state

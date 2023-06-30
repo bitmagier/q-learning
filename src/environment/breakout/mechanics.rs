@@ -463,7 +463,7 @@ impl ContactCandidates {
                     true => len,
                 });
 
-            surfaces.drain_filter(|e| path_len(e) > shortest_path + SPACE_GRANULARITY);
+            surfaces.retain(|e| path_len(e) <= shortest_path + SPACE_GRANULARITY);
         }
 
         assert!(candidate.approximation >= -CONTACT_PENETRATION_LIMIT && candidate.approximation <= CONTACT_PREDICTION);

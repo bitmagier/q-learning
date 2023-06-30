@@ -1,81 +1,45 @@
-use std::marker::PhantomData;
 use std::path::Path;
 use std::rc::Rc;
 
 use tensorflow::{Graph, SavedModelBundle, SessionOptions, Tensor};
 
 use crate::ql::model::model_function::{ModelFunction1, ModelFunction3};
-use crate::ql::prelude::{Action, Environment, ModelActionType, State};
+use crate::ql::prelude::{Action, Environment, ModelActionType, QLearningModel, State};
 
-pub trait QLearningModelTrait<E: Environment, const BATCH_SIZE: usize> {
-    fn init(model_dir: &Path,
-            model_state_dim: &[u64],
-            action_space: ModelActionType,
-    ) -> Self;
-
+pub trait ToTensor {
+    /// Diemsions, the object is represented towards the model.
+    ///
+    /// # Examples
+    /// E.g we would use dimensions `[600,600,4]` for an environment state, which is represented 
+    /// by a series of four grayscale frames with a frame size of 600x600.  
     fn dims(&self) -> &[u64];
 
-    /// Predicts the next action based on the current state.
-    ///
-    /// # Arguments
-    /// * `state` Game state Tensor [frame_size_x, frame_size_y, world_state_num_frames].
-    ///   Representing the current state - this should be the last four frames of the required frame size
-    ///   having one pixel encoded in a single float number
-    ///
-    fn predict_action(&self,
-                      state: &Rc<E::State>,
-    ) -> E::Action;
+    /// Produce a tensor with the dimensions returned by [Self::dims]  
+    fn to_tensor(&self) -> Tensor<f32>;
 
-    fn batch_predict_future_reward(&self,
-                                   states: [&Rc<E::State>; BATCH_SIZE],
-    ) -> [f32; BATCH_SIZE];
-
-    /// Performs a single training step using a a batch of data.
-    /// Returns the model's loss
-    ///
-    /// # Arguments
-    /// * `state_batch` Tensor [BATCH_SIZE, frame_size_x, frame_size_y, world_state_num_frames]
-    /// * `action_batch` Tensor [BATCH_SIZE, 1]
-    /// * `updated_q_values` Tensor [BATCH_SIZE, 1]
-    ///
-    /// # Returns
-    ///   calculated loss
-    ///
-    fn train(&self,
-             state_batch: [&Rc<E::State>; BATCH_SIZE],
-             action_batch: [E::Action; BATCH_SIZE],
-             updated_q_values: [f32; BATCH_SIZE],
-    ) -> f32;
-
-    fn write_checkpoint(&self, file: &str) -> String;
-
-    fn read_checkpoint(&self, file: &str);
+    /// Produce a tensor of a batch of objects.
+    /// The expected dimensionality of the returned tensor is one higher than returned by [Self::to_tensor], having `BATCH_SIZE` as the first axis.  
+    fn batch_to_tensor<const BATCH_SIZE: usize>(batch: &[&Rc<Self>; BATCH_SIZE]) -> Tensor<f32>;
 }
 
-pub struct QLearningModel<E: Environment, const BATCH_SIZE: usize> {
-    model_state_dim: Vec<u64>,
-    model_state_batch_dim: Vec<u64>,
-    action_space: ModelActionType,
+
+pub struct QLearningTensorflowModel {
     bundle: SavedModelBundle,
     fn_predict_single: ModelFunction1,
     fn_batch_predict_future_reward: ModelFunction1,
     fn_train_model: ModelFunction3<1>,
     fn_write_checkpoint: ModelFunction1,
     fn_read_checkpoint: ModelFunction1,
-    _phantom: PhantomData<E>,
 }
 
-impl<E: Environment, const BATCH_SIZE: usize> QLearningModelTrait<E, BATCH_SIZE> for QLearningModel<E, BATCH_SIZE> {
+impl QLearningTensorflowModel {
     /// Init
     ///
     /// # Arguments
     /// * `model_dir` saved tensorflow model;  e.g. Path::new(env!("CARGO_MANIFEST_DIR")).join("tf_model/saved/q_learning_model_50x50x4to3")
     /// * `model_state_dim` input dimensions of the model; e.g. [600x600x4] describing four 600x600 grayscale frames; (used for input data versus model dim reference checks)
     /// * `action_space` number of possible actions = size of the model's one dimension output vector; (used for input data versus model dim reference checks)
-    fn init(model_dir: &Path,
-            model_state_dim: &[u64],
-            action_space: ModelActionType,
-    ) -> Self {
+    fn init(model_dir: &Path) -> Self {
         // we load the model as a graph from the path it was saved in
         let mut graph = Graph::new();
         let bundle = SavedModelBundle::load(
@@ -91,29 +55,30 @@ impl<E: Environment, const BATCH_SIZE: usize> QLearningModelTrait<E, BATCH_SIZE>
         let fn_write_checkpoint = ModelFunction1::new(&graph, &bundle, "write_checkpoint", "file", "file");
         let fn_read_checkpoint = ModelFunction1::new(&graph, &bundle, "read_checkpoint", "file", "dummy");
 
-        QLearningModel {
-            model_state_dim: model_state_dim.into(),
-            model_state_batch_dim: {
-                let mut r = Vec::from(model_state_dim);
-                r.insert(0, BATCH_SIZE as u64);
-                r
-            },
-            action_space,
+        QLearningTensorflowModel {
             bundle,
             fn_predict_single,
             fn_batch_predict_future_reward,
             fn_train_model,
             fn_write_checkpoint,
             fn_read_checkpoint,
-            _phantom: Default::default(),
         }
     }
 
-    fn dims(&self) -> &[u64] {
-        &self.model_state_dim
+    fn check_state_batch_dims<S: ToTensor>(state_batch: &[&Rc<S>], tensor: &Tensor<f32>) {
+        let declared_state_dims = || state_batch[0].dims();
+        assert_eq!(tensor.dims().len(), 1 + declared_state_dims().len());
+        // BATCH_SIZE
+        assert_eq!(tensor.dims()[0], state_batch.len() as u64);
+        assert_eq!(tensor.dims().split_first().unwrap().1, declared_state_dims());
     }
+}
 
-
+impl<S, A, const BATCH_SIZE: usize> QLearningModel<S, A, BATCH_SIZE> for QLearningTensorflowModel
+where
+    S: State + ToTensor,
+    A: Action
+{
     /// Predicts the next action based on the current state.
     ///
     /// # Arguments
@@ -122,23 +87,22 @@ impl<E: Environment, const BATCH_SIZE: usize> QLearningModelTrait<E, BATCH_SIZE>
     ///   having one pixel encoded in a single float number
     ///
     fn predict_action(&self,
-                      state: &Rc<E::State>,
-    ) -> E::Action {
+                      state: &Rc<S>,
+    ) -> A {
         let state_tensor = state.to_tensor();
-        assert_eq!(state_tensor.dims(), self.model_state_dim.as_slice(), "state dimension mismatch. Expected {:?}, got {:?}", self.model_state_dim.as_slice(), state_tensor.dims());
+        assert_eq!(state_tensor.dims(), state.dims(), "state dimension mismatch from ToTensor::to_tensor(). Got {:?}, expected {:?}", state_tensor.dims(), state.dims());
 
         let r = self.fn_predict_single.apply::<_, i64>(&self.bundle.session, &state_tensor);
         let action = r[0] as ModelActionType;
-        assert!((0..self.action_space).contains(&action), "produced action value {} out of range (0..{})", action, self.action_space);
         Action::try_from_numeric(action)
             .expect("action value should be in proper range")
     }
 
     fn batch_predict_future_reward(&self,
-                                   state_batch: [&Rc<E::State>; BATCH_SIZE],
+                                   state_batch: [&Rc<S>; BATCH_SIZE],
     ) -> [f32; BATCH_SIZE] {
-        let state_batch_tensor = State::batch_to_tensor(&state_batch);
-        assert_eq!(state_batch_tensor.dims(), self.model_state_batch_dim.as_slice(), "state_batch dimension mismatch. Expected {:?}, got {:?}", self.model_state_batch_dim.as_slice(), state_batch_tensor.dims());
+        let state_batch_tensor = ToTensor::batch_to_tensor(&state_batch);
+        Self::check_state_batch_dims(&state_batch, &state_batch_tensor);
 
         let r: Tensor<f32> = self.fn_batch_predict_future_reward.apply(&self.bundle.session, &state_batch_tensor);
         assert_eq!(r.dims(), &[BATCH_SIZE as u64]);
@@ -157,12 +121,12 @@ impl<E: Environment, const BATCH_SIZE: usize> QLearningModelTrait<E, BATCH_SIZE>
     ///   calculated loss
     ///
     fn train(&self,
-             state_batch: [&Rc<E::State>; BATCH_SIZE],
-             action_batch: [E::Action; BATCH_SIZE],
+             state_batch: [&Rc<S>; BATCH_SIZE],
+             action_batch: [A; BATCH_SIZE],
              updated_q_values: [f32; BATCH_SIZE],
     ) -> f32 {
-        let state_batch_tensor = State::batch_to_tensor(&state_batch);
-        assert_eq!(state_batch_tensor.dims(), self.model_state_batch_dim.as_slice(), "state_batch dimension mismatch. Expected {:?}, got {:?}", self.model_state_batch_dim.as_slice(), state_batch_tensor.dims());
+        let state_batch_tensor = ToTensor::batch_to_tensor(&state_batch);
+        Self::check_state_batch_dims(&state_batch, &state_batch_tensor);
 
         let mut action_batch_tensor = Tensor::new(&[BATCH_SIZE as u64, 1]);
         for (i, action) in action_batch.into_iter().enumerate() {
@@ -225,12 +189,12 @@ mod tests {
 
     #[test]
     fn test_load_model() {
-        QLearningModel::<BreakoutEnvironment, BATCH_SIZE>::init(&model_dir(), &STATE_DIM, ACTION_SPACE);
+        QLearningTensorflowModel::init(&model_dir());
     }
 
     #[test]
     fn test_predict_single() {
-        let model = QLearningModel::<BreakoutEnvironment, BATCH_SIZE>::init(&model_dir(), &STATE_DIM, ACTION_SPACE);
+        let model = QLearningTensorflowModel::init(&model_dir());
         let state = Rc::new(FrameRingBuffer::new(FRAME_SIZE_X, FRAME_SIZE_Y));
         let action = model.predict_action(&state);
         log::info!("action: {}", action)
@@ -238,7 +202,7 @@ mod tests {
 
     #[test]
     fn test_batch_predict_future_reward() {
-        let model = QLearningModel::<BreakoutEnvironment, BATCH_SIZE>::init(&model_dir(), &STATE_DIM, ACTION_SPACE);
+        let model = QLearningTensorflowModel::init(&model_dir());
         let states = (0..BATCH_SIZE).map(|_| Rc::new(FrameRingBuffer::new(FRAME_SIZE_X, FRAME_SIZE_Y))).collect::<Vec<_>>();
         let state_batch: [&Rc<_>; BATCH_SIZE] = states.iter().collect::<Vec<_>>().try_into().unwrap();
         let _future_rewards = model.batch_predict_future_reward(state_batch);
@@ -246,7 +210,7 @@ mod tests {
 
     #[test]
     fn test_train() {
-        let model = QLearningModel::<BreakoutEnvironment, BATCH_SIZE>::init(&model_dir(), &STATE_DIM, ACTION_SPACE);
+        let model = QLearningTensorflowModel::init(&model_dir());
         let states = (0..BATCH_SIZE).map(|_| Rc::new(FrameRingBuffer::random(FRAME_SIZE_X, FRAME_SIZE_Y))).collect::<Vec<_>>();
         let state_batch: [&Rc<_>; BATCH_SIZE] = states.iter().collect::<Vec<_>>().try_into().unwrap();
         let action_batch = [0; BATCH_SIZE]
@@ -261,7 +225,7 @@ mod tests {
     fn test_save_and_load_model_ckpt() {
         let keras_model_checkpoint_dir = tempfile::tempdir().unwrap();
         let keras_model_checkpoint_file = keras_model_checkpoint_dir.path().join("checkpoint");
-        let model = QLearningModel::<BreakoutEnvironment, BATCH_SIZE>::init(&model_dir(), &STATE_DIM, ACTION_SPACE);
+        let model = QLearningTensorflowModel::init(&model_dir());
 
         let path = model.write_checkpoint(keras_model_checkpoint_file.to_str().unwrap());
         log::info!("saved model to '{}'", path);

@@ -1,4 +1,3 @@
-#![feature(drain_filter)]
 #![feature(tuple_trait)]
 extern crate tensorflow;
 
