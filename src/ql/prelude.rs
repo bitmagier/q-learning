@@ -15,13 +15,8 @@ pub trait Action: Display + Sized + Clone + Copy {
     fn try_from_numeric(value: ModelActionType) -> Result<Self, String>;
 }
 
-pub trait EnvTypes<S: State, A: Action> {}
-
 /// Learning environment, modeling the world of a learning agent
-pub trait Environment<T, S, A>
-where T: EnvTypes<S, A>,
-      S: State,
-      A: Action
+pub trait Environment<S: State, A: Action>
 {
     /// Resets the environment to a defined starting point
     fn reset(&mut self);
@@ -45,8 +40,8 @@ where T: EnvTypes<S, A>,
 }
 
 /// 'physical' AI model abstraction
-pub trait QLearningModel<T, S, A, const BATCH_SIZE: usize>
-where T: EnvTypes<S, A>,
+pub trait QLearningModel<E, S, A, const BATCH_SIZE: usize>
+where E: Environment<S, A>,
       S: State,
       A: Action
 {

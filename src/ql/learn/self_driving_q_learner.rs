@@ -5,7 +5,7 @@ use std::rc::Rc;
 use rand::prelude::*;
 
 use crate::ql::learn::replay_buffer::ReplayBuffers;
-use crate::ql::prelude::{Action, Environment, EnvTypes, QLearningModel, State};
+use crate::ql::prelude::{Action, Environment, QLearningModel, State};
 
 use super::misc::Immutable;
 
@@ -181,10 +181,9 @@ impl Default for Parameter {
         break
  ```
  */
-pub struct SelfDrivingQLearner<E, M, T, S, A, const BATCH_SIZE: usize>
-where E: Environment<T, S, A>,
-      M: QLearningModel<T, S, A, BATCH_SIZE>,
-      T: EnvTypes<S, A>,
+pub struct SelfDrivingQLearner<E, M, S, A, const BATCH_SIZE: usize>
+where E: Environment<S, A>,
+      M: QLearningModel<E, S, A, BATCH_SIZE>,
       S: State,
       A: Action
 {
@@ -193,16 +192,14 @@ where E: Environment<T, S, A>,
     trained_model: M,
     target_model: M,
     write_checkpoint_file: String,
-    p1: PhantomData<T>,
-    p2: PhantomData<S>,
-    p3: PhantomData<A>,
+    _p1: PhantomData<S>,
+    _p2: PhantomData<A>,
 }
 
-impl<E, M, T, S, A, const BATCH_SIZE: usize> SelfDrivingQLearner<E, M, T, S, A, BATCH_SIZE>
+impl<E, M, S, A, const BATCH_SIZE: usize> SelfDrivingQLearner<E, M, S, A, BATCH_SIZE>
 where
-    E: Environment<T, S, A>,
-    M: QLearningModel<T, S, A, BATCH_SIZE>,
-    T: EnvTypes<S, A>,
+    E: Environment<S, A>,
+    M: QLearningModel<E, S, A, BATCH_SIZE>,
     S: State,
     A: Action
 {
@@ -221,9 +218,8 @@ where
             trained_model: model_instance1,
             target_model: model_instance2,
             write_checkpoint_file,
-            p1: PhantomData::default(),
-            p2: PhantomData::default(),
-            p3: PhantomData::default(),
+            _p1: PhantomData::default(),
+            _p2: PhantomData::default(),
         }
     }
 

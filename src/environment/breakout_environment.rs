@@ -6,7 +6,7 @@ use image::imageops;
 use crate::environment::breakout::breakout_drawer::BreakoutDrawer;
 use crate::environment::breakout::mechanics::{BreakoutMechanics, GameInput, PanelControl};
 use crate::environment::util::frame_ring_buffer::FrameRingBuffer;
-use crate::ql::prelude::{Action, Environment, EnvTypes, ModelActionType, State};
+use crate::ql::prelude::{Action, Environment, ModelActionType, State};
 
 const FRAME_SIZE_X: usize = 600;
 const FRAME_SIZE_Y: usize = 600;
@@ -83,8 +83,7 @@ impl BreakoutEnvironment {
     }
 }
 
-impl<T> Environment<T, BreakoutState, BreakoutAction> for BreakoutEnvironment
-where T: EnvTypes<BreakoutState, BreakoutAction>
+impl Environment<BreakoutState, BreakoutAction> for BreakoutEnvironment
 {
     fn reset(&mut self) {
         self.mechanics = BreakoutMechanics::new();
