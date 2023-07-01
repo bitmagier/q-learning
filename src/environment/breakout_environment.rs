@@ -8,15 +8,13 @@ use crate::environment::breakout::breakout_drawer::BreakoutDrawer;
 use crate::environment::breakout::mechanics::{BreakoutMechanics, GameInput, PanelControl};
 use crate::environment::util::frame_ring_buffer::FrameRingBuffer;
 use crate::ql::model::tensorflow::tf::{TensorflowEnvironment, ToTensor};
-use crate::ql::prelude::{Action, Environment, ModelActionType, State};
+use crate::ql::prelude::{Action, Environment, ModelActionType};
 
 const FRAME_SIZE_X: usize = 600;
 const FRAME_SIZE_Y: usize = 600;
 const WORLD_STATE_NUM_FRAMES: usize = 4;
 
 pub type BreakoutState = FrameRingBuffer<WORLD_STATE_NUM_FRAMES>;
-
-impl State for BreakoutState {}
 
 #[derive(Debug, Clone, Copy)]
 pub enum BreakoutAction {
@@ -76,6 +74,7 @@ impl BreakoutEnvironment {
             })
     }
 
+    #[allow(dead_code)]
     fn map_game_input_to_model_action(game_input: GameInput) -> BreakoutAction {
         match game_input.control {
             PanelControl::None => BreakoutAction::None,
@@ -94,8 +93,8 @@ impl Environment for BreakoutEnvironment {
         self.frame_buffer = FrameRingBuffer::new(FRAME_SIZE_X, FRAME_SIZE_Y)
     }
 
-    fn no_action() -> BreakoutAction {
-        Self::map_game_input_to_model_action(GameInput::action(PanelControl::None))
+    fn state(&self) -> Rc<Self::S> {
+        Rc::new(self.frame_buffer.clone())
     }
 
     fn step(&mut self, action: BreakoutAction) -> (Rc<BreakoutState>, f32, bool) {
@@ -107,7 +106,7 @@ impl Environment for BreakoutEnvironment {
         let frame = imageops::grayscale(&frame);
         self.frame_buffer.add(frame);
 
-        let state = Rc::new(self.frame_buffer.clone());
+        let state = self.state();
         let reward = (self.mechanics.score - prev_score) as f32;
         let done = self.mechanics.finished;
 

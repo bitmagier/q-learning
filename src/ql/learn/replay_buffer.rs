@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use std::rc::Rc;
 
-use crate::ql::prelude::{Action, State};
+use crate::ql::prelude::Action;
 
 pub struct ReplayBuffer<T> {
     max_buffer_len: usize,
@@ -45,7 +45,7 @@ impl<T: Copy> ReplayBuffer<T> {
 
 /// Experience replay buffers
 pub struct ReplayBuffers<S, A>
-where S: State, A: Action
+where A: Action
 {
     pub action_history: ReplayBuffer<A>,
     pub state_history: ReplayBuffer<Rc<S>>,
@@ -56,7 +56,7 @@ where S: State, A: Action
 }
 
 impl<S, A> ReplayBuffers<S, A>
-where S: State, A: Action
+where A: Action
 {
     pub fn new(step_buffer_len: usize, episode_reward_buffer_len: usize) -> Self {
         Self {

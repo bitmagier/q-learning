@@ -8,9 +8,6 @@ use crate::ql::prelude::{Action, Environment, QLearningModel};
 
 use super::misc::Immutable;
 
-// best place?
-// const BATCH_SIZE: usize = 32;
-
 pub struct Parameter {
     /// Discount factor for past rewards
     pub gamma: f32,
@@ -189,6 +186,12 @@ where E: Environment,
     trained_model: M,
     target_model: M,
     write_checkpoint_file: String,
+    replay_buffers: ReplayBuffers<E::S, E::A>,
+    step_count: usize,
+    episode_count: usize,
+    running_reward: f32,
+    ///  Epsilon greedy parameter
+    epsilon: f32
 }
 
 impl<E, M, const BATCH_SIZE: usize> SelfDrivingQLearner<E, M, BATCH_SIZE> 
@@ -196,21 +199,28 @@ where
     E: Environment,
     M: QLearningModel<BATCH_SIZE, E=E>,
 {
-    pub fn from_scratch(environment: E,
-                        param: Parameter,
-                        model_instance1: M,
-                        model_instance2: M,
-                        write_checkpoint_file: &Path,
+    pub fn new(environment: E,
+               param: Parameter,
+               model_instance1: M,
+               model_instance2: M,
+               learning_checkpoint_file: &Path,
     ) -> Self {
-        let write_checkpoint_file = write_checkpoint_file.to_str()
+        let learning_checkpoint_file = learning_checkpoint_file.to_str()
             .expect("file name should have a UTF-8 compatible path")
             .to_owned();
+        let replay_buffers = ReplayBuffers::new(param.step_history_buffer_len, param.episode_reward_history_buffer_len);
+        let epsilon = param.epsilon_max;
         Self {
             environment,
             param: Immutable::new(param),
             trained_model: model_instance1,
             target_model: model_instance2,
-            write_checkpoint_file,
+            write_checkpoint_file: learning_checkpoint_file,
+            replay_buffers,
+            step_count: 0,
+            episode_count: 0,
+            running_reward: 0.0,
+            epsilon,
         }
     }
 
@@ -221,109 +231,110 @@ where
         self.target_model.read_checkpoint(&checkpoint_file);
     }
 
-    pub fn learn_until_mastered(&mut self) {
-        let mut replay_buffers = ReplayBuffers::new(self.param.step_history_buffer_len, self.param.episode_reward_history_buffer_len);
+    pub fn learn_till_mastered(&mut self) {
+        while !self.solved() {
+            self.learn_episode();
+        }
+    }
 
-        let mut step_count: usize = 0;
-        let mut episode_count: usize = 0;
-        let mut running_reward: f32 = 0.0;
+    pub fn solved(&self) -> bool {
+        if self.running_reward >= self.environment.total_reward_goal() {
+            log::info!("Solved at episode {}!", self.episode_count);
+            true
+        } else {
+            false
+        }
+    }
+    
+    pub fn learn_episode(&mut self) {
+        self.environment.reset();
+        let mut state = self.environment.state();
+        log::info!("started learning episode {}", self.episode_count);
 
-        ///  Epsilon greedy parameter
-        let mut epsilon: f32 = self.param.epsilon_max;
+        let mut episode_reward: f32 = 0.0;
 
-        loop {
-            self.environment.reset();
-            let (mut state, _, _) = self.environment.step(E::no_action());
+        for _ in [0..self.param.max_steps_per_episode] {
+            self.step_count += 1;
 
-            let mut episode_reward: f32 = 0.0;
+            // Use epsilon-greedy for exploration
+            let action: E::A =
+                if self.step_count < self.param.epsilon_random_frames
+                    || self.epsilon > thread_rng().gen::<f32>() {
+                    // Take random action
+                    let a = thread_rng().gen_range(0..E::A::ACTION_SPACE);
+                    Action::try_from_numeric(a).unwrap()
+                } else {
+                    // Predict best action Q-values from environment state
+                    self.trained_model.predict_action(&state)
+                };
 
-            for _ in [0..self.param.max_steps_per_episode] {
-                step_count += 1;
+            // Decay probability of taking random action
+            self.epsilon = f32::max(
+                self.epsilon - self.param.epsilon_interval() / self.param.epsilon_greedy_frames,
+                self.param.epsilon_min,
+            );
 
-                // Use epsilon-greedy for exploration
-                let action: E::A =
-                    if step_count < self.param.epsilon_random_frames
-                        || epsilon > thread_rng().gen::<f32>() {
-                        // Take random action
-                        let a = thread_rng().gen_range(0..E::A::ACTION_SPACE);
-                        Action::try_from_numeric(a).unwrap()
-                    } else {
-                        // Predict best action Q-values from environment state
-                        self.trained_model.predict_action(&state)
-                    };
+            // Apply the sampled action in our environment
+            let (state_next, reward, done) = self.environment.step(action);
 
-                // Decay probability of taking random action
-                epsilon = f32::max(
-                    epsilon - self.param.epsilon_interval() / self.param.epsilon_greedy_frames,
-                    self.param.epsilon_min,
-                );
+            episode_reward += reward;
 
-                // Apply the sampled action in our environment
-                let (state_next, reward, done) = self.environment.step(action);
+            // Save actions and states in replay buffer
+            self.replay_buffers.add_step_items(action, Rc::clone(&state), Rc::clone(&state_next), reward, done);
+            state = state_next;
 
-                episode_reward += reward;
+            // Update every fourth frame, once batch size is over 32
+            if self.step_count % self.param.update_after_actions == 0 && 
+                self.replay_buffers.done_history.len() > BATCH_SIZE {
+                // Get indices of samples for replay buffers
+                let indices: [usize; BATCH_SIZE] = {
+                    let range = self.replay_buffers.done_history.len();
+                    (0..BATCH_SIZE)
+                        .map(|_| thread_rng().gen_range(0..range))
+                        .collect::<Vec<usize>>().try_into().unwrap()
+                };
 
-                // Save actions and states in replay buffer
-                replay_buffers.add_step_items(action, Rc::clone(&state), Rc::clone(&state_next), reward, done);
-                state = state_next;
+                let state_samples = self.replay_buffers.state_history.get_many(&indices);
+                let state_next_samples = self.replay_buffers.state_next_history.get_many(&indices);
+                let reward_samples = self.replay_buffers.reward_history.get_many_as_val(&indices);
+                let action_samples = self.replay_buffers.action_history.get_many_as_val(&indices);
+                let done_samples = self.replay_buffers.done_history.get_many_as_val(&indices).map(|e| bool_to_f32(e));
 
-                // Update every fourth frame, once batch size is over 32
-                if step_count % self.param.update_after_actions == 0 && replay_buffers.done_history.len() > BATCH_SIZE {
-                    // Get indices of samples for replay buffers
-                    let indices: [usize; BATCH_SIZE] = {
-                        let range = replay_buffers.done_history.len();
-                        (0..BATCH_SIZE)
-                            .map(|_| thread_rng().gen_range(0..range))
-                            .collect::<Vec<usize>>().try_into().unwrap()
-                    };
+                // Build the updated Q-values for the sampled future states
+                // Use the target model for stability
+                let future_rewards = self.target_model.batch_predict_future_reward(state_next_samples);
+                // Q value = reward + discount factor * expected future reward
+                let updated_q_values = array_add(&reward_samples, &array_mul(future_rewards, self.param.gamma));
 
-                    let state_samples = replay_buffers.state_history.get_many(&indices);
-                    let state_next_samples = replay_buffers.state_next_history.get_many(&indices);
-                    let reward_samples = replay_buffers.reward_history.get_many_as_val(&indices);
-                    let action_samples = replay_buffers.action_history.get_many_as_val(&indices);
-                    let done_samples = replay_buffers.done_history.get_many_as_val(&indices).map(|e| bool_to_f32(e));
+                // If final frame set the last value to -1
+                let updated_q_values: [f32; BATCH_SIZE] = updated_q_values.iter().zip(done_samples.iter())
+                    .map(|(updated_q_value, done)| updated_q_value * (1.0 - done) - done)
+                    .collect::<Vec<_>>()
+                    .try_into().unwrap();
 
-                    // Build the updated Q-values for the sampled future states
-                    // Use the target model for stability
-                    let future_rewards = self.target_model.batch_predict_future_reward(state_next_samples);
-                    // Q value = reward + discount factor * expected future reward
-                    let updated_q_values = array_add(&reward_samples, &array_mul(future_rewards, self.param.gamma));
+                let loss = self.trained_model.train(state_samples, action_samples, updated_q_values);
 
-                    // If final frame set the last value to -1
-                    let updated_q_values: [f32; BATCH_SIZE] = updated_q_values.iter().zip(done_samples.iter())
-                        .map(|(updated_q_value, done)| updated_q_value * (1.0 - done) - done)
-                        .collect::<Vec<_>>()
-                        .try_into().unwrap();
+                if self.step_count % self.param.stats_after_steps == 0 {
+                    log::debug!("step: {}, episode: {}, running_reward: {}, training loss: {}", self.step_count, self.episode_count, self.running_reward, loss);
+                }
 
-                    let loss = self.trained_model.train(state_samples, action_samples, updated_q_values);
+                if self.step_count % self.param.update_target_network_after_num_frames == 0 {
+                    // update the target network with new weights
+                    self.trained_model.write_checkpoint(&self.write_checkpoint_file);
+                    self.target_model.read_checkpoint(&self.write_checkpoint_file);
+                    log::info!("running reward: {:.2} at episode {}, step count (frames): {}", self.running_reward, self.episode_count, self.step_count);
+                }
 
-                    if step_count % self.param.stats_after_steps == 0 {
-                        log::debug!("step: {}, episode: {}, running_reward: {}, training loss: {}, ", step_count, episode_count, running_reward, loss);
-                    }
-
-                    if step_count % self.param.update_target_network_after_num_frames == 0 {
-                        // update the target network with new weights
-                        self.trained_model.write_checkpoint(&self.write_checkpoint_file);
-                        self.target_model.read_checkpoint(&self.write_checkpoint_file);
-                        log::info!("running reward: {:.2} at episode {}, step count (frames): {}", running_reward, episode_count, step_count);
-                    }
-
-                    if done {
-                        break;
-                    }
+                if done {
+                    break;
                 }
             }
-
-            // Update running reward to check condition for solving
-            replay_buffers.add_episode_reward(episode_reward);
-            running_reward = replay_buffers.avg_episode_rewards();
-            episode_count += 1;
-
-            if running_reward >= self.environment.total_reward_goal() {
-                log::info!("Solved at episode {}!", episode_count);
-                break;
-            }
         }
+
+        // Update running reward to check condition for solving
+        self.replay_buffers.add_episode_reward(episode_reward);
+        self.running_reward = self.replay_buffers.avg_episode_rewards();
+        self.episode_count += 1;
     }
 }
 
@@ -344,3 +355,28 @@ fn array_mul<const N: usize>(slice: [f32; N], value: f32) -> [f32; N] {
     slice.map(|e| e * value)
 }
 
+#[cfg(test)]
+mod tests {
+    use crate::ql::model::tensorflow::q_learning_model;
+    use crate::ql::model::tensorflow::q_learning_model::{QLearningTensorflowModel, DEFAULT_BATCH_SIZE};
+    use crate::ql::test_environment::BallGameTestEnvironment;
+    use super::*;
+    
+    #[test]
+    fn test_learner_learn_episode() {
+        let environment = BallGameTestEnvironment::new();
+        let param = Parameter::default();
+        let model_init = || QLearningTensorflowModel::<BallGameTestEnvironment, DEFAULT_BATCH_SIZE>::init(&q_learning_model::model_50x50x4to3_path());
+        let model_instance1 = model_init();
+        let model_instance2 = model_init();
+        let checkpoint_file = tempfile::tempdir().unwrap().into_path().join("test_learner_ckpt");
+        let mut learner = SelfDrivingQLearner::new(environment, param, model_instance1, model_instance2, &checkpoint_file);
+        assert!(!learner.solved());
+        
+        learner.learn_episode();
+
+        assert!(!learner.solved());
+        assert!(learner.step_count > 1);
+        assert_eq!(learner.episode_count, 1);
+    }
+}

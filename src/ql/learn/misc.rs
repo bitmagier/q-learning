@@ -1,6 +1,6 @@
 use std::ops::Deref;
 
-/// A container for values that can only be deref'd immutably.
+/// A container for values that can only dereferenced immutably.
 pub struct Immutable<T> {
     value: T,
 }

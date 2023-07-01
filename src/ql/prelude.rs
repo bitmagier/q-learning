@@ -1,8 +1,6 @@
 use std::fmt::Display;
 use std::rc::Rc;
 
-pub trait State {}
-
 /// Data type we use to encode an `Action` to feed the model.
 /// This one should fit for all usage szenarios (for now).
 pub type ModelActionType = u8;
@@ -18,15 +16,15 @@ pub trait Action: Display + Sized + Clone + Copy {
 /// Learning environment, modeling the world of a learning agent
 pub trait Environment
 {
-    type S: State;
+    type S;
     type A: Action;
 
     /// Resets the environment to a defined starting point
     fn reset(&mut self);
 
-    /// The Action-variant which represents no particular action
-    fn no_action() -> Self::A;
-
+    /// Current state
+    fn state(&self) -> Rc<Self::S>;
+    
     /// Performs one time/action-step
     ///
     /// Applies the given ` action` to the environment and returns:# Arguments

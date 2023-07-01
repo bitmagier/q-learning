@@ -33,3 +33,11 @@ maintenance = { status = "as-is" }
 [[bin]]
 name = "breakout-egui-user-game"
 
+#[[bin]]
+#name = "breakout-console-user-game"
+
+[[bin]]
+name = "go-5x5-machine-learning"
+
+#[[bin]]
+#name = "go-5x5-user-ai-game.rs"

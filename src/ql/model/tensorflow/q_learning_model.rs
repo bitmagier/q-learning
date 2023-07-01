@@ -1,5 +1,5 @@
 use std::marker::PhantomData;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use tensorflow::{Graph, SavedModelBundle, SessionOptions, Tensor};
@@ -7,6 +7,16 @@ use tensorflow::{Graph, SavedModelBundle, SessionOptions, Tensor};
 use crate::ql::model::tensorflow::model_function::{ModelFunction1, ModelFunction3};
 use crate::ql::model::tensorflow::tf::TensorflowEnvironment;
 use crate::ql::prelude::{Action, ModelActionType, QLearningModel};
+
+pub const DEFAULT_BATCH_SIZE: usize = 32;
+
+pub fn model_50x50x4to3_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tf_model/saved/q_learning_model_50x50x4to3")
+}
+
+pub fn model_600x600x4to3_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tf_model/saved/q_learning_model_600x600x4to3")
+}
 
 pub struct QLearningTensorflowModel<E: TensorflowEnvironment, const BATCH_SIZE: usize> {
     bundle: SavedModelBundle,
@@ -28,7 +38,7 @@ where E: TensorflowEnvironment
     /// * `model_state_dim` input dimensions of the model; e.g. [600x600x4] describing four 600x600 grayscale frames; (used for input data versus model dim reference checks)
     /// * `action_space` number of possible actions = size of the model's one dimension output vector; (used for input data versus model dim reference checks)
     #[allow(unused)]
-    fn init(model_dir: &Path) -> Self {
+    pub fn init(model_dir: &Path) -> Self {
         // we load the model as a graph from the path it was saved in
         let mut graph = Graph::new();
         let bundle = SavedModelBundle::load(
@@ -156,7 +166,6 @@ where E: TensorflowEnvironment
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
     use std::rc::Rc;
 
     use rand::prelude::*;
@@ -167,22 +176,18 @@ mod tests {
 
     use super::*;
 
-    fn model_dir() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tf_model/saved/q_learning_model_50x50x4to3")
-    }
-
     const FRAME_SIZE_X: usize = 50;
     const FRAME_SIZE_Y: usize = 50;
     const BATCH_SIZE: usize = 32;
 
     #[test]
     fn test_load_model() {
-        QLearningTensorflowModel::<BreakoutEnvironment, BATCH_SIZE>::init(&model_dir());
+        QLearningTensorflowModel::<BreakoutEnvironment, BATCH_SIZE>::init(&model_50x50x4to3_path());
     }
 
     #[test]
     fn test_predict_single() {
-        let model = QLearningTensorflowModel::<BreakoutEnvironment, BATCH_SIZE>::init(&model_dir());
+        let model = QLearningTensorflowModel::<BreakoutEnvironment, BATCH_SIZE>::init(&model_50x50x4to3_path());
         let state = Rc::new(BreakoutState::new(FRAME_SIZE_X, FRAME_SIZE_Y));
 
         let action: BreakoutAction = model.predict_action(&state);
@@ -192,7 +197,7 @@ mod tests {
 
     #[test]
     fn test_batch_predict_future_reward() {
-        let model = QLearningTensorflowModel::<BreakoutEnvironment, BATCH_SIZE>::init(&model_dir());
+        let model = QLearningTensorflowModel::<BreakoutEnvironment, BATCH_SIZE>::init(&model_50x50x4to3_path());
         let states = (0..BATCH_SIZE).map(|_| Rc::new(FrameRingBuffer::new(FRAME_SIZE_X, FRAME_SIZE_Y))).collect::<Vec<_>>();
         let state_batch: [&Rc<_>; BATCH_SIZE] = states.iter().collect::<Vec<_>>().try_into().unwrap();
         let _future_rewards = model.batch_predict_future_reward(state_batch);
@@ -200,7 +205,7 @@ mod tests {
 
     #[test]
     fn test_train() {
-        let model = QLearningTensorflowModel::<BreakoutEnvironment, BATCH_SIZE>::init(&model_dir());
+        let model = QLearningTensorflowModel::<BreakoutEnvironment, BATCH_SIZE>::init(&model_50x50x4to3_path());
         let states = (0..BATCH_SIZE).map(|_| Rc::new(FrameRingBuffer::random(FRAME_SIZE_X, FRAME_SIZE_Y))).collect::<Vec<_>>();
         let state_batch: [&Rc<_>; BATCH_SIZE] = states.iter().collect::<Vec<_>>().try_into().unwrap();
         let action_batch = [0; BATCH_SIZE]
@@ -215,7 +220,7 @@ mod tests {
     fn test_save_and_load_model_ckpt() {
         let keras_model_checkpoint_dir = tempfile::tempdir().unwrap();
         let keras_model_checkpoint_file = keras_model_checkpoint_dir.path().join("checkpoint");
-        let model = QLearningTensorflowModel::<BreakoutEnvironment, BATCH_SIZE>::init(&model_dir());
+        let model = QLearningTensorflowModel::<BreakoutEnvironment, BATCH_SIZE>::init(&model_50x50x4to3_path());
 
         let path = model.write_checkpoint(keras_model_checkpoint_file.to_str().unwrap());
         log::info!("saved model to '{}'", path);
