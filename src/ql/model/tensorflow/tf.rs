@@ -2,7 +2,9 @@ use std::rc::Rc;
 use tensorflow::Tensor;
 use crate::ql::prelude::Environment;
 
-// TODO not really sure how to merge these traits functions 
+// TODO not really sure how to merge these traits functions,
+// but experimental feature "Associated type bounds" would help. (See https://github.com/rust-lang/rust/issues/52662)
+// We could use `Environment<S: ToTensor>` and avoid trait TensorflowEnvironment completely 
 
 pub trait ToTensor {
     /// The dimensions, the object is represented towards the model.
