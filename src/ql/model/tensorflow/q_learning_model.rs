@@ -8,7 +8,7 @@ use crate::ql::model::tensorflow::model_function::{ModelFunction1, ModelFunction
 use crate::ql::model::tensorflow::tf::TensorflowEnvironment;
 use crate::ql::prelude::{Action, ModelActionType, QLearningModel};
 
-pub struct QLearningTensorflowModel<E: TensorflowEnvironment> {
+pub struct QLearningTensorflowModel<E: TensorflowEnvironment, const BATCH_SIZE: usize> {
     bundle: SavedModelBundle,
     fn_predict_single: ModelFunction1,
     fn_batch_predict_future_reward: ModelFunction1,
@@ -18,7 +18,7 @@ pub struct QLearningTensorflowModel<E: TensorflowEnvironment> {
     p: PhantomData<E>,
 }
 
-impl<E> QLearningTensorflowModel<E>
+impl<E, const BATCH_SIZE: usize> QLearningTensorflowModel<E, BATCH_SIZE>
 where E: TensorflowEnvironment
 {
     /// Init
@@ -64,7 +64,7 @@ where E: TensorflowEnvironment
     }
 }
 
-impl<E, const BATCH_SIZE: usize> QLearningModel<BATCH_SIZE> for QLearningTensorflowModel<E>
+impl<E, const BATCH_SIZE: usize> QLearningModel<BATCH_SIZE> for QLearningTensorflowModel<E, BATCH_SIZE>
 where E: TensorflowEnvironment
 {
     type E = E;
@@ -177,24 +177,22 @@ mod tests {
 
     #[test]
     fn test_load_model() {
-        QLearningTensorflowModel::<BreakoutEnvironment>::init(&model_dir());
+        QLearningTensorflowModel::<BreakoutEnvironment, BATCH_SIZE>::init(&model_dir());
     }
 
     #[test]
     fn test_predict_single() {
-        let model = QLearningTensorflowModel::<BreakoutEnvironment>::init(&model_dir());
+        let model = QLearningTensorflowModel::<BreakoutEnvironment, BATCH_SIZE>::init(&model_dir());
         let state = Rc::new(BreakoutState::new(FRAME_SIZE_X, FRAME_SIZE_Y));
 
-        // let action: BreakoutAction = model.predict_action(&state);
-        // TODO how to make this required type annotation unnecessary? 
-        let action = <QLearningTensorflowModel<BreakoutEnvironment> as QLearningModel<BATCH_SIZE>>::predict_action(&model, &state);
+        let action: BreakoutAction = model.predict_action(&state);
 
         log::info!("action: {}", action)
     }
 
     #[test]
     fn test_batch_predict_future_reward() {
-        let model = QLearningTensorflowModel::<BreakoutEnvironment>::init(&model_dir());
+        let model = QLearningTensorflowModel::<BreakoutEnvironment, BATCH_SIZE>::init(&model_dir());
         let states = (0..BATCH_SIZE).map(|_| Rc::new(FrameRingBuffer::new(FRAME_SIZE_X, FRAME_SIZE_Y))).collect::<Vec<_>>();
         let state_batch: [&Rc<_>; BATCH_SIZE] = states.iter().collect::<Vec<_>>().try_into().unwrap();
         let _future_rewards = model.batch_predict_future_reward(state_batch);
@@ -202,7 +200,7 @@ mod tests {
 
     #[test]
     fn test_train() {
-        let model = QLearningTensorflowModel::<BreakoutEnvironment>::init(&model_dir());
+        let model = QLearningTensorflowModel::<BreakoutEnvironment, BATCH_SIZE>::init(&model_dir());
         let states = (0..BATCH_SIZE).map(|_| Rc::new(FrameRingBuffer::random(FRAME_SIZE_X, FRAME_SIZE_Y))).collect::<Vec<_>>();
         let state_batch: [&Rc<_>; BATCH_SIZE] = states.iter().collect::<Vec<_>>().try_into().unwrap();
         let action_batch = [0; BATCH_SIZE]
@@ -217,17 +215,11 @@ mod tests {
     fn test_save_and_load_model_ckpt() {
         let keras_model_checkpoint_dir = tempfile::tempdir().unwrap();
         let keras_model_checkpoint_file = keras_model_checkpoint_dir.path().join("checkpoint");
-        let model = QLearningTensorflowModel::<BreakoutEnvironment>::init(&model_dir());
+        let model = QLearningTensorflowModel::<BreakoutEnvironment, BATCH_SIZE>::init(&model_dir());
 
-
-        // let path = model.write_checkpoint(keras_model_checkpoint_file.to_str().unwrap());
-        // TODO ged rid of this currently required type annotation
-        let path = <QLearningTensorflowModel<BreakoutEnvironment> as QLearningModel<BATCH_SIZE>>::write_checkpoint(&model, keras_model_checkpoint_file.to_str().unwrap());
-
+        let path = model.write_checkpoint(keras_model_checkpoint_file.to_str().unwrap());
         log::info!("saved model to '{}'", path);
 
-        // model.read_checkpoint(&keras_model_checkpoint_file.to_str().unwrap());
-        // TODO ged rid of this currently required type annotation
-        <QLearningTensorflowModel<BreakoutEnvironment> as QLearningModel<BATCH_SIZE>>::read_checkpoint(&model, &keras_model_checkpoint_file.to_str().unwrap());
+         model.read_checkpoint(&keras_model_checkpoint_file.to_str().unwrap());
     }
 }
