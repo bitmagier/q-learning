@@ -9,14 +9,21 @@ use tensorflow::Tensor;
 use crate::ql::model::tensorflow::tf::TensorflowEnvironment;
 use crate::ql::prelude::{Action, Environment, ModelActionType};
 
-/// BallGameTestEnvironment
+/// A quite simple TestEnvironment simulating a ball game.
+/// 
 /// 3x3 field (y=0 north / y=2 south)
-/// 1 ball - initially on a random column on the south row
-/// 1 goal - on a random column on the north row
-/// 2 obstacles - each blocking one field somewhere on the remaining free fields
-/// Game  goal: move the ball into the goal - each round one step west, north, east or south.
+/// - One goal - on a random column on the north row
+/// - One ball 
+///     - initially on a random column on the south row
+///     - may be moved by an action one field intp one of the four directions
+/// - Two obstacles - somewhere on one of the remaining free fields.
+///     - To guarantee, that the game remains solvable, we put one obstacle in the middle row. The other one goes to any of the remaining free fields.   
+/// - Game goal: move the ball into the goal - each round one step into one of the available directions: (west, north, east or south)
 ///
-/// Requires a q-learning model with input dimensions [3x3x3to4]
+/// This environment Requires a q-learning model with spec: 3x3x3_4_32
+/// - input dims: `[3,3,3]`
+/// - out dims: `[4]`
+/// - batch_size: 32
 pub struct BallGameTestEnvironment {
     /// [x,y]
     state: Field,
