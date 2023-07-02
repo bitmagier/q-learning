@@ -10,10 +10,9 @@ use crate::ql::model::tensorflow::model_function::{ModelFunction1, ModelFunction
 use crate::ql::model::tensorflow::tf::TensorflowEnvironment;
 use crate::ql::prelude::{Action, ModelActionType, QLearningModel};
 
-pub const DEFAULT_BATCH_SIZE: usize = 32;
-
 lazy_static!(
-    pub static ref QL_MODEL_BALLGAME_3x3x3_4_32_PATH: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tf_model/saved/ql_model_3x3x3_4_32");  
+    pub static ref QL_MODEL_BALLGAME_3x3x3_4_32_PATH: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tf_model/saved/ql_model_3x3x3_4_32");
+    pub static ref QL_MODEL_BREAKOUT_84x84x4_3_32_PATH: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tf_model/saved/ql_model_breakout_84x84x4_3_32");
     pub static ref QL_MODEL_BREAKOUT_600x600x4_3_32_PATH: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tf_model/saved/ql_model_breakout_600x600x4_3_32");
 );
 
