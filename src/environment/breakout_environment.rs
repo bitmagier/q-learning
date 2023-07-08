@@ -10,8 +10,6 @@ use crate::environment::breakout::mechanics::{BreakoutMechanics, GameInput, Pane
 use crate::environment::util::frame_ring_buffer::FrameRingBuffer;
 use crate::ql::prelude::{Action, DebugVisualizer, Environment, ModelActionType, ToMultiDimArray};
 
-const FRAME_SIZE_X: usize = 600;
-const FRAME_SIZE_Y: usize = 600;
 const WORLD_STATE_NUM_FRAMES: usize = 4;
 
 /// BreakoutState
@@ -123,19 +121,23 @@ impl Display for BreakoutAction {
 
 
 pub struct BreakoutEnvironment {
+    frame_size_x: usize,
+    frame_size_y: usize,
     state: BreakoutState,
     drawer: BreakoutDrawer,
 }
 
 impl BreakoutEnvironment {
-    pub fn new() -> Self {
+    pub fn new(frame_size_x: usize, frame_size_y: usize) -> Self {
         Self {
+            frame_size_x,
+            frame_size_y,
             state: BreakoutState {
                 mechanics: BreakoutMechanics::new(),
-                frame_buffer: FrameRingBuffer::new(FRAME_SIZE_X, FRAME_SIZE_Y),
-                model_dims: [FRAME_SIZE_X as u64, FRAME_SIZE_Y as u64, WORLD_STATE_NUM_FRAMES as u64],
+                frame_buffer: FrameRingBuffer::new(frame_size_x, frame_size_y),
+                model_dims: [frame_size_x as u64, frame_size_y as u64, WORLD_STATE_NUM_FRAMES as u64],
             },
-            drawer: BreakoutDrawer::new(FRAME_SIZE_X, FRAME_SIZE_Y),
+            drawer: BreakoutDrawer::new(frame_size_x, frame_size_y),
         }
     }
 
@@ -164,7 +166,7 @@ impl Environment for BreakoutEnvironment {
 
     fn reset(&mut self) {
         self.state.mechanics = BreakoutMechanics::new();
-        self.state.frame_buffer = FrameRingBuffer::new(FRAME_SIZE_X, FRAME_SIZE_Y)
+        self.state.frame_buffer = FrameRingBuffer::new(self.frame_size_x, self.frame_size_y)
     }
 
     fn state(&self) -> &Self::S {

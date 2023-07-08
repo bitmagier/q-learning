@@ -31,14 +31,14 @@ impl<E, const BATCH_SIZE: usize> QLearningTensorflowModel<E, BATCH_SIZE>
 where E: Environment,
       <E as Environment>::S: ToMultiDimArray<Tensor<f32>>,
 {
-    /// Init
+    /// Init / Load model
     ///
     /// # Arguments
     /// * `model_dir` saved tensorflow model;  e.g. Path::new(env!("CARGO_MANIFEST_DIR")).join("tf_model/saved/q_learning_model_50x50x4to3")
     /// * `model_state_dim` input dimensions of the model; e.g. [600x600x4] describing four 600x600 grayscale frames; (used for input data versus model dim reference checks)
     /// * `action_space` number of possible actions = size of the model's one dimension output vector; (used for input data versus model dim reference checks)
     #[allow(unused)]
-    pub fn init(model_dir: &Path) -> Self {
+    pub fn load(model_dir: &Path) -> Self {
         // we load the model as a graph from the path it was saved in
         let mut graph = Graph::new();
         let bundle = SavedModelBundle::load(
@@ -177,32 +177,36 @@ mod tests {
     const INPUT_SIZE_X: usize = 84;
     const INPUT_SIZE_Y: usize = 84;
     const BATCH_SIZE: usize = 32;
+    
+    fn load_model() -> QLearningTensorflowModel<BreakoutEnvironment, BATCH_SIZE> {
+        QLearningTensorflowModel::<BreakoutEnvironment, BATCH_SIZE>::load(&QL_MODEL_BREAKOUT_84x84x4_3_32_PATH)
+    }
 
     #[test]
     fn test_load_model() {
-        QLearningTensorflowModel::<BreakoutEnvironment, BATCH_SIZE>::init(&QL_MODEL_BREAKOUT_600x600x4_3_32_PATH);
+        load_model();
     }
 
     #[test]
     fn test_predict_single() {
-        let model = QLearningTensorflowModel::<BreakoutEnvironment, BATCH_SIZE>::init(&QL_MODEL_BREAKOUT_600x600x4_3_32_PATH);
-        let env = BreakoutEnvironment::new();
+        let model = load_model();
+        let env = BreakoutEnvironment::new(INPUT_SIZE_X, INPUT_SIZE_Y);
         let action: BreakoutAction = model.predict_action(&env.state());
         log::info!("action: {}", action)
     }
 
     #[test]
     fn test_batch_predict_future_reward() {
-        let model = QLearningTensorflowModel::<BreakoutEnvironment, BATCH_SIZE>::init(&QL_MODEL_BREAKOUT_600x600x4_3_32_PATH);
-        let env = BreakoutEnvironment::new();
+        let model = load_model();
+        let env = BreakoutEnvironment::new(INPUT_SIZE_X, INPUT_SIZE_Y);
         let states_batch = [0; BATCH_SIZE].map(|_| Rc::new(env.state().clone()));
         let _future_rewards = model.batch_predict_future_reward(states_batch.each_ref());
     }
 
     #[test]
     fn test_train() {
-        let model = QLearningTensorflowModel::<BreakoutEnvironment, BATCH_SIZE>::init(&QL_MODEL_BREAKOUT_600x600x4_3_32_PATH);
-        let env = BreakoutEnvironment::new();
+        let model= load_model();
+        let env = BreakoutEnvironment::new(INPUT_SIZE_X, INPUT_SIZE_Y);
         let states_batch = [0; BATCH_SIZE].map(|_| Rc::new(env.state().clone()));
         let action_batch = [0; BATCH_SIZE]
             .map(|_| thread_rng().gen_range(0..BreakoutAction::ACTION_SPACE))
@@ -216,7 +220,7 @@ mod tests {
     fn test_save_and_load_model_ckpt() {
         let keras_model_checkpoint_dir = tempfile::tempdir().unwrap();
         let keras_model_checkpoint_file = keras_model_checkpoint_dir.path().join("checkpoint");
-        let model = QLearningTensorflowModel::<BreakoutEnvironment, BATCH_SIZE>::init(&QL_MODEL_BREAKOUT_600x600x4_3_32_PATH);
+        let model = load_model();
         let path = model.write_checkpoint(keras_model_checkpoint_file.to_str().unwrap());
         log::info!("saved model to '{}'", path);
         model.read_checkpoint(&keras_model_checkpoint_file.to_str().unwrap());

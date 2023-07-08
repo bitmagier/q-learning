@@ -370,7 +370,7 @@ mod tests {
     fn test_learner_learn_episode() {
         let environment = BallGameTestEnvironment::new();
         let param = Parameter::default();
-        let model_init = || QLearningTensorflowModel::<BallGameTestEnvironment>::init(&QL_MODEL_BALLGAME_3x3x3_4_32_PATH);
+        let model_init = || QLearningTensorflowModel::<BallGameTestEnvironment>::load(&QL_MODEL_BALLGAME_3x3x3_4_32_PATH);
         let model_instance1 = model_init();
         let model_instance2 = model_init();
         let checkpoint_file = tempfile::tempdir().unwrap().into_path().join("test_learner_ckpt");
