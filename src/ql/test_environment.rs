@@ -1,6 +1,7 @@
 #![cfg(test)]
 
 use std::fmt::{Display, Formatter};
+use std::rc::Rc;
 
 use plotters::prelude::{CoordTranslate, DrawingArea, DrawingBackend};
 use rand::Rng;
@@ -226,7 +227,7 @@ impl ToMultiDimArray<Tensor<f32>> for BallGameState {
         tensor
     }
 
-    fn batch_to_multi_dim_array<const N: usize>(batch: &[&Self; N]) -> Tensor<f32> {
+    fn batch_to_multi_dim_array<const N: usize>(batch: &[&Rc<Self>; N]) -> Tensor<f32> {
         let mut tensor = Tensor::new(&[N as u64, 3_u64, 3_u64, 3_u64]);
         for b in 0..N {
             for y in 0..3 {

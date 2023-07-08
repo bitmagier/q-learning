@@ -1,4 +1,5 @@
 use std::fmt::{Debug, Display, Formatter};
+use std::rc::Rc;
 
 use image::{imageops, Pixel};
 use plotters::prelude::{CoordTranslate, DrawingArea, DrawingBackend};
@@ -51,7 +52,7 @@ impl ToMultiDimArray<Tensor<f32>> for BreakoutState {
         tensor
     }
 
-    fn batch_to_multi_dim_array<const N: usize>(batch: &[&Self; N]) -> Tensor<f32> {
+    fn batch_to_multi_dim_array<const N: usize>(batch: &[&Rc<Self>; N]) -> Tensor<f32> {
         let frame_size_x = batch[0].frame_buffer.frame_size_x;
         let frame_size_y = batch[0].frame_buffer.frame_size_y;
         let mut dims = Vec::with_capacity(4);
@@ -81,7 +82,7 @@ impl DebugVisualizer for BreakoutState {
                 self.mechanics.bricks.len(), self.mechanics.ball.shape.center, self.mechanics.panel.shape.center()).to_string()
     }
 
-    fn plot<DB: DrawingBackend, CT: CoordTranslate>(&self, drawing_area: &mut DrawingArea<DB, CT>) {
+    fn plot<DB: DrawingBackend, CT: CoordTranslate>(&self, _drawing_area: &mut DrawingArea<DB, CT>) {
         todo!()
     }
 }

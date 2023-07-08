@@ -14,7 +14,7 @@ impl BreakoutDrawer {
             frame_size_y,
         }
     }
-    pub fn draw(&self, game_state: &BreakoutMechanics) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
+    pub fn draw(&self, _game_state: &BreakoutMechanics) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
         // TODO use plotter
         unimplemented!()
     }

@@ -1,4 +1,5 @@
 use std::fmt::Display;
+use std::rc::Rc;
 
 use plotters::prelude::{CoordTranslate, DrawingBackend};
 
@@ -65,7 +66,7 @@ pub trait QLearningModel<const BATCH_SIZE: usize = DEFAULT_BATCH_SIZE> {
     ) -> <Self::E as Environment>::A;
 
     fn batch_predict_future_reward(&self,
-                                   states: [&<Self::E as Environment>::S; BATCH_SIZE],
+                                   states: [&Rc<<Self::E as Environment>::S>; BATCH_SIZE],
     ) -> [f32; BATCH_SIZE];
 
     /// Performs a single training step using a a batch of data.
@@ -80,7 +81,7 @@ pub trait QLearningModel<const BATCH_SIZE: usize = DEFAULT_BATCH_SIZE> {
     ///   calculated loss
     ///
     fn train(&self,
-             state_batch: [&<Self::E as Environment>::S; BATCH_SIZE],
+             state_batch: [&Rc<<Self::E as Environment>::S>; BATCH_SIZE],
              action_batch: [<Self::E as Environment>::A; BATCH_SIZE],
              updated_q_values: [f32; BATCH_SIZE],
     ) -> f32;
@@ -127,5 +128,5 @@ pub trait ToMultiDimArray<D> {
     /// Produces a multi dimensional array from a batch of objects.
     /// The expected dimensionality of the returned tensor usually has one axis (with len = `BATCH_SIZE`) 
     /// more than for a single object (as returned by [Self::to_tensor]).
-    fn batch_to_multi_dim_array<const N: usize>(batch: &[&Self; N]) -> D;
+    fn batch_to_multi_dim_array<const N: usize>(batch: &[&Rc<Self>; N]) -> D;
 }

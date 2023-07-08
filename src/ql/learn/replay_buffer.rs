@@ -1,11 +1,11 @@
 use std::collections::VecDeque;
 
-pub struct ReplayBuffer<T> {
+struct Buffer<T> {
     max_buffer_len: usize,
     buffer: VecDeque<T>,
 }
 
-impl<T> ReplayBuffer<T> {
+impl<T> Buffer<T> {
     pub fn new(max_buffer_len: usize) -> Self {
         assert!(max_buffer_len > 0);
         Self {
@@ -32,7 +32,7 @@ impl<T> ReplayBuffer<T> {
     }
 }
 
-impl<T: Copy> ReplayBuffer<T> {
+impl<T: Copy> Buffer<T> {
     /// returns a slice of values of `slice` at the specified `indices`
     pub fn get_many_as_val<const N: usize>(&self, indices: &[usize; N]) -> [T; N] {
         debug_assert!(!indices.iter().any(|&e| e >= self.buffer.len()));
@@ -41,41 +41,39 @@ impl<T: Copy> ReplayBuffer<T> {
 }
 
 /// Experience replay buffers
-pub struct ReplayBuffers<S, A>
-where S: Clone,
-      A: Copy
+pub struct ReplayBuffer<S, A>
+where A: Copy
 {
-    action_history: ReplayBuffer<A>,
-    state_history: ReplayBuffer<S>,
-    state_next_history: ReplayBuffer<S>,
-    reward_history: ReplayBuffer<f32>,
-    done_history: ReplayBuffer<bool>,
-    pub episode_reward_history: ReplayBuffer<f32>,
+    action_history: Buffer<A>,
+    state_history: Buffer<S>,
+    state_next_history: Buffer<S>,
+    reward_history: Buffer<f32>,
+    done_history: Buffer<bool>,
+    episode_reward_history: Buffer<f32>,
 }
 
-impl<S, A> ReplayBuffers<S, A>
-where S: Clone,
-      A: Copy
+impl<S, A> ReplayBuffer<S, A>
+where A: Copy
 {
     pub fn new(step_buffer_len: usize, episode_reward_buffer_len: usize) -> Self {
         Self {
-            action_history: ReplayBuffer::new(step_buffer_len),
-            state_history: ReplayBuffer::new(step_buffer_len),
-            state_next_history: ReplayBuffer::new(step_buffer_len),
-            reward_history: ReplayBuffer::new(step_buffer_len),
-            done_history: ReplayBuffer::new(step_buffer_len),
-            episode_reward_history: ReplayBuffer::new(episode_reward_buffer_len),
+            action_history: Buffer::new(step_buffer_len),
+            state_history: Buffer::new(step_buffer_len),
+            state_next_history: Buffer::new(step_buffer_len),
+            reward_history: Buffer::new(step_buffer_len),
+            done_history: Buffer::new(step_buffer_len),
+            episode_reward_history: Buffer::new(episode_reward_buffer_len),
         }
     }
-    
+
     pub fn len(&self) -> usize {
         self.done_history.len()
     }
 
-    pub fn add_step_items(&mut self, action: A, state: &S, state_next: &S, reward: f32, done: bool) {
+    pub fn add_step_items(&mut self, action: A, state: S, state_next: S, reward: f32, done: bool) {
         self.action_history.add(action);
-        self.state_history.add(state.clone());
-        self.state_next_history.add(state_next.clone());
+        self.state_history.add(state);
+        self.state_next_history.add(state_next);
         self.reward_history.add(reward);
         self.done_history.add(done);
     }
@@ -90,8 +88,8 @@ where S: Clone,
         c.iter().sum::<f32>() / c.len() as f32
     }
 
-    pub fn get_many<const N: usize>(&self, indices: &[usize; N]) -> ReplaySample<N, S, A> {
-        ReplaySample {
+    pub fn get_many<const N: usize>(&self, indices: &[usize; N]) -> BufferSample<N, S, A> {
+        BufferSample {
             state: self.state_history.get_many(&indices),
             state_next: self.state_next_history.get_many(&indices),
             reward: self.reward_history.get_many_as_val(&indices),
@@ -101,7 +99,7 @@ where S: Clone,
     }
 }
 
-pub struct ReplaySample<'a, const N: usize, S, A> {
+pub struct BufferSample<'a, const N: usize, S, A> {
     pub state: [&'a S; N],
     pub state_next: [&'a S; N],
     pub reward: [f32; N],

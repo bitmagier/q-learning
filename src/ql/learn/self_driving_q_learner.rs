@@ -1,8 +1,9 @@
 use std::path::Path;
+use std::rc::Rc;
 
 use rand::prelude::*;
 
-use crate::ql::learn::replay_buffer::ReplayBuffers;
+use crate::ql::learn::replay_buffer::ReplayBuffer;
 use crate::ql::prelude::{Action, DebugVisualizer, Environment, QLearningModel};
 
 use super::misc::Immutable;
@@ -185,7 +186,7 @@ where E: Environment,
     trained_model: M,
     target_model: M,
     write_checkpoint_file: String,
-    replay_buffers: ReplayBuffers<E::S, E::A>,
+    replay_buffer: ReplayBuffer<Rc<E::S>, E::A>,
     step_count: usize,
     episode_count: usize,
     running_reward: f32,
@@ -207,7 +208,7 @@ where
         let learning_checkpoint_file = learning_checkpoint_file.to_str()
             .expect("file name should have a UTF-8 compatible path")
             .to_owned();
-        let replay_buffers = ReplayBuffers::new(param.step_history_buffer_len, param.episode_reward_history_buffer_len);
+        let replay_buffers = ReplayBuffer::new(param.step_history_buffer_len, param.episode_reward_history_buffer_len);
         let epsilon = param.epsilon_max;
         Self {
             environment,
@@ -215,7 +216,7 @@ where
             trained_model: model_instance1,
             target_model: model_instance2,
             write_checkpoint_file: learning_checkpoint_file,
-            replay_buffers,
+            replay_buffer: replay_buffers,
             step_count: 0,
             episode_count: 0,
             running_reward: 0.0,
@@ -247,7 +248,7 @@ where
 
     pub fn learn_episode(&mut self) {
         self.environment.reset();
-        let mut state = self.environment.state().clone();
+        let mut state = Rc::new(self.environment.state().clone());
         log::info!("started learning episode {}", self.episode_count);
 
         let mut episode_reward: f32 = 0.0;
@@ -276,7 +277,7 @@ where
             log::trace!("{}", &self.environment.state().one_line_info());
             // Apply the sampled action in our environment
             let (state_next, reward, done) = self.environment.step(action);
-            let state_next = state_next.clone();
+            let state_next = Rc::new(state_next.clone());
             
             log::trace!("step with action {} resulted in reward: {:.2}, done: {}", action, reward, done);
 
@@ -284,21 +285,21 @@ where
             episode_reward += reward;
 
             // Save actions and states in replay buffer
-            self.replay_buffers.add_step_items(action, &state, &state_next, reward, done);
+            self.replay_buffer.add_step_items(action, state, Rc::clone(&state_next), reward, done);
             state = state_next;
 
             // Update every fourth frame, once batch size is over 32
             if self.step_count % self.param.update_after_actions == 0 &&
-                self.replay_buffers.len() > BATCH_SIZE {
+                self.replay_buffer.len() > BATCH_SIZE {
                 // Get indices of samples for replay buffers
                 let indices: [usize; BATCH_SIZE] = {
-                    let range = self.replay_buffers.len();
+                    let range = self.replay_buffer.len();
                     (0..BATCH_SIZE)
                         .map(|_| thread_rng().gen_range(0..range))
                         .collect::<Vec<usize>>().try_into().unwrap()
                 };
 
-                let replay_samples = self.replay_buffers.get_many(&indices);
+                let replay_samples = self.replay_buffer.get_many(&indices);
 
                 // Build the updated Q-values for the sampled future states
                 // Use the target model for stability
@@ -334,8 +335,8 @@ where
         }
 
         // Update running reward to check condition for solving
-        self.replay_buffers.add_episode_reward(episode_reward);
-        self.running_reward = self.replay_buffers.avg_episode_rewards();
+        self.replay_buffer.add_episode_reward(episode_reward);
+        self.running_reward = self.replay_buffer.avg_episode_rewards();
         self.episode_count += 1;
     }
 }

@@ -2,6 +2,7 @@
 
 use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
 use lazy_static::lazy_static;
 use tensorflow::{Graph, SavedModelBundle, SessionOptions, Tensor};
@@ -64,7 +65,7 @@ where E: Environment,
         }
     }
 
-    fn check_state_batch_dims(state_batch: &[&E::S], tensor: &Tensor<f32>) {
+    fn check_state_batch_dims(state_batch: &[&Rc<E::S>], tensor: &Tensor<f32>) {
         let declared_state_dims = || state_batch[0].dims();
         assert_eq!(tensor.dims().len(), 1 + declared_state_dims().len());
         // check BATCH_SIZE
@@ -99,7 +100,7 @@ where E: Environment,
     }
 
     fn batch_predict_future_reward(&self,
-                                   state_batch: [&E::S; BATCH_SIZE],
+                                   state_batch: [&Rc<E::S>; BATCH_SIZE],
     ) -> [f32; BATCH_SIZE] {
         let state_batch_tensor: Tensor<f32> = E::S::batch_to_multi_dim_array(&state_batch);
         Self::check_state_batch_dims(&state_batch, &state_batch_tensor);
@@ -121,7 +122,7 @@ where E: Environment,
     ///   calculated loss
     ///
     fn train(&self,
-             state_batch: [&E::S; BATCH_SIZE],
+             state_batch: [&Rc<E::S>; BATCH_SIZE],
              action_batch: [E::A; BATCH_SIZE],
              updated_q_values: [f32; BATCH_SIZE],
     ) -> f32 {
@@ -194,7 +195,7 @@ mod tests {
     fn test_batch_predict_future_reward() {
         let model = QLearningTensorflowModel::<BreakoutEnvironment, BATCH_SIZE>::init(&QL_MODEL_BREAKOUT_600x600x4_3_32_PATH);
         let env = BreakoutEnvironment::new();
-        let states_batch = [0; BATCH_SIZE].map(|_| env.state().clone());
+        let states_batch = [0; BATCH_SIZE].map(|_| Rc::new(env.state().clone()));
         let _future_rewards = model.batch_predict_future_reward(states_batch.each_ref());
     }
 
@@ -202,7 +203,7 @@ mod tests {
     fn test_train() {
         let model = QLearningTensorflowModel::<BreakoutEnvironment, BATCH_SIZE>::init(&QL_MODEL_BREAKOUT_600x600x4_3_32_PATH);
         let env = BreakoutEnvironment::new();
-        let states_batch = [0; BATCH_SIZE].map(|_| env.state().clone());
+        let states_batch = [0; BATCH_SIZE].map(|_| Rc::new(env.state().clone()));
         let action_batch = [0; BATCH_SIZE]
             .map(|_| thread_rng().gen_range(0..BreakoutAction::ACTION_SPACE))
             .map(|v| BreakoutAction::try_from_numeric(v).unwrap());
