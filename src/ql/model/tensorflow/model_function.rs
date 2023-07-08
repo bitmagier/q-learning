@@ -37,7 +37,7 @@ impl ModelFunction1 {
     }
 }
 
-pub struct ModelFunction3<const NO: usize> {
+pub struct ModelFunction3<const NO: usize = 1> {
     name: String,
     input1_operation: Operation,
     input2_operation: Operation,

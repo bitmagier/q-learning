@@ -44,7 +44,7 @@ pub(super) const CONTACT_PREDICTION: f32 = 0.8;
 const CONTACT_PENETRATION_LIMIT: f32 = 0.0;
 
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct BreakoutMechanics {
     /// x = 0 = left side; y = 0 = bottom
     pub bricks: Vec<Brick>,
@@ -498,7 +498,7 @@ impl ContactCandidates {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Panel {
     pub shape: AaBB,
     pub speed_per_sec: f32,

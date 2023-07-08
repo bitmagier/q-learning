@@ -1,20 +1,90 @@
-use std::fmt::{Display, Formatter};
-use std::rc::Rc;
+use std::fmt::{Debug, Display, Formatter};
 
-use image::imageops;
+use image::{imageops, Pixel};
+use plotters::prelude::{CoordTranslate, DrawingArea, DrawingBackend};
 use tensorflow::Tensor;
 
 use crate::environment::breakout::breakout_drawer::BreakoutDrawer;
 use crate::environment::breakout::mechanics::{BreakoutMechanics, GameInput, PanelControl};
 use crate::environment::util::frame_ring_buffer::FrameRingBuffer;
-use crate::ql::model::tensorflow::tf::{TensorflowEnvironment, ToTensor};
-use crate::ql::prelude::{Action, Environment, ModelActionType};
+use crate::ql::prelude::{Action, DebugVisualizer, Environment, ModelActionType, ToMultiDimArray};
 
 const FRAME_SIZE_X: usize = 600;
 const FRAME_SIZE_Y: usize = 600;
 const WORLD_STATE_NUM_FRAMES: usize = 4;
 
-pub type BreakoutState = FrameRingBuffer<WORLD_STATE_NUM_FRAMES>;
+/// BreakoutState
+///
+/// We have 3 different state representations:
+/// 1. original state = BreakoutMechanics
+/// 2. n frames of a realistic state visualization (like last n camera frames)
+/// 3. Tensor representation
+#[derive(Clone)]
+pub struct BreakoutState {
+    mechanics: BreakoutMechanics,
+    frame_buffer: FrameRingBuffer<WORLD_STATE_NUM_FRAMES>,
+    model_dims: [u64; 3],
+}
+
+impl Debug for BreakoutState {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "BreakoutState with {:?}", &self.mechanics)
+    }
+}
+
+impl ToMultiDimArray<Tensor<f32>> for BreakoutState {
+    fn dims(&self) -> &[u64] {
+        &self.model_dims
+    }
+
+    fn to_multi_dim_array(&self) -> Tensor<f32> {
+        let mut tensor = Tensor::new(&self.model_dims);
+        for hist in 0..WORLD_STATE_NUM_FRAMES {
+            let frame = &self.frame_buffer.buffer[hist];
+            for y in 0..self.frame_buffer.frame_size_y as u32 {
+                for x in 0..self.frame_buffer.frame_size_x as u32 {
+                    let pixel = frame.get_pixel(x, y);
+                    tensor.set(&[x as u64, y as u64, hist as u64], pixel.channels()[0] as f32)
+                }
+            }
+        }
+        tensor
+    }
+
+    fn batch_to_multi_dim_array<const N: usize>(batch: &[&Self; N]) -> Tensor<f32> {
+        let frame_size_x = batch[0].frame_buffer.frame_size_x;
+        let frame_size_y = batch[0].frame_buffer.frame_size_y;
+        let mut dims = Vec::with_capacity(4);
+        dims.push(N as u64);
+        dims.extend_from_slice(&batch[0].model_dims);
+        let mut tensor = Tensor::new(&dims);
+
+        for (batch_num, &state) in batch.into_iter().enumerate() {
+            for hist in 0..WORLD_STATE_NUM_FRAMES {
+                let frame = &state.frame_buffer.buffer[hist];
+                debug_assert_eq!(frame.len(), (frame_size_x * frame_size_y));
+                for y in 0..frame_size_y as u32 {
+                    for x in 0..frame_size_x as u32 {
+                        let pixel = frame.get_pixel(x, y);
+                        tensor.set(&[batch_num as u64, x as u64, y as u64, hist as u64], pixel.channels()[0] as f32)
+                    }
+                }
+            }
+        }
+        tensor
+    }
+}
+
+impl DebugVisualizer for BreakoutState {
+    fn one_line_info(&self) -> String {
+        format!("Breakout [{} bricks, ball_pos: {:?}, panel_pos: {:?}]",
+                self.mechanics.bricks.len(), self.mechanics.ball.shape.center, self.mechanics.panel.shape.center()).to_string()
+    }
+
+    fn plot<DB: DrawingBackend, CT: CoordTranslate>(&self, drawing_area: &mut DrawingArea<DB, CT>) {
+        todo!()
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 pub enum BreakoutAction {
@@ -50,18 +120,21 @@ impl Display for BreakoutAction {
     }
 }
 
+
 pub struct BreakoutEnvironment {
-    mechanics: BreakoutMechanics,
-    drawer: Box<dyn BreakoutDrawer>,
-    frame_buffer: FrameRingBuffer<WORLD_STATE_NUM_FRAMES>,
+    state: BreakoutState,
+    drawer: BreakoutDrawer,
 }
 
 impl BreakoutEnvironment {
-    pub fn new(drawer: Box<dyn BreakoutDrawer>) -> Self {
+    pub fn new() -> Self {
         Self {
-            mechanics: BreakoutMechanics::new(),
-            drawer,
-            frame_buffer: FrameRingBuffer::new(FRAME_SIZE_X, FRAME_SIZE_Y),
+            state: BreakoutState {
+                mechanics: BreakoutMechanics::new(),
+                frame_buffer: FrameRingBuffer::new(FRAME_SIZE_X, FRAME_SIZE_Y),
+                model_dims: [FRAME_SIZE_X as u64, FRAME_SIZE_Y as u64, WORLD_STATE_NUM_FRAMES as u64],
+            },
+            drawer: BreakoutDrawer::new(FRAME_SIZE_X, FRAME_SIZE_Y),
         }
     }
 
@@ -89,26 +162,26 @@ impl Environment for BreakoutEnvironment {
     type A = BreakoutAction;
 
     fn reset(&mut self) {
-        self.mechanics = BreakoutMechanics::new();
-        self.frame_buffer = FrameRingBuffer::new(FRAME_SIZE_X, FRAME_SIZE_Y)
+        self.state.mechanics = BreakoutMechanics::new();
+        self.state.frame_buffer = FrameRingBuffer::new(FRAME_SIZE_X, FRAME_SIZE_Y)
     }
 
-    fn state(&self) -> Rc<Self::S> {
-        Rc::new(self.frame_buffer.clone())
+    fn state(&self) -> &Self::S {
+        &self.state
     }
 
-    fn step(&mut self, action: BreakoutAction) -> (Rc<BreakoutState>, f32, bool) {
-        let prev_score = self.mechanics.score;
+    fn step(&mut self, action: BreakoutAction) -> (&BreakoutState, f32, bool) {
+        let prev_score = self.state.mechanics.score;
         let game_input: GameInput = Self::map_model_action_to_game_input(action);
-        self.mechanics.time_step(game_input);
+        self.state.mechanics.time_step(game_input);
 
-        let frame = self.drawer.draw(&self.mechanics);
+        let frame = self.drawer.draw(&self.state.mechanics);
         let frame = imageops::grayscale(&frame);
-        self.frame_buffer.add(frame);
+        self.state.frame_buffer.add(frame);
 
         let state = self.state();
-        let reward = (self.mechanics.score - prev_score) as f32;
-        let done = self.mechanics.finished;
+        let reward = (self.state.mechanics.score - prev_score) as f32;
+        let done = self.state.mechanics.finished;
 
         (state, reward, done)
     }
@@ -116,19 +189,5 @@ impl Environment for BreakoutEnvironment {
     fn total_reward_goal(&self) -> f32 {
         // hanging the goal a little lower than the exact value to avoid obstructive blur effects introduced by float calculations
         -0.05 + BreakoutMechanics::new().bricks.len() as f32
-    }
-}
-
-impl TensorflowEnvironment for BreakoutEnvironment {
-    fn state_dims(state: &Self::S) -> &[u64] {
-        state.dims()
-    }
-
-    fn state_to_tensor(state: &Self::S) -> Tensor<f32> {
-        state.to_tensor()
-    }
-
-    fn state_batch_to_tensor<const BATCH_SIZE: usize>(batch: &[&Rc<Self::S>; BATCH_SIZE]) -> Tensor<f32> {
-        Self::S::batch_to_tensor(batch)
     }
 }

@@ -1,10 +1,9 @@
 use std::path::Path;
-use std::rc::Rc;
 
 use rand::prelude::*;
 
 use crate::ql::learn::replay_buffer::ReplayBuffers;
-use crate::ql::prelude::{Action, Environment, QLearningModel};
+use crate::ql::prelude::{Action, DebugVisualizer, Environment, QLearningModel};
 
 use super::misc::Immutable;
 
@@ -179,7 +178,7 @@ impl Default for Parameter {
  */
 pub struct SelfDrivingQLearner<E, M, const BATCH_SIZE: usize>
 where E: Environment,
-      M: QLearningModel<BATCH_SIZE, E=E> 
+      M: QLearningModel<BATCH_SIZE, E=E>
 {
     environment: E,
     param: Immutable<Parameter>,
@@ -191,10 +190,10 @@ where E: Environment,
     episode_count: usize,
     running_reward: f32,
     ///  Epsilon greedy parameter
-    epsilon: f32
+    epsilon: f32,
 }
 
-impl<E, M, const BATCH_SIZE: usize> SelfDrivingQLearner<E, M, BATCH_SIZE> 
+impl<E, M, const BATCH_SIZE: usize> SelfDrivingQLearner<E, M, BATCH_SIZE>
 where
     E: Environment,
     M: QLearningModel<BATCH_SIZE, E=E>,
@@ -245,10 +244,10 @@ where
             false
         }
     }
-    
+
     pub fn learn_episode(&mut self) {
         self.environment.reset();
-        let mut state = self.environment.state();
+        let mut state = self.environment.state().clone();
         log::info!("started learning episode {}", self.episode_count);
 
         let mut episode_reward: f32 = 0.0;
@@ -274,45 +273,48 @@ where
                 self.param.epsilon_min,
             );
 
+            log::trace!("{}", &self.environment.state().one_line_info());
             // Apply the sampled action in our environment
             let (state_next, reward, done) = self.environment.step(action);
+            let state_next = state_next.clone();
+            
+            log::trace!("step with action {} resulted in reward: {:.2}, done: {}", action, reward, done);
+
 
             episode_reward += reward;
 
             // Save actions and states in replay buffer
-            self.replay_buffers.add_step_items(action, Rc::clone(&state), Rc::clone(&state_next), reward, done);
+            self.replay_buffers.add_step_items(action, &state, &state_next, reward, done);
             state = state_next;
 
             // Update every fourth frame, once batch size is over 32
-            if self.step_count % self.param.update_after_actions == 0 && 
-                self.replay_buffers.done_history.len() > BATCH_SIZE {
+            if self.step_count % self.param.update_after_actions == 0 &&
+                self.replay_buffers.len() > BATCH_SIZE {
                 // Get indices of samples for replay buffers
                 let indices: [usize; BATCH_SIZE] = {
-                    let range = self.replay_buffers.done_history.len();
+                    let range = self.replay_buffers.len();
                     (0..BATCH_SIZE)
                         .map(|_| thread_rng().gen_range(0..range))
                         .collect::<Vec<usize>>().try_into().unwrap()
                 };
 
-                let state_samples = self.replay_buffers.state_history.get_many(&indices);
-                let state_next_samples = self.replay_buffers.state_next_history.get_many(&indices);
-                let reward_samples = self.replay_buffers.reward_history.get_many_as_val(&indices);
-                let action_samples = self.replay_buffers.action_history.get_many_as_val(&indices);
-                let done_samples = self.replay_buffers.done_history.get_many_as_val(&indices).map(|e| bool_to_f32(e));
+                let replay_samples = self.replay_buffers.get_many(&indices);
 
                 // Build the updated Q-values for the sampled future states
                 // Use the target model for stability
-                let future_rewards = self.target_model.batch_predict_future_reward(state_next_samples);
+                let future_rewards = self.target_model.batch_predict_future_reward(replay_samples.state_next);
                 // Q value = reward + discount factor * expected future reward
-                let updated_q_values = array_add(&reward_samples, &array_mul(future_rewards, self.param.gamma));
+                let updated_q_values = array_add(&replay_samples.reward, &array_mul(future_rewards, self.param.gamma));
 
                 // If final frame set the last value to -1
-                let updated_q_values: [f32; BATCH_SIZE] = updated_q_values.iter().zip(done_samples.iter())
-                    .map(|(updated_q_value, done)| updated_q_value * (1.0 - done) - done)
-                    .collect::<Vec<_>>()
-                    .try_into().unwrap();
+                let updated_q_values: [f32; BATCH_SIZE] =
+                    updated_q_values.iter()
+                        .zip(replay_samples.done.iter().map(|&e| bool_to_f32(e)))
+                        .map(|(updated_q_value, done)| updated_q_value * (1.0 - done) - done)
+                        .collect::<Vec<_>>()
+                        .try_into().unwrap();
 
-                let loss = self.trained_model.train(state_samples, action_samples, updated_q_values);
+                let loss = self.trained_model.train(replay_samples.state, replay_samples.action, updated_q_values);
 
                 if self.step_count % self.param.stats_after_steps == 0 {
                     log::debug!("step: {}, episode: {}, running_reward: {}, training loss: {}", self.step_count, self.episode_count, self.running_reward, loss);
@@ -355,24 +357,25 @@ fn array_mul<const N: usize>(slice: [f32; N], value: f32) -> [f32; N] {
     slice.map(|e| e * value)
 }
 
+
 #[cfg(test)]
 mod tests {
-    use crate::ql::model::tensorflow::q_learning_model;
-    use crate::ql::model::tensorflow::q_learning_model::{QLearningTensorflowModel, DEFAULT_BATCH_SIZE};
+    use crate::ql::model::tensorflow::q_learning_model::{QL_MODEL_BALLGAME_3x3x3_4_32_PATH, QLearningTensorflowModel};
     use crate::ql::test_environment::BallGameTestEnvironment;
+
     use super::*;
-    
+
     #[test]
     fn test_learner_learn_episode() {
         let environment = BallGameTestEnvironment::new();
         let param = Parameter::default();
-        let model_init = || QLearningTensorflowModel::<BallGameTestEnvironment, DEFAULT_BATCH_SIZE>::init(&q_learning_model::model_50x50x4to3_path());
+        let model_init = || QLearningTensorflowModel::<BallGameTestEnvironment>::init(&QL_MODEL_BALLGAME_3x3x3_4_32_PATH);
         let model_instance1 = model_init();
         let model_instance2 = model_init();
         let checkpoint_file = tempfile::tempdir().unwrap().into_path().join("test_learner_ckpt");
         let mut learner = SelfDrivingQLearner::new(environment, param, model_instance1, model_instance2, &checkpoint_file);
         assert!(!learner.solved());
-        
+
         learner.learn_episode();
 
         assert!(!learner.solved());

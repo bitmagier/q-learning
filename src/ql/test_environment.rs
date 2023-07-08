@@ -1,16 +1,15 @@
 #![cfg(test)]
 
 use std::fmt::{Display, Formatter};
-use std::rc::Rc;
 
+use plotters::prelude::{CoordTranslate, DrawingArea, DrawingBackend};
 use rand::Rng;
 use tensorflow::Tensor;
 
-use crate::ql::model::tensorflow::tf::TensorflowEnvironment;
-use crate::ql::prelude::{Action, Environment, ModelActionType};
+use crate::ql::prelude::{Action, DebugVisualizer, Environment, ModelActionType, ToMultiDimArray};
 
 /// A quite simple TestEnvironment simulating a ball game.
-/// 
+///
 /// 3x3 field (y=0 north / y=2 south)
 /// - One goal - on a random column on the north row
 /// - One ball 
@@ -25,16 +24,21 @@ use crate::ql::prelude::{Action, Environment, ModelActionType};
 /// - out dims: `[4]`
 /// - batch_size: 32
 pub struct BallGameTestEnvironment {
+    state: BallGameState,
+}
+
+#[derive(Clone)]
+pub struct BallGameState {
     /// [x,y]
-    state: Field,
+    field: Field,
     ball_coord: (usize, usize),
 }
 
-impl BallGameTestEnvironment {
+impl BallGameState {
     fn do_move(&mut self, action: BallGameGameAction) -> MoveResult {
         use BallGameGameAction::*;
         const VALID_TARGET_ENTRIES: [Entry; 2] = [Entry::Void, Entry::Goal];
-        let valid_target_coord = |x, y| VALID_TARGET_ENTRIES.contains(&self.state.get((x, y)));
+        let valid_target_coord = |x, y| VALID_TARGET_ENTRIES.contains(&self.field.get((x, y)));
         let (x, y) = self.ball_coord;
         let valid_target = match action {
             Left if x > 0 && valid_target_coord(x - 1, y) => Some((x - 1, y)),
@@ -45,12 +49,12 @@ impl BallGameTestEnvironment {
         };
         match valid_target {
             None => MoveResult::Illegal,
-            Some(c@(x,y)) => {
-                let finish = self.state.get((x,y)) == Entry::Goal;
-                self.state.set(self.ball_coord, Entry::Void);
-                self.state.set(c, Entry::Ball);
+            Some(c @ (x, y)) => {
+                let done = self.field.get((x, y)) == Entry::Goal;
+                self.field.set(self.ball_coord, Entry::Void);
+                self.field.set(c, Entry::Ball);
                 self.ball_coord = c;
-                MoveResult::Legal { finish }
+                MoveResult::Legal { done }
             }
         }
     }
@@ -58,17 +62,11 @@ impl BallGameTestEnvironment {
 
 enum MoveResult {
     Illegal,
-    Legal { finish: bool },
+    Legal { done: bool },
 }
 
 #[derive(Clone)]
 pub struct Field([[Entry; 3]; 3]);
-
-impl Default for Field {
-    fn default() -> Self {
-        Field([[Entry::Void; 3]; 3])
-    }
-}
 
 impl Field {
     fn set(&mut self, coord: (usize, usize), entry: Entry) {
@@ -80,16 +78,35 @@ impl Field {
     }
 }
 
+impl Default for Field {
+    fn default() -> Self {
+        Field([[Entry::Void; 3]; 3])
+    }
+}
+
+impl DebugVisualizer for BallGameState {
+    fn one_line_info(&self) -> String {
+        let goal_pos_x = (0_usize..3).into_iter().find(|&x| self.field.get((x, 0)) == Entry::Goal).expect("Should find a goal");
+        let distance_x = (self.ball_coord.0 as isize - goal_pos_x as isize).abs();
+        let distance_y = (self.ball_coord.1 - 0) as isize;
+        let distance = distance_x + distance_y;
+        format!("BallGameField: Ball-goal-distance: {}", distance).to_string()
+    }
+
+    fn plot<DB: DrawingBackend, CT: CoordTranslate>(&self, drawing_area: &mut DrawingArea<DB, CT>) {
+        todo!()
+    }
+}
+
+
 impl BallGameTestEnvironment {
     pub fn new() -> Self {
-        let (state, ball_coord) = Self::random_initial_state();
         Self {
-            state,
-            ball_coord,
+            state: Self::random_initial_state()
         }
     }
 
-    fn random_initial_state() -> (Field, (usize, usize)) {
+    fn random_initial_state() -> BallGameState {
         let goal_coord: (usize, usize) = (rand::thread_rng().gen_range(0..3), 0);
         let ball_coord: (usize, usize) = (rand::thread_rng().gen_range(0..3), 2);
         // set one obstacle on the middle row and the other one randomly
@@ -109,16 +126,20 @@ impl BallGameTestEnvironment {
         field.set(ball_coord, Entry::Ball);
         field.set(obstacle1_coord, Entry::Obstacle);
         field.set(obstacle2_coord, Entry::Obstacle);
-        (field, ball_coord)
+
+        BallGameState {
+            field,
+            ball_coord,
+        }
     }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Entry {
-    Void,
-    Obstacle,
     Goal,
     Ball,
+    Obstacle,
+    Void,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -161,41 +182,64 @@ impl Action for BallGameGameAction {
 }
 
 impl Environment for BallGameTestEnvironment {
-    type S = Field;
+    type S = BallGameState;
     type A = BallGameGameAction;
 
     fn reset(&mut self) {
-        (self.state, self.ball_coord) = BallGameTestEnvironment::random_initial_state()
+        self.state = BallGameTestEnvironment::random_initial_state()
     }
 
-    fn state(&self) -> Rc<Self::S> {
-        Rc::new(self.state.clone())
+    fn state(&self) -> &Self::S {
+        &self.state
     }
 
-    fn step(&mut self, action: Self::A) -> (Rc<Self::S>, f32, bool) {
-        match self.do_move(action) {
+    fn step(&mut self, action: Self::A) -> (&Self::S, f32, bool) {
+        match self.state.do_move(action) {
             MoveResult::Illegal => (self.state(), -0.1, false),
-            MoveResult::Legal { finish } if finish => (self.state(), 10.0, finish),
-            MoveResult::Legal { finish } => (self.state(), -0.1, finish),
+            MoveResult::Legal { done } if done => (self.state(), 10.0, done),
+            MoveResult::Legal { done } => (self.state(), -0.1, done),
         }
     }
 
-    // given when reached the goal
     fn total_reward_goal(&self) -> f32 {
         10.0 - 4.0 * 0.1
     }
 }
 
-impl TensorflowEnvironment for BallGameTestEnvironment {
-    fn state_dims(state: &Self::S) -> &[u64] {
-        todo!()
+impl ToMultiDimArray<Tensor<f32>> for BallGameState {
+    fn dims(&self) -> &[u64] {
+        &[3_u64, 3_u64, 3_u64]
     }
 
-    fn state_to_tensor(state: &Self::S) -> Tensor<f32> {
-        todo!()
+    fn to_multi_dim_array(&self) -> Tensor<f32> {
+        let mut tensor = Tensor::new(&[3_u64, 3_u64, 3_u64]);
+        for y in 0..3 {
+            for x in 0..3 {
+                match self.field.get((x, y)) {
+                    Entry::Goal => tensor.set(&[x as u64, y as u64, 0_u64], 1.0),
+                    Entry::Ball => tensor.set(&[x as u64, y as u64, 1_u64], 1.0),
+                    Entry::Obstacle => tensor.set(&[x as u64, y as u64, 2_u64], 1.0),
+                    Entry::Void => (),
+                }
+            }
+        }
+        tensor
     }
 
-    fn state_batch_to_tensor<const BATCH_SIZE: usize>(batch: &[&Rc<Self::S>; BATCH_SIZE]) -> Tensor<f32> {
-        todo!()
+    fn batch_to_multi_dim_array<const N: usize>(batch: &[&Self; N]) -> Tensor<f32> {
+        let mut tensor = Tensor::new(&[N as u64, 3_u64, 3_u64, 3_u64]);
+        for b in 0..N {
+            for y in 0..3 {
+                for x in 0..3 {
+                    match batch[b].field.get((x, y)) {
+                        Entry::Goal => tensor.set(&[b as u64, x as u64, y as u64, 0_u64], 1.0),
+                        Entry::Ball => tensor.set(&[b as u64, x as u64, y as u64, 1_u64], 1.0),
+                        Entry::Obstacle => tensor.set(&[b as u64, x as u64, y as u64, 2_u64], 1.0),
+                        Entry::Void => (),
+                    }
+                }
+            }
+        }
+        tensor
     }
 }
