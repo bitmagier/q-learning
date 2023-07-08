@@ -16,7 +16,7 @@ pub struct Parameter {
     /// Minimum epsilon greedy parameter
     pub epsilon_min: f32,
     pub max_steps_per_episode: usize,
-    // Number of frames to take random action and observe output
+    // Number of frames to take only random action and observe output
     pub epsilon_random_frames: usize,
     // Number of frames for exploration
     pub epsilon_greedy_frames: f32,
@@ -253,7 +253,7 @@ where
 
         let mut episode_reward: f32 = 0.0;
 
-        for _ in [0..self.param.max_steps_per_episode] {
+        for _ in 0..self.param.max_steps_per_episode {
             self.step_count += 1;
 
             // Use epsilon-greedy for exploration
@@ -278,9 +278,8 @@ where
             // Apply the sampled action in our environment
             let (state_next, reward, done) = self.environment.step(action);
             let state_next = Rc::new(state_next.clone());
-            
-            log::trace!("step with action {} resulted in reward: {:.2}, done: {}", action, reward, done);
 
+            log::trace!("step with action {} resulted in reward: {:.2}, done: {}", action, reward, done);
 
             episode_reward += reward;
 
@@ -289,8 +288,8 @@ where
             state = state_next;
 
             // Update every fourth frame, once batch size is over 32
-            if self.step_count % self.param.update_after_actions == 0 &&
-                self.replay_buffer.len() > BATCH_SIZE {
+            if self.step_count % self.param.update_after_actions == 0 
+                && self.replay_buffer.len() > BATCH_SIZE {
                 // Get indices of samples for replay buffers
                 let indices: [usize; BATCH_SIZE] = {
                     let range = self.replay_buffer.len();
@@ -316,21 +315,22 @@ where
                         .try_into().unwrap();
 
                 let loss = self.trained_model.train(replay_samples.state, replay_samples.action, updated_q_values);
+                log::trace!("training step: loss: {}, updated_q_values: [{}]", loss, updated_q_values.map(|e| format!("{:.2}", e)).join(","))
+            }
 
-                if self.step_count % self.param.stats_after_steps == 0 {
-                    log::debug!("step: {}, episode: {}, running_reward: {}, training loss: {}", self.step_count, self.episode_count, self.running_reward, loss);
-                }
+            if self.step_count % self.param.stats_after_steps == 0 {
+                log::debug!("step: {}, episode: {}, running_reward: {}", self.step_count, self.episode_count, self.running_reward);
+            }
 
-                if self.step_count % self.param.update_target_network_after_num_frames == 0 {
-                    // update the target network with new weights
-                    self.trained_model.write_checkpoint(&self.write_checkpoint_file);
-                    self.target_model.read_checkpoint(&self.write_checkpoint_file);
-                    log::info!("running reward: {:.2} at episode {}, step count (frames): {}", self.running_reward, self.episode_count, self.step_count);
-                }
+            if self.step_count % self.param.update_target_network_after_num_frames == 0 {
+                // update the target network with new weights
+                self.trained_model.write_checkpoint(&self.write_checkpoint_file);
+                self.target_model.read_checkpoint(&self.write_checkpoint_file);
+                log::info!("running reward: {:.2} at episode {}, step count (frames): {}", self.running_reward, self.episode_count, self.step_count);
+            }
 
-                if done {
-                    break;
-                }
+            if done {
+                break;
             }
         }
 
@@ -367,7 +367,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_learner_learn_episode() {
+    fn test_learner_single_episode() {
         let environment = BallGameTestEnvironment::new();
         let param = Parameter::default();
         let model_init = || QLearningTensorflowModel::<BallGameTestEnvironment>::load(&QL_MODEL_BALLGAME_3x3x3_4_32_PATH);
@@ -382,5 +382,33 @@ mod tests {
         assert!(!learner.solved());
         assert!(learner.step_count > 1);
         assert_eq!(learner.episode_count, 1);
+    }
+    
+    #[test]
+    // TODO investigate why there is no learning success
+    fn test_learn_until_mastered() {
+        let environment = BallGameTestEnvironment::new();
+        let param = Parameter {
+            gamma: 0.99,
+            epsilon_max: 1.0,
+            epsilon_min: 0.1,
+            max_steps_per_episode: 6,
+            epsilon_random_frames: 200,
+            epsilon_greedy_frames: 10000.0,
+            step_history_buffer_len: 1000,
+            episode_reward_history_buffer_len: 20,
+            update_after_actions: 4,
+            update_target_network_after_num_frames: 100,
+            stats_after_steps: 20,
+        };
+        let model_init = || QLearningTensorflowModel::<BallGameTestEnvironment>::load(&QL_MODEL_BALLGAME_3x3x3_4_32_PATH);
+        let model_instance1 = model_init();
+        let model_instance2 = model_init();
+        let checkpoint_file = tempfile::tempdir().unwrap().into_path().join("test_learner_ckpt");
+        let mut learner = SelfDrivingQLearner::new(environment, param, model_instance1, model_instance2, &checkpoint_file);
+        assert!(!learner.solved());
+
+        learner.learn_till_mastered();
+        assert!(learner.solved());
     }
 }

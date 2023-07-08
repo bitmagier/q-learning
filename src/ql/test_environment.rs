@@ -28,6 +28,42 @@ pub struct BallGameTestEnvironment {
     state: BallGameState,
 }
 
+impl BallGameTestEnvironment {
+    pub fn new() -> Self {
+        Self {
+            state: Self::random_initial_state()
+        }
+    }
+
+    fn random_initial_state() -> BallGameState {
+        let goal_coord: (usize, usize) = (rand::thread_rng().gen_range(0..3), 0);
+        let ball_coord: (usize, usize) = (rand::thread_rng().gen_range(0..3), 2);
+        // set one obstacle on the middle row and the other one randomly
+        let obstacle1_coord = (rand::thread_rng().gen_range(0..3), 1);
+        let obstacle2_coord = {
+            let taken = [goal_coord, ball_coord, obstacle1_coord];
+            loop {
+                let coord = (rand::thread_rng().gen_range(0..3), rand::thread_rng().gen_range(0..3));
+                if !taken.contains(&coord) {
+                    break coord;
+                }
+            }
+        };
+
+        let mut field = Field::default();
+        field.set(goal_coord, Entry::Goal);
+        field.set(ball_coord, Entry::Ball);
+        field.set(obstacle1_coord, Entry::Obstacle);
+        field.set(obstacle2_coord, Entry::Obstacle);
+
+        BallGameState {
+            field,
+            ball_coord,
+        }
+    }
+}
+
+
 #[derive(Clone)]
 pub struct BallGameState {
     /// [x,y]
@@ -87,10 +123,15 @@ impl Default for Field {
 
 impl DebugVisualizer for BallGameState {
     fn one_line_info(&self) -> String {
-        let goal_pos_x = (0_usize..3).into_iter().find(|&x| self.field.get((x, 0)) == Entry::Goal).expect("Should find a goal");
-        let distance_x = (self.ball_coord.0 as isize - goal_pos_x as isize).abs();
-        let distance_y = (self.ball_coord.1 - 0) as isize;
-        let distance = distance_x + distance_y;
+        let goal_pos_x = (0_usize..3).into_iter().find(|&x| self.field.get((x, 0)) == Entry::Goal);
+        let distance = match goal_pos_x {
+            None => 0, // ball already on goal pos
+            Some(goal_pos_x) => {
+                let distance_x = (self.ball_coord.0 as isize - goal_pos_x as isize).abs();
+                let distance_y = (self.ball_coord.1 - 0) as isize;
+                distance_x + distance_y        
+            }
+        };
         format!("BallGameField: Ball-goal-distance: {}", distance).to_string()
     }
 
@@ -99,41 +140,6 @@ impl DebugVisualizer for BallGameState {
     }
 }
 
-
-impl BallGameTestEnvironment {
-    pub fn new() -> Self {
-        Self {
-            state: Self::random_initial_state()
-        }
-    }
-
-    fn random_initial_state() -> BallGameState {
-        let goal_coord: (usize, usize) = (rand::thread_rng().gen_range(0..3), 0);
-        let ball_coord: (usize, usize) = (rand::thread_rng().gen_range(0..3), 2);
-        // set one obstacle on the middle row and the other one randomly
-        let obstacle1_coord = (rand::thread_rng().gen_range(0..3), 1);
-        let obstacle2_coord = {
-            let taken = [goal_coord, ball_coord, obstacle1_coord];
-            loop {
-                let coord = (rand::thread_rng().gen_range(0..3), rand::thread_rng().gen_range(0..3));
-                if !taken.contains(&coord) {
-                    break coord;
-                }
-            }
-        };
-
-        let mut field = Field::default();
-        field.set(goal_coord, Entry::Goal);
-        field.set(ball_coord, Entry::Ball);
-        field.set(obstacle1_coord, Entry::Obstacle);
-        field.set(obstacle2_coord, Entry::Obstacle);
-
-        BallGameState {
-            field,
-            ball_coord,
-        }
-    }
-}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Entry {
