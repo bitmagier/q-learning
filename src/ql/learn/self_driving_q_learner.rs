@@ -26,7 +26,7 @@ pub struct Parameter {
     pub step_history_buffer_len: usize,
     // this determines directly the number of recent goal-achieving episodes required to consider the learning task done
     pub episode_reward_history_buffer_len: usize,
-    // Train the model after 4 actions
+    // Train the model after n actions
     pub update_after_actions: usize,
     // After how many frames we want to update the target network
     pub update_target_network_after_num_frames: usize,
@@ -52,7 +52,7 @@ impl Default for Parameter {
             episode_reward_history_buffer_len: 100,
             update_after_actions: 4,
             update_target_network_after_num_frames: 10000,
-            stats_after_steps: 20,
+            stats_after_steps: 1000,
         }
     }
 }
@@ -304,7 +304,7 @@ where
                 let future_rewards = self.target_model.batch_predict_future_reward(replay_samples.state_next);
                 // Q value = reward + discount factor * expected future reward
                 let updated_q_values = array_add(&replay_samples.reward, &array_mul(future_rewards, self.param.gamma));
-
+                
                 // If final frame set the last value to -1
                 let updated_q_values: [f32; BATCH_SIZE] =
                     updated_q_values.iter()

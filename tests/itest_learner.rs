@@ -7,24 +7,14 @@ use q_learning_breakout::ql::model::tensorflow::q_learning_model::{QL_MODEL_BALL
 use q_learning_breakout::util::init_logging;
 
 #[test]
-// TODO investigate why there is no learning success
+// TODO investigate why there is no learning success => running_reward even gets lower (below zero) over time
 // make sure logging is switched off
 fn test_learn_until_mastered() {
     init_logging();
     
-    let param = Parameter {
-        gamma: 0.99,
-        epsilon_max: 1.0,
-        epsilon_min: 0.1,
-        max_steps_per_episode: 6,
-        epsilon_random_frames: 50000,
-        epsilon_greedy_frames: 1000000.0,
-        step_history_buffer_len: 100000,
-        episode_reward_history_buffer_len: 100,
-        update_after_actions: 4,
-        update_target_network_after_num_frames: 10000,
-        stats_after_steps: 1000,
-    };
+    let mut param = Parameter::default();
+    param.max_steps_per_episode = 14;
+    
     let model_init = || QLearningTensorflowModel::<BallGameTestEnvironment>::load(&QL_MODEL_BALLGAME_3x3x3_4_32_PATH);
     let model_instance1 = model_init();
     let model_instance2 = model_init();

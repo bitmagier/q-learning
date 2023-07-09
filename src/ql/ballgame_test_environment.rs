@@ -16,7 +16,7 @@ use crate::ql::prelude::{Action, DebugVisualizer, Environment, ModelActionType, 
 /// - One ball 
 ///     - initially on a random column on the south row
 ///     - may be moved by an action one field intp one of the four directions
-/// - One obstacles - somewhere on one of the remaining free fields. 
+/// - Two obstacles - one in the center at (1,1) and the other one somewhere on one of the remaining free fields. 
 /// - Game goal: move the ball into the goal - each round one step into one of the available directions: (west, north, east or south)
 ///
 /// This environment Requires a q-learning model with spec: 3x3x3_4_32
@@ -30,30 +30,19 @@ pub struct BallGameTestEnvironment {
 impl BallGameTestEnvironment {
     pub fn new() -> Self {
         Self {
-            state: Self::random_initial_state()
+            state: BallGameState::random_initial_state()
         }
     }
-
-    fn random_initial_state() -> BallGameState {
-        let goal_coord: (usize, usize) = (rand::thread_rng().gen_range(0..3), 0);
-        let ball_coord: (usize, usize) = (rand::thread_rng().gen_range(0..3), 2);
-        // set one obstacle on the middle row and the other one randomly
-        let obstacle_coord = (rand::thread_rng().gen_range(0..3), 1);
-
-        let mut field = Field::default();
-        field.set(goal_coord, Entry::Goal);
-        field.set(ball_coord, Entry::Ball);
-        field.set(obstacle_coord, Entry::Obstacle);
-
-        BallGameState {
-            field,
-            ball_coord,
+    
+    pub fn test_state_00_01_11_22() -> Self {
+        Self {
+            state: BallGameState::test_state_00_01_11_22()
         }
     }
 }
 
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct BallGameState {
     /// [x,y]
     field: Field,
@@ -61,13 +50,51 @@ pub struct BallGameState {
 }
 
 impl BallGameState {
-    fn do_move(&mut self, action: BallGameGameAction) -> MoveResult {
-        use BallGameGameAction::*;
+    fn random_initial_state() -> Self {
+        let goal_coord: (usize, usize) = (rand::thread_rng().gen_range(0..3), 0);
+        let ball_coord: (usize, usize) = (rand::thread_rng().gen_range(0..3), 2);
+        // set one obstacle in the middle and the other one randomly
+        let obstacle1_coord = (1,1);
+        let obstacle2_coord = loop {
+            let c = (rand::thread_rng().gen_range(0..3), rand::thread_rng().gen_range(0..3));
+            if c != goal_coord && c != ball_coord && c != obstacle1_coord {
+                break c
+            }
+        };
+
+        let mut field = Field::default();
+        field.set(goal_coord, Entry::Goal);
+        field.set(ball_coord, Entry::Ball);
+        field.set(obstacle1_coord, Entry::Obstacle);
+        field.set(obstacle2_coord, Entry::Obstacle);
+
+        BallGameState {
+            field,
+            ball_coord,
+        }
+    }
+
+    fn test_state_00_01_11_22() -> Self {
+        let mut field = Field::default();
+        
+        field.set((0,0), Entry::Goal);
+        field.set((0,1), Entry::Obstacle);
+        field.set((1,1), Entry::Obstacle);
+        field.set((2,2), Entry::Ball);
+        
+        BallGameState {
+            field,
+            ball_coord: (2,2)
+        }
+    }
+    
+    fn do_move(&mut self, action: BallGameAction) -> MoveResult {
+        use BallGameAction::*;
         const VALID_TARGET_ENTRIES: [Entry; 2] = [Entry::Void, Entry::Goal];
         let valid_target_coord = |x, y| VALID_TARGET_ENTRIES.contains(&self.field.get((x, y)));
         let (x, y) = self.ball_coord;
         let valid_target = match action {
-            Left if x > 0 && valid_target_coord(x - 1, y) => Some((x - 1, y)),
+            West if x > 0 && valid_target_coord(x - 1, y) => Some((x - 1, y)),
             North if y > 0 && valid_target_coord(x, y - 1) => Some((x, y - 1)),
             East if x < 2 && valid_target_coord(x + 1, y) => Some((x + 1, y)),
             South if y < 2 && valid_target_coord(x, y + 1) => Some((x, y + 1)),
@@ -91,7 +118,7 @@ enum MoveResult {
     Legal { done: bool },
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Field([[Entry; 3]; 3]);
 
 impl Field {
@@ -155,26 +182,26 @@ enum Entry {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum BallGameGameAction {
-    Left,
+pub enum BallGameAction {
+    West,
     North,
     East,
     South,
 }
 
-impl Display for BallGameGameAction {
+impl Display for BallGameAction {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
     }
 }
 
-impl Action for BallGameGameAction {
+impl Action for BallGameAction {
     const ACTION_SPACE: ModelActionType = 4;
 
     fn numeric(&self) -> ModelActionType {
-        use BallGameGameAction::*;
+        use BallGameAction::*;
         match self {
-            Left => 0,
+            West => 0,
             North => 1,
             East => 2,
             South => 3,
@@ -182,9 +209,9 @@ impl Action for BallGameGameAction {
     }
 
     fn try_from_numeric(value: ModelActionType) -> Result<Self, String> {
-        use BallGameGameAction::*;
+        use BallGameAction::*;
         match value {
-            0 => Ok(Left),
+            0 => Ok(West),
             1 => Ok(North),
             2 => Ok(East),
             3 => Ok(South),
@@ -195,10 +222,10 @@ impl Action for BallGameGameAction {
 
 impl Environment for BallGameTestEnvironment {
     type S = BallGameState;
-    type A = BallGameGameAction;
+    type A = BallGameAction;
 
     fn reset(&mut self) {
-        self.state = BallGameTestEnvironment::random_initial_state()
+        self.state = BallGameState::random_initial_state()
     }
 
     fn state(&self) -> &Self::S {
@@ -253,5 +280,85 @@ impl ToMultiDimArray<Tensor<f32>> for BallGameState {
             }
         }
         tensor
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_ballgame_environment() {
+        let mut env = BallGameTestEnvironment::test_state_00_01_11_22();
+        let initial_state = env.state().clone();
+        let (state, reward, done) = env.step(BallGameAction::East);
+        assert_eq!(*state, initial_state);
+        assert!(reward < 0.0);
+        assert_eq!(done, false);
+
+        let (state, reward, done) = env.step(BallGameAction::South);
+        assert_eq!(*state, initial_state);
+        assert!(reward < 0.0);
+        assert_eq!(done, false);
+
+        let (state, reward, done) = env.step(BallGameAction::North);
+        assert_ne!(*state, initial_state);
+        assert_eq!(state.ball_coord, (2, 1));
+        assert_eq!(state.field.get((2, 1)), Entry::Ball);
+        assert_eq!(state.field.get((2, 2)), Entry::Void);
+        assert_eq!(state.field.get((1, 2)), Entry::Void);
+        assert_eq!(state.field.get((0, 2)), Entry::Void);
+        assert_eq!(state.field.get((1, 1)), Entry::Obstacle);
+        assert_eq!(state.field.get((0, 1)), Entry::Obstacle);
+        assert_eq!(state.field.get((2, 0)), Entry::Void);
+        assert_eq!(state.field.get((1, 0)), Entry::Void);
+        assert_eq!(state.field.get((0, 0)), Entry::Goal);
+        assert!(reward < 0.0);
+        assert_eq!(done, false);
+
+        let last_state = state.clone();
+
+        let (state, reward, done) = env.step(BallGameAction::East);
+        assert_eq!(*state, last_state);
+        assert!(reward < 0.0);
+        assert_eq!(done, false);
+
+        let (state, reward, done) = env.step(BallGameAction::North);
+        assert_eq!(state.ball_coord, (2, 0));
+        assert_eq!(state.field.get((2, 1)), Entry::Void);
+        assert_eq!(state.field.get((2, 0)), Entry::Ball);
+        assert!(reward < 0.0);
+        assert_eq!(done, false);
+
+        let last_state = state.clone();
+
+        let (state, reward, done) = env.step(BallGameAction::North);
+        assert_eq!(*state, last_state);
+        assert!(reward < 0.0);
+        assert_eq!(done, false);
+
+        let (state, reward, done) = env.step(BallGameAction::West);
+        assert!(reward < 0.0);
+        assert_eq!(done, false);
+        assert_eq!(state.ball_coord, (1,0));
+        assert_eq!(state.field.get((2,0)), Entry::Void);
+        assert_eq!(state.field.get((1,0)), Entry::Ball);
+
+        let last_state = state.clone();
+        
+        let (state, reward, done) = env.step(BallGameAction::North);
+        assert_eq!(*state, last_state);
+        assert!(reward < 0.0);
+        assert_eq!(done, false);
+
+        let (state, reward, done) = env.step(BallGameAction::West);
+        assert_eq!(state.ball_coord, (0,0));
+        assert_eq!(state.field.get((1,0)), Entry::Void);
+        assert_eq!(state.field.get((0,0)), Entry::Ball);
+        assert_eq!(state.field.get((0,1)), Entry::Obstacle);
+        assert_eq!(state.field.get((1,1)), Entry::Obstacle);
+        assert!(reward > 9.9 && reward < 10.1);
+        assert_eq!(done, true)
     }
 }

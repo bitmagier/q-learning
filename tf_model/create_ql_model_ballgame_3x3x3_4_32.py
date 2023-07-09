@@ -18,7 +18,7 @@ class QLearningModel_BallGame_3x3x3_4_32(tf.keras.Sequential):
         self.add(layers.Dense(128, activation='relu', name='full_layer'))
         self.add(layers.Dense(ACTION_SPACE, activation='linear', name='action_layer'))
 
-        self.compile(optimizer=keras.optimizers.Adam(learning_rate=0.002, clipnorm=1.0),
+        self.compile(optimizer=keras.optimizers.Adam(learning_rate=0.001, clipnorm=1.0),
                      # Using huber loss for stability
                      loss=keras.losses.Huber(),
                      metrics=['accuracy'],
@@ -42,9 +42,7 @@ class QLearningModel_BallGame_3x3x3_4_32(tf.keras.Sequential):
         tf.TensorSpec(shape=[BATCH_SIZE, INPUT_SIZE_X, INPUT_SIZE_Y, INPUT_LAYERS], dtype=tf.float32,
                       name='state_batch')])
     def batch_predict_future_reward(self, state_batch):
-        reward_batch = tf.reduce_max(
-            self(state_batch, training=False),
-            axis=1)
+        reward_batch = tf.reduce_max(self(state_batch, training=False), axis=1)
         return {'reward_batch': reward_batch}
 
     @tf.function(input_signature=[
