@@ -1,7 +1,7 @@
 use std::fmt::Display;
 use std::rc::Rc;
 
-use plotters::prelude::{CoordTranslate, DrawingBackend};
+use console_engine::screen::Screen;
 
 /// Data type we use to encode an `Action` to feed the model.
 /// This one should fit for all usage szenarios (for now).
@@ -33,14 +33,22 @@ pub trait Environment
     /// Current state
     fn state(&self) -> &Self::S;
 
-    /// Performs one time/action-step
-    ///
+    /// Performs one time/action-step.    
+    /// 
     /// Applies the given `action` to the environment and returns:
     ///   - next state
     ///   - immediate reward earned during performing that step
     ///   - done flag (e.g. game ended)
     ///
     fn step(&mut self, action: Self::A) -> (&Self::S, f32, bool);
+    
+    /// Convenience wrapper around [Self::step] returning an [Rc] with a copy of the state.
+    /// This should match the typical use-case.
+    fn step_rc(&mut self, action: Self::A) -> (Rc<Self::S>, f32, bool) {
+        match self.step(action) {
+            (state, reward, done) => (Rc::new(state.clone()), reward, done)
+        }
+    }
 
     /// Total reward considering the task solved
     /// (expected to be a constant - not a moving target)
@@ -90,7 +98,7 @@ pub trait QLearningModel<const BATCH_SIZE: usize = DEFAULT_BATCH_SIZE> {
 
     fn read_checkpoint(&self, file: &str);
 }
-// TODO ^^^ think about decoupling Model from Environment, 
+// DONE: think about decoupling Model from Environment, 
 //  so that State-Tensors are passed via type T: ToMultiDimArray<Tensor<f32>> instead of Environment::State.
 //  Does it make more sense that way?
 //  Advantage: We don't need to pass/handle a full Environment::State object reference from Environment to Model. 
@@ -109,7 +117,7 @@ pub trait QLearningModel<const BATCH_SIZE: usize = DEFAULT_BATCH_SIZE> {
 
 pub trait DebugVisualizer {
     fn one_line_info(&self) -> String;
-    fn plot<DB: DrawingBackend, CT: CoordTranslate>(&self, drawing_area: &mut plotters::drawing::DrawingArea<DB, CT>);
+    fn get_debug_screen(&self) -> Screen;
 }
 
 /// Generic capability to produce a multi dimensional array out of an object or a batch of objects.

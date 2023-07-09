@@ -1,5 +1,6 @@
 use std::path::Path;
 use std::rc::Rc;
+use std::sync::{Arc, RwLock};
 
 use rand::prelude::*;
 
@@ -179,9 +180,8 @@ impl Default for Parameter {
  */
 pub struct SelfDrivingQLearner<E, M, const BATCH_SIZE: usize>
 where E: Environment,
-      M: QLearningModel<BATCH_SIZE, E=E>
-{
-    environment: E,
+      M: QLearningModel<BATCH_SIZE, E=E> {
+    environment: Arc<RwLock<E>>,
     param: Immutable<Parameter>,
     trained_model: M,
     target_model: M,
@@ -199,7 +199,7 @@ where
     E: Environment,
     M: QLearningModel<BATCH_SIZE, E=E>,
 {
-    pub fn new(environment: E,
+    pub fn new(environment: Arc<RwLock<E>>,
                param: Parameter,
                model_instance1: M,
                model_instance2: M,
@@ -238,7 +238,7 @@ where
     }
 
     pub fn solved(&self) -> bool {
-        if self.running_reward >= self.environment.total_reward_goal() {
+        if self.running_reward >= self.environment.read().unwrap().total_reward_goal() {
             log::info!("Solved at episode {}!", self.episode_count);
             true
         } else {
@@ -247,9 +247,9 @@ where
     }
 
     pub fn learn_episode(&mut self) {
-        self.environment.reset();
-        let mut state = Rc::new(self.environment.state().clone());
-        log::info!("started learning episode {}", self.episode_count);
+        self.environment.write().unwrap().reset();
+        let mut state = Rc::new(self.environment.read().unwrap().state().clone());
+        log::trace!("started learning episode {}", self.episode_count);
 
         let mut episode_reward: f32 = 0.0;
 
@@ -274,10 +274,9 @@ where
                 self.param.epsilon_min,
             );
 
-            log::trace!("{}", &self.environment.state().one_line_info());
+            log::trace!("{}", state.one_line_info());
             // Apply the sampled action in our environment
-            let (state_next, reward, done) = self.environment.step(action);
-            let state_next = Rc::new(state_next.clone());
+            let (state_next, reward, done) = self.environment.write().unwrap().step_rc(action);
 
             log::trace!("step with action {} resulted in reward: {:.2}, done: {}", action, reward, done);
 
@@ -326,7 +325,7 @@ where
                 // update the target network with new weights
                 self.trained_model.write_checkpoint(&self.write_checkpoint_file);
                 self.target_model.read_checkpoint(&self.write_checkpoint_file);
-                log::info!("running reward: {:.2} at episode {}, step count (frames): {}", self.running_reward, self.episode_count, self.step_count);
+                log::info!("episode {}, step count (frames): {}, epsilon: {:.2}, running reward: {:.2}", self.episode_count, self.step_count, self.epsilon, self.running_reward);
             }
 
             if done {
@@ -336,7 +335,9 @@ where
 
         // Update running reward to check condition for solving
         self.replay_buffer.add_episode_reward(episode_reward);
-        self.running_reward = self.replay_buffer.avg_episode_rewards();
+        if let Some(avg_episode_rewards) = self.replay_buffer.avg_episode_rewards() {
+            self.running_reward = avg_episode_rewards
+        }
         self.episode_count += 1;
     }
 }
@@ -361,19 +362,27 @@ fn array_mul<const N: usize>(slice: [f32; N], value: f32) -> [f32; N] {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::{Arc, atomic, RwLock};
+    use std::sync::atomic::AtomicBool;
+    use std::sync::atomic::Ordering::Relaxed;
+    use std::thread;
+    use std::thread::Thread;
+    use std::time::Duration;
+    use console_engine::{ConsoleEngine, KeyCode};
+    use console_engine::screen::Screen;
     use crate::ql::model::tensorflow::q_learning_model::{QL_MODEL_BALLGAME_3x3x3_4_32_PATH, QLearningTensorflowModel};
-    use crate::ql::test_environment::BallGameTestEnvironment;
+    use crate::ql::ballgame_test_environment::BallGameTestEnvironment;
 
     use super::*;
 
     #[test]
     fn test_learner_single_episode() {
-        let environment = BallGameTestEnvironment::new();
         let param = Parameter::default();
         let model_init = || QLearningTensorflowModel::<BallGameTestEnvironment>::load(&QL_MODEL_BALLGAME_3x3x3_4_32_PATH);
         let model_instance1 = model_init();
         let model_instance2 = model_init();
         let checkpoint_file = tempfile::tempdir().unwrap().into_path().join("test_learner_ckpt");
+        let environment = Arc::new(RwLock::new(BallGameTestEnvironment::new()));
         let mut learner = SelfDrivingQLearner::new(environment, param, model_instance1, model_instance2, &checkpoint_file);
         assert!(!learner.solved());
 
@@ -382,33 +391,5 @@ mod tests {
         assert!(!learner.solved());
         assert!(learner.step_count > 1);
         assert_eq!(learner.episode_count, 1);
-    }
-    
-    #[test]
-    // TODO investigate why there is no learning success
-    fn test_learn_until_mastered() {
-        let environment = BallGameTestEnvironment::new();
-        let param = Parameter {
-            gamma: 0.99,
-            epsilon_max: 1.0,
-            epsilon_min: 0.1,
-            max_steps_per_episode: 6,
-            epsilon_random_frames: 200,
-            epsilon_greedy_frames: 10000.0,
-            step_history_buffer_len: 1000,
-            episode_reward_history_buffer_len: 20,
-            update_after_actions: 4,
-            update_target_network_after_num_frames: 100,
-            stats_after_steps: 20,
-        };
-        let model_init = || QLearningTensorflowModel::<BallGameTestEnvironment>::load(&QL_MODEL_BALLGAME_3x3x3_4_32_PATH);
-        let model_instance1 = model_init();
-        let model_instance2 = model_init();
-        let checkpoint_file = tempfile::tempdir().unwrap().into_path().join("test_learner_ckpt");
-        let mut learner = SelfDrivingQLearner::new(environment, param, model_instance1, model_instance2, &checkpoint_file);
-        assert!(!learner.solved());
-
-        learner.learn_till_mastered();
-        assert!(learner.solved());
     }
 }

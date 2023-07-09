@@ -1,8 +1,8 @@
 use std::fmt::{Debug, Display, Formatter};
 use std::rc::Rc;
 
+use console_engine::screen::Screen;
 use image::{imageops, Pixel};
-use plotters::prelude::{CoordTranslate, DrawingArea, DrawingBackend};
 use tensorflow::Tensor;
 
 use crate::environment::breakout::breakout_drawer::BreakoutDrawer;
@@ -80,7 +80,7 @@ impl DebugVisualizer for BreakoutState {
                 self.mechanics.bricks.len(), self.mechanics.ball.shape.center, self.mechanics.panel.shape.center()).to_string()
     }
 
-    fn plot<DB: DrawingBackend, CT: CoordTranslate>(&self, _drawing_area: &mut DrawingArea<DB, CT>) {
+    fn get_debug_screen(&self) -> Screen {
         todo!()
     }
 }

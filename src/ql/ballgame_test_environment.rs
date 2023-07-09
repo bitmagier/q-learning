@@ -1,9 +1,9 @@
-#![cfg(test)]
-
 use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 
-use plotters::prelude::{CoordTranslate, DrawingArea, DrawingBackend};
+use console_engine::pixel;
+use console_engine::pixel::Pixel;
+use console_engine::screen::Screen;
 use rand::Rng;
 use tensorflow::Tensor;
 
@@ -16,8 +16,7 @@ use crate::ql::prelude::{Action, DebugVisualizer, Environment, ModelActionType, 
 /// - One ball 
 ///     - initially on a random column on the south row
 ///     - may be moved by an action one field intp one of the four directions
-/// - Two obstacles - somewhere on one of the remaining free fields.
-///     - To guarantee, that the game remains solvable, we put one obstacle in the middle row. The other one goes to any of the remaining free fields.   
+/// - One obstacles - somewhere on one of the remaining free fields. 
 /// - Game goal: move the ball into the goal - each round one step into one of the available directions: (west, north, east or south)
 ///
 /// This environment Requires a q-learning model with spec: 3x3x3_4_32
@@ -39,22 +38,12 @@ impl BallGameTestEnvironment {
         let goal_coord: (usize, usize) = (rand::thread_rng().gen_range(0..3), 0);
         let ball_coord: (usize, usize) = (rand::thread_rng().gen_range(0..3), 2);
         // set one obstacle on the middle row and the other one randomly
-        let obstacle1_coord = (rand::thread_rng().gen_range(0..3), 1);
-        let obstacle2_coord = {
-            let taken = [goal_coord, ball_coord, obstacle1_coord];
-            loop {
-                let coord = (rand::thread_rng().gen_range(0..3), rand::thread_rng().gen_range(0..3));
-                if !taken.contains(&coord) {
-                    break coord;
-                }
-            }
-        };
+        let obstacle_coord = (rand::thread_rng().gen_range(0..3), 1);
 
         let mut field = Field::default();
         field.set(goal_coord, Entry::Goal);
         field.set(ball_coord, Entry::Ball);
-        field.set(obstacle1_coord, Entry::Obstacle);
-        field.set(obstacle2_coord, Entry::Obstacle);
+        field.set(obstacle_coord, Entry::Obstacle);
 
         BallGameState {
             field,
@@ -135,8 +124,24 @@ impl DebugVisualizer for BallGameState {
         format!("BallGameField: Ball-goal-distance: {}", distance).to_string()
     }
 
-    fn plot<DB: DrawingBackend, CT: CoordTranslate>(&self, drawing_area: &mut DrawingArea<DB, CT>) {
-        todo!()
+    fn get_debug_screen(&self) -> Screen {
+        let mut screen = Screen::new_empty(3,3);
+        screen.clear();
+        
+        for y in 0.. self.field.0.len() {
+            for x in 0..self.field.0[0].len() {
+                let pixel: Option<Pixel> = match self.field.get((x,y)) {
+                    Entry::Goal => Some(pixel::pxl('□')),
+                    Entry::Ball => Some(pixel::pxl('●')),
+                    Entry::Obstacle => Some(pixel::pxl('x')),
+                    Entry::Void => None
+                };
+                if let Some(pixel) = pixel {
+                    screen.set_pxl(x as i32, y as i32, pixel);
+                }
+            }
+        }
+        screen        
     }
 }
 

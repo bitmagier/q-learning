@@ -15,10 +15,10 @@ class QLearningModel_BallGame_3x3x3_4_32(tf.keras.Sequential):
         self.add(tf.keras.Input(shape=(INPUT_SIZE_X, INPUT_SIZE_Y, INPUT_LAYERS,)))
         self.add(layers.Conv2D(2, 3, strides=1, padding="same", activation='relu', name='convolution_layer1'))
         self.add(layers.Flatten(name='flatten'))
-        self.add(layers.Dense(64, activation='relu', name='full_layer'))
+        self.add(layers.Dense(128, activation='relu', name='full_layer'))
         self.add(layers.Dense(ACTION_SPACE, activation='linear', name='action_layer'))
 
-        self.compile(optimizer=keras.optimizers.Adam(learning_rate=0.00025, clipnorm=1.0),
+        self.compile(optimizer=keras.optimizers.Adam(learning_rate=0.002, clipnorm=1.0),
                      # Using huber loss for stability
                      loss=keras.losses.Huber(),
                      metrics=['accuracy'],

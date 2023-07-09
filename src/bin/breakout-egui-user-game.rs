@@ -8,6 +8,7 @@ use egui::{Context, Id, LayerId, Order, Painter, Vec2};
 use q_learning_breakout::environment::breakout::app_game_drawer::AppGameDrawer;
 use q_learning_breakout::environment::breakout::mechanics::*;
 use q_learning_breakout::util;
+use q_learning_breakout::util::init_logging;
 
 pub const FRAME_SIZE_X: usize = MODEL_GRID_LEN_X as usize;
 pub const FRAME_SIZE_Y: usize = MODEL_GRID_LEN_Y as usize;
@@ -158,7 +159,7 @@ fn breakout_user_game() -> eframe::Result<()> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    util::init_logging();
+    init_logging();
     breakout_user_game()?;
     Ok(())
 }

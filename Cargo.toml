@@ -7,6 +7,10 @@ description = "Reinforcement Learning | Deep-Q-Learning | Tensorflow | Breakout"
 repository = "git@github.com:bitmagier/q-learning-breakout.git"
 default-run = "breakout-egui-user-game"
 
+[badges]
+maintenance = { status = "as-is" }
+
+
 [dev-dependencies]
 rstest = "0.17"
 ctor = "0.2"
@@ -26,9 +30,6 @@ rand = "0"
 tempfile = "3"
 plotters = "0.3"
 console_engine = "2.6"
-
-[badges]
-maintenance = { status = "as-is" }
 
 [[bin]]
 name = "breakout-egui-user-game"

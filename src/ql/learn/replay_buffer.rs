@@ -82,10 +82,14 @@ where A: Copy
         self.episode_reward_history.add(episode_reward)
     }
 
-    pub fn avg_episode_rewards(&self) -> f32 {
-        let c = &self.episode_reward_history.buffer;
-        assert!(!c.is_empty());
-        c.iter().sum::<f32>() / c.len() as f32
+    pub fn avg_episode_rewards(&self) -> Option<f32> {
+        if self.episode_reward_history.len() < self.episode_reward_history.max_buffer_len {
+            None
+        } else {
+            let c = &self.episode_reward_history.buffer;
+            let avg = c.iter().sum::<f32>() / c.len() as f32;
+            Some(avg)
+        }
     }
 
     pub fn get_many<const N: usize>(&self, indices: &[usize; N]) -> BufferSample<N, S, A> {
