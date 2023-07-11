@@ -48,7 +48,7 @@ class QLearningModel_breakout_84x84x4_3_32(tf.keras.Sequential):
     @tf.function(input_signature=[
         tf.TensorSpec(shape=[BATCH_SIZE, FRAME_SIZE_X, FRAME_SIZE_Y, WORLD_STATE_FRAMES], dtype=tf.float32,
                       name='state_batch')])
-    def batch_predict_future_reward(self, state_batch):
+    def batch_predict_max_future_reward(self, state_batch):
         reward_batch = tf.reduce_max(
             self(state_batch, training=False),
             axis=1)
@@ -106,7 +106,7 @@ model.save('saved/ql_model_breakout_84x84x4_3_32',
            save_format='tf',
            signatures={
                'predict_action': model.predict_action,
-               'batch_predict_future_reward': model.batch_predict_future_reward,
+               'batch_predict_max_future_reward': model.batch_predict_max_future_reward,
                'train_model': model.train_model,
                'write_checkpoint': model.write_checkpoint,
                'read_checkpoint': model.read_checkpoint

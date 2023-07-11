@@ -80,7 +80,7 @@ impl DebugVisualizer for BreakoutState {
                 self.mechanics.bricks.len(), self.mechanics.ball.shape.center, self.mechanics.panel.shape.center()).to_string()
     }
 
-    fn get_debug_screen(&self) -> Screen {
+    fn render_to_console(&self) -> Screen {
         todo!()
     }
 }
@@ -189,8 +189,8 @@ impl Environment for BreakoutEnvironment {
         (state, reward, done)
     }
 
-    fn total_reward_goal(&self) -> f32 {
+    fn total_reward_goal(&self) -> u64 {
         // hanging the goal a little lower than the exact value to avoid obstructive blur effects introduced by float calculations
-        -0.05 + BreakoutMechanics::new().bricks.len() as f32
+        (BreakoutMechanics::new().bricks.len() - 1) as u64
     }
 }

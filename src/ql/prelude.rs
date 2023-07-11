@@ -52,7 +52,7 @@ pub trait Environment
 
     /// Total reward considering the task solved
     /// (expected to be a constant - not a moving target)
-    fn total_reward_goal(&self) -> f32;
+    fn total_reward_goal(&self) -> u64;
 }
 
 
@@ -73,8 +73,8 @@ pub trait QLearningModel<const BATCH_SIZE: usize = DEFAULT_BATCH_SIZE> {
                       state: &<Self::E as Environment>::S,
     ) -> <Self::E as Environment>::A;
 
-    fn batch_predict_future_reward(&self,
-                                   states: [&Rc<<Self::E as Environment>::S>; BATCH_SIZE],
+    fn batch_predict_max_future_reward(&self,
+                                       states: [&Rc<<Self::E as Environment>::S>; BATCH_SIZE],
     ) -> [f32; BATCH_SIZE];
 
     /// Performs a single training step using a a batch of data.
@@ -117,7 +117,7 @@ pub trait QLearningModel<const BATCH_SIZE: usize = DEFAULT_BATCH_SIZE> {
 
 pub trait DebugVisualizer {
     fn one_line_info(&self) -> String;
-    fn get_debug_screen(&self) -> Screen;
+    fn render_to_console(&self) -> Screen;
 }
 
 /// Generic capability to produce a multi dimensional array out of an object or a batch of objects.

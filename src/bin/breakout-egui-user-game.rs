@@ -3,11 +3,12 @@ use std::sync::{Arc, RwLock};
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::Instant;
+
 use eframe::glow;
 use egui::{Context, Id, LayerId, Order, Painter, Vec2};
+
 use q_learning_breakout::environment::breakout::app_game_drawer::AppGameDrawer;
 use q_learning_breakout::environment::breakout::mechanics::*;
-use q_learning_breakout::util;
 use q_learning_breakout::util::init_logging;
 
 pub const FRAME_SIZE_X: usize = MODEL_GRID_LEN_X as usize;

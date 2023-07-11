@@ -11,7 +11,7 @@ use crate::ql::model::tensorflow::model_function::{ModelFunction1, ModelFunction
 use crate::ql::prelude::{Action, DEFAULT_BATCH_SIZE, Environment, ModelActionType, QLearningModel, ToMultiDimArray};
 
 lazy_static!(
-    pub static ref QL_MODEL_BALLGAME_3x3x3_4_32_PATH: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tf_model/saved/ql_model_ballgame_3x3x3_4_32");
+    pub static ref QL_MODEL_BALLGAME_5x5x3_4_32_PATH: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tf_model/saved/ql_model_ballgame_5x5x3_4_32");
     pub static ref QL_MODEL_BREAKOUT_84x84x4_3_32_PATH: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tf_model/saved/ql_model_breakout_84x84x4_3_32");
     pub static ref QL_MODEL_BREAKOUT_600x600x4_3_32_PATH: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tf_model/saved/ql_model_breakout_600x600x4_3_32");
 );
@@ -20,7 +20,7 @@ lazy_static!(
 pub struct QLearningTensorflowModel<E, const BATCH_SIZE: usize = DEFAULT_BATCH_SIZE> {
     bundle: SavedModelBundle,
     fn_predict_single: ModelFunction1,
-    fn_batch_predict_future_reward: ModelFunction1,
+    fn_batch_predict_max_future_reward: ModelFunction1,
     fn_train_model: ModelFunction3,
     fn_write_checkpoint: ModelFunction1,
     fn_read_checkpoint: ModelFunction1,
@@ -49,7 +49,7 @@ where E: Environment,
         // saved_model_cli show --dir /path/to/saved-model/ --all
 
         let fn_predict_single = ModelFunction1::new(&graph, &bundle, "predict_action", "state", "action");
-        let fn_batch_predict_future_reward = ModelFunction1::new(&graph, &bundle, "batch_predict_future_reward", "state_batch", "reward_batch");
+        let fn_batch_predict_max_future_reward = ModelFunction1::new(&graph, &bundle, "batch_predict_max_future_reward", "state_batch", "reward_batch");
         let fn_train_model = ModelFunction3::new(&graph, &bundle, "train_model", "state_batch", "action_batch", "updated_q_values", &["loss"]);
         let fn_write_checkpoint = ModelFunction1::new(&graph, &bundle, "write_checkpoint", "file", "file");
         let fn_read_checkpoint = ModelFunction1::new(&graph, &bundle, "read_checkpoint", "file", "dummy");
@@ -57,7 +57,7 @@ where E: Environment,
         QLearningTensorflowModel {
             bundle,
             fn_predict_single,
-            fn_batch_predict_future_reward,
+            fn_batch_predict_max_future_reward,
             fn_train_model,
             fn_write_checkpoint,
             fn_read_checkpoint,
@@ -94,22 +94,25 @@ where E: Environment,
         assert_eq!(state_tensor.dims(), state.dims(), "state dimension mismatch from ToTensor::to_tensor(). Got {:?}, expected {:?}", state_tensor.dims(), state.dims());
 
         let r = self.fn_predict_single.apply::<_, i64>(&self.bundle.session, &state_tensor);
+        log::trace!("predict_action result: {:?}", r);
+        
         let action = r[0] as ModelActionType;
         Action::try_from_numeric(action)
             .expect("action value should be in proper range")
     }
 
-    fn batch_predict_future_reward(&self,
-                                   state_batch: [&Rc<E::S>; BATCH_SIZE],
+    fn batch_predict_max_future_reward(&self,
+                                       state_batch: [&Rc<E::S>; BATCH_SIZE],
     ) -> [f32; BATCH_SIZE] {
         let state_batch_tensor: Tensor<f32> = E::S::batch_to_multi_dim_array(&state_batch);
         Self::check_state_batch_dims(&state_batch, &state_batch_tensor);
 
-        let r: Tensor<f32> = self.fn_batch_predict_future_reward.apply(&self.bundle.session, &state_batch_tensor);
+        let r: Tensor<f32> = self.fn_batch_predict_max_future_reward.apply(&self.bundle.session, &state_batch_tensor);
         assert_eq!(r.dims(), &[BATCH_SIZE as u64]);
+        log::trace!("batch_predict result: {:?}", r);
         (*r).as_ref().try_into().unwrap()
     }
-
+    
     /// Performs a single training step using a a batch of data.
     /// Returns the model's loss
     ///
@@ -169,17 +172,15 @@ where E: Environment,
 mod tests {
     use rand::prelude::*;
 
-    use crate::environment::breakout_environment::{BreakoutAction, BreakoutEnvironment};
+    use crate::ql::ballgame_test_environment::{BallGameAction, BallGameTestEnvironment};
     use crate::ql::prelude::Action;
 
     use super::*;
 
-    const INPUT_SIZE_X: usize = 84;
-    const INPUT_SIZE_Y: usize = 84;
     const BATCH_SIZE: usize = 32;
     
-    fn load_model() -> QLearningTensorflowModel<BreakoutEnvironment, BATCH_SIZE> {
-        QLearningTensorflowModel::<BreakoutEnvironment, BATCH_SIZE>::load(&QL_MODEL_BREAKOUT_84x84x4_3_32_PATH)
+    fn load_model() -> QLearningTensorflowModel<BallGameTestEnvironment, BATCH_SIZE> {
+        QLearningTensorflowModel::<BallGameTestEnvironment, BATCH_SIZE>::load(&QL_MODEL_BALLGAME_5x5x3_4_32_PATH)
     }
 
     #[test]
@@ -190,27 +191,34 @@ mod tests {
     #[test]
     fn test_predict_single() {
         let model = load_model();
-        let env = BreakoutEnvironment::new(INPUT_SIZE_X, INPUT_SIZE_Y);
-        let action: BreakoutAction = model.predict_action(&env.state());
+        let env = BallGameTestEnvironment::new();
+        let action: BallGameAction = model.predict_action(&env.state());
         log::info!("action: {}", action)
     }
 
     #[test]
-    fn test_batch_predict_future_reward() {
+    fn test_batch_predict_max_future_reward() {
         let model = load_model();
-        let env = BreakoutEnvironment::new(INPUT_SIZE_X, INPUT_SIZE_Y);
-        let states_batch = [0; BATCH_SIZE].map(|_| Rc::new(env.state().clone()));
-        let _future_rewards = model.batch_predict_future_reward(states_batch.each_ref());
+        let mut env = BallGameTestEnvironment::new();
+        let states_batch = [0; BATCH_SIZE].map(|_| {
+            for _ in 0..5 {
+                let action = BallGameAction::try_from_numeric(thread_rng().gen_range(0..4)).unwrap();
+                env.step(action);
+            } 
+            Rc::new(env.state().clone())
+        });
+        let _future_rewards = model.batch_predict_max_future_reward(states_batch.each_ref());
     }
 
     #[test]
     fn test_train() {
         let model= load_model();
-        let env = BreakoutEnvironment::new(INPUT_SIZE_X, INPUT_SIZE_Y);
+        let env = BallGameTestEnvironment::new();
+        // TODO move env
         let states_batch = [0; BATCH_SIZE].map(|_| Rc::new(env.state().clone()));
         let action_batch = [0; BATCH_SIZE]
-            .map(|_| thread_rng().gen_range(0..BreakoutAction::ACTION_SPACE))
-            .map(|v| BreakoutAction::try_from_numeric(v).unwrap());
+            .map(|_| thread_rng().gen_range(0..BallGameAction::ACTION_SPACE))
+            .map(|v| BallGameAction::try_from_numeric(v).unwrap());
         let updated_q_values = [0; BATCH_SIZE].map(|_| thread_rng().gen_range(0.0..3.0));
         let loss = model.train(states_batch.each_ref(), action_batch, updated_q_values);
         log::info!("loss: {}", loss);

@@ -151,7 +151,7 @@ impl DebugVisualizer for BallGameState {
         format!("BallGameField: Ball-goal-distance: {}", distance).to_string()
     }
 
-    fn get_debug_screen(&self) -> Screen {
+    fn render_to_console(&self) -> Screen {
         let mut screen = Screen::new_empty(3,3);
         screen.clear();
         
@@ -240,24 +240,37 @@ impl Environment for BallGameTestEnvironment {
         }
     }
 
-    fn total_reward_goal(&self) -> f32 {
-        10.0 - 4.0 * 0.1
+    fn total_reward_goal(&self) -> u64 {
+        9
     }
 }
 
+const CHANNEL_GOAL: u64 = 0;
+const CHANNEL_BALL: u64 = 1;
+const CHANNEL_OBSTACLE: u64 = 2;
+
 impl ToMultiDimArray<Tensor<f32>> for BallGameState {
     fn dims(&self) -> &[u64] {
-        &[3_u64, 3_u64, 3_u64]
+        &[5_u64, 5_u64, 3_u64]
     }
 
+    /// out of a 3x3 field we create a 5x5 one with Obstacles at the border
     fn to_multi_dim_array(&self) -> Tensor<f32> {
-        let mut tensor = Tensor::new(&[3_u64, 3_u64, 3_u64]);
-        for y in 0..3 {
-            for x in 0..3 {
-                match self.field.get((x, y)) {
-                    Entry::Goal => tensor.set(&[x as u64, y as u64, 0_u64], 1.0),
-                    Entry::Ball => tensor.set(&[x as u64, y as u64, 1_u64], 1.0),
-                    Entry::Obstacle => tensor.set(&[x as u64, y as u64, 2_u64], 1.0),
+        let mut tensor = Tensor::new(&[5_u64, 5_u64, 3_u64]);
+        for x in 0..5 {
+            tensor.set(&[x, 0, CHANNEL_OBSTACLE], 1.0);
+            tensor.set(&[x, 4, CHANNEL_OBSTACLE], 1.0);
+        }
+        for y in 0..5 {
+            tensor.set(&[0, y, CHANNEL_OBSTACLE], 1.0);
+            tensor.set(&[4, y, CHANNEL_OBSTACLE], 1.0);
+        }
+        for y in 0_u64..3 {
+            for x in 0_u64..3 {
+                match self.field.get((x as usize, y as usize)) {
+                    Entry::Goal => tensor.set(&[x + 1, y + 1, CHANNEL_GOAL], 1.0),
+                    Entry::Ball => tensor.set(&[x + 1, y + 1, CHANNEL_BALL], 1.0),
+                    Entry::Obstacle => tensor.set(&[x + 1, y + 1, CHANNEL_OBSTACLE], 1.0),
                     Entry::Void => (),
                 }
             }
@@ -266,14 +279,22 @@ impl ToMultiDimArray<Tensor<f32>> for BallGameState {
     }
 
     fn batch_to_multi_dim_array<const N: usize>(batch: &[&Rc<Self>; N]) -> Tensor<f32> {
-        let mut tensor = Tensor::new(&[N as u64, 3_u64, 3_u64, 3_u64]);
-        for b in 0..N {
-            for y in 0..3 {
-                for x in 0..3 {
-                    match batch[b].field.get((x, y)) {
-                        Entry::Goal => tensor.set(&[b as u64, x as u64, y as u64, 0_u64], 1.0),
-                        Entry::Ball => tensor.set(&[b as u64, x as u64, y as u64, 1_u64], 1.0),
-                        Entry::Obstacle => tensor.set(&[b as u64, x as u64, y as u64, 2_u64], 1.0),
+        let mut tensor = Tensor::new(&[N as u64, 5_u64, 5_u64, 3_u64]);
+        for b in 0_u64..N as u64 {
+            for x in 0..5 {
+                tensor.set(&[b, x, 0, CHANNEL_OBSTACLE], 1.0);
+                tensor.set(&[b, x, 4, CHANNEL_OBSTACLE], 1.0);
+            }
+            for y in 0..5 {
+                tensor.set(&[b, 0, y, CHANNEL_OBSTACLE], 1.0);
+                tensor.set(&[b, 4, y, CHANNEL_OBSTACLE], 1.0);
+            }
+            for y in 0_u64..3 {
+                for x in 0_u64..3 {
+                    match batch[b as usize].field.get((x as usize, y as usize)) {
+                        Entry::Goal => tensor.set(&[b, x + 1, y + 1, CHANNEL_GOAL], 1.0),
+                        Entry::Ball => tensor.set(&[b, x + 1, y + 1, CHANNEL_BALL], 1.0),
+                        Entry::Obstacle => tensor.set(&[b, x + 1, y + 1, CHANNEL_OBSTACLE], 1.0),
                         Entry::Void => (),
                     }
                 }

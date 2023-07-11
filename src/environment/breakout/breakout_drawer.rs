@@ -1,3 +1,4 @@
+#![allow(unused)]
 use image::{ImageBuffer, Rgb};
 
 use crate::environment::breakout::mechanics::BreakoutMechanics;

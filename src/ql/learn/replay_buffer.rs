@@ -19,7 +19,7 @@ impl<T> Buffer<T> {
     }
 
     pub fn add(&mut self, element: T) {
-        if (self.buffer.len() + 1) > self.max_buffer_len {
+        if self.buffer.len() >= self.max_buffer_len {
             self.buffer.pop_front().unwrap();
         }
         self.buffer.push_back(element);
