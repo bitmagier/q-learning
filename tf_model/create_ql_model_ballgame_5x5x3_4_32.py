@@ -4,21 +4,19 @@ from keras import layers, optimizers, losses
 
 INPUT_SIZE_X = 5
 INPUT_SIZE_Y = 5
-INPUT_LAYERS = 3
+INPUT_LAYERS = 4
 ACTION_SPACE = 4
 BATCH_SIZE = 32
 
 
-class QLearningModel_BallGame_5x5x3_4_32(tf.keras.Sequential):
+class QLearningModel_BallGame_5x5x4_4_32(tf.keras.Sequential):
     def __init__(self, *args, **kwargs):
-        super(QLearningModel_BallGame_5x5x3_4_32, self).__init__(*args, **kwargs)
+        super(QLearningModel_BallGame_5x5x4_4_32, self).__init__(*args, **kwargs)
         self.add(tf.keras.Input(shape=(INPUT_SIZE_X, INPUT_SIZE_Y, INPUT_LAYERS,)))
-        self.add(layers.Conv2D(8, 3, strides=1, activation='relu', name='convolution_layer1'))
-        # self.add(layers.Conv2D(16, 2, strides=1, activation='relu', name='convolution_layer1'))
-        # TODO second conv layer
+        self.add(layers.Conv2D(16, 3, strides=1, data_format='channels_last', activation='relu', name='convolution_layer1'))
+        self.add(layers.Conv2D(32, 2, strides=1, activation='relu', name='convolution_layer2'))
         self.add(layers.Flatten(name='flatten'))
-        self.add(layers.Dense(512, activation='relu', name='full_layer1'))
-        # self.add(layers.Dense(64, activation='relu', name='full_layer2'))
+        self.add(layers.Dense(256, activation='relu', name='full_layer1'))
         self.add(layers.Dense(ACTION_SPACE, activation='linear', name='action_layer'))
 
         self.compile(optimizer=keras.optimizers.Adam(learning_rate=0.001, clipnorm=1.0),
@@ -86,10 +84,10 @@ class QLearningModel_BallGame_5x5x3_4_32(tf.keras.Sequential):
         return {'dummy': tf.constant("")}
 
 
-model = QLearningModel_BallGame_5x5x3_4_32()
+model = QLearningModel_BallGame_5x5x4_4_32()
 model.summary()
 
-model.save('saved/ql_model_ballgame_5x5x3_4_32',
+model.save('saved/ql_model_ballgame_5x5x4_4_32',
            save_format='tf',
            signatures={
                'predict_action': model.predict_action,

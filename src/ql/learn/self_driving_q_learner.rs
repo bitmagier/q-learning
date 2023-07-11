@@ -367,14 +367,14 @@ mod tests {
     use std::sync::{Arc, RwLock};
 
     use crate::ql::ballgame_test_environment::BallGameTestEnvironment;
-    use crate::ql::model::tensorflow::q_learning_model::{QL_MODEL_BALLGAME_5x5x3_4_32_PATH, QLearningTensorflowModel};
+    use crate::ql::model::tensorflow::q_learning_model::{QL_MODEL_BALLGAME_5x5x4_4_32_PATH, QLearningTensorflowModel};
 
     use super::*;
 
     #[test]
     fn test_learner_single_episode() {
         let param = Parameter::default();
-        let model_init = || QLearningTensorflowModel::<BallGameTestEnvironment>::load(&QL_MODEL_BALLGAME_5x5x3_4_32_PATH);
+        let model_init = || QLearningTensorflowModel::<BallGameTestEnvironment>::load(&QL_MODEL_BALLGAME_5x5x4_4_32_PATH);
         let model_instance1 = model_init();
         let model_instance2 = model_init();
         let checkpoint_file = tempfile::tempdir().unwrap().into_path().join("test_learner_ckpt");
