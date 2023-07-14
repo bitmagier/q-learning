@@ -1,10 +1,9 @@
 # Software framework stack
 
-__Required installs:__
 
-# Tensorflow 2.12 GPU
+# Tensorflow 2.12 Nvidia GPU
 
-- Python
+- Python 3.10
 
 - CUDA 11.8
    ```bash
@@ -20,7 +19,26 @@ __Required installs:__
    apt install /var/cudnn-local-repo-ubuntu2204-8.6.0.163/libcudnn8_8.6.0.163-1+cuda11.8_amd64.deb
    apt install /var/cudnn-local-repo-ubuntu2204-8.6.0.163/libcudnn8-dev_8.6.0.163-1+cuda11.8_amd64.deb
    ```
-- Install / Compile Tensorflow 2.12 (https://www.tensorflow.org/install)
+- Install Tensorflow 2.12 (https://www.tensorflow.org/install)
+
+- Compile Tensorflow 2.12.1 Guide guide:
+
+  - https://github.com/tensorflow/rust/blob/master/tensorflow-sys/README.md
+  
+    On my machine: 
+    ```bash
+    git clone https://github.com/tensorflow/tensorflow.git
+    cd tensorflow
+    git checkout v2.12.1
+    ./configure
+    bazelisk build --config=cuda --compilation_mode=opt --copt=-march=native  tensorflow:libtensorflow.so```
+    sudo cp -a bazel-bin/tensorflow/{libtensorflow_framework.so,libtensorflow_framework.so.2,libtensorflow_framework.so.2.12.1,libtensorflow.so,libtensorflow.so.2,libtensorflow.so.2.12.1} /usr/local/lib/
+    sudo ldconfig
+    tensorflow/c/generate-pc.sh --prefix=/usr/local --version=2.12.1
+    sudo cp tensorflow.pc /usr/lib/pkgconfig/
+    pkg-config --libs tensorflow # checks if installed correctly
+    ```
+
 
 # Alternative: Tensorflow via Docker:
 
