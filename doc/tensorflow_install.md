@@ -45,4 +45,18 @@
 - [docker setup](https://docs.docker.com/desktop/install/linux-install/)
 - [nvidia-docker setup](https://github.com/NVIDIA/nvidia-docker)
 - `docker run --gpus all -it --rm tensorflow/tensorflow:2.12.0-gpu bash`
- 
+
+# Rust
+- follow https://www.rust-lang.org/tools/install
+- `sudo apt install libssl-dev libfontconfig-dev`
+
+# Run integration test
+```
+git clone git@github.com:bitmagier/q-learning-breakout.git
+cd q-learning-breakout
+cd tf_model
+python3 create_ql_model_ballgame_5x5x3_4_32.py
+cd ..
+
+RUST_LOG=INFO cargo test --test learn_ballgame --release
+```
