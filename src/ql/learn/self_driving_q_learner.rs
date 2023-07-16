@@ -49,11 +49,11 @@ impl Default for Parameter {
             max_steps_per_episode: 10_000,
             epsilon_random_frames: 50_000,
             epsilon_greedy_frames: 1_000_000.0,
-            history_buffer_len: 100_000,
+            history_buffer_len: 1_000_000, 
             episode_reward_history_buffer_len: 100,
             update_after_actions: 4,
             update_target_network_after_num_frames: 10_000,
-            stats_after_steps: 10_000,
+            stats_after_steps: 5_000,
         }
     }
 }
@@ -287,7 +287,7 @@ where
             self.replay_buffer.add_step_items(action, state, Rc::clone(&state_next), reward, done);
             state = state_next;
 
-            // Update every fourth frame, once batch size is over 32
+            // Update every n-th (e.g. fourth) frame, once batch size is over 32
             if self.step_count % self.param.update_after_actions == 0
                 && self.replay_buffer.len() > BATCH_SIZE {
                 
@@ -302,6 +302,13 @@ where
                 // Q value = reward + discount factor * expected future reward
                 let mut updated_q_values = add_arrays(&replay_samples.reward, &array_mul(max_future_rewards, self.param.gamma));
 
+                // for terminal steps, the updated q-value shall be exactly the reward (see deepmind paper)
+                for i in 0..replay_samples.state.len() {
+                    if replay_samples.done[i] {
+                        updated_q_values[i] = replay_samples.reward[i]
+                    }
+                }
+                
                 let loss = self.model.train(replay_samples.state, replay_samples.action, updated_q_values);
                 log::debug!("training step: loss: {}", loss)
             }
@@ -324,6 +331,7 @@ where
 
         // Update running reward to check condition for solving
         self.replay_buffer.add_episode_reward(episode_reward);
+        
         if let Some(avg_episode_rewards) = self.replay_buffer.avg_episode_rewards() {
             self.running_reward = avg_episode_rewards
         }

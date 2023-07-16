@@ -234,7 +234,7 @@ impl Environment for BallGameTestEnvironment {
 
     fn step(&mut self, action: Self::A) -> (&Self::S, f32, bool) {
         match self.state.do_move(action) {
-            MoveResult::Illegal => (self.state(), -0.1, false),
+            MoveResult::Illegal => (self.state(), -0.5, false),
             MoveResult::Legal { done } if done => (self.state(), 10.0, done),
             MoveResult::Legal { done } => (self.state(), -0.1, done),
         }
