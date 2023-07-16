@@ -15,7 +15,7 @@ class QLearningModel_BallGame_5x5x4_4_32(tf.keras.Sequential):
         self.add(tf.keras.Input(shape=(INPUT_SIZE_X, INPUT_SIZE_Y, INPUT_LAYERS,)))
         self.add(layers.Conv2D(32, 3, strides=1, activation='relu', name='convolution_layer1'))
         self.add(layers.Flatten(name='flatten'))
-        self.add(layers.Dense(256, activation='relu', name='full_layer1'))
+        self.add(layers.Dense(512, activation='relu', name='full_layer1'))
         self.add(layers.Dense(ACTION_SPACE, activation='linear', name='action_layer'))
 
         self.compile(optimizer=keras.optimizers.Adam(learning_rate=0.0005, clipnorm=1.0),
