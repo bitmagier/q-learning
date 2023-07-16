@@ -64,12 +64,16 @@
   bazelisk build --compilation_mode=opt --copt=-march=native tensorflow:libtensorflow.so
   # have a tee
   sudo cp -a bazel-bin/tensorflow/{libtensorflow_framework.so.2,libtensorflow_framework.so.2.12.0,libtensorflow.so,libtensorflow.so.2,libtensorflow.so.2.12.0} /usr/local/lib/
+  cd /usr/local/lib && sudo ln -s libtensorflow_framework.so.2 libtensorflow_framework.so && cd -
   sudo ldconfig
   
   tensorflow/c/generate-pc.sh --prefix=/usr/local --version=2.12.0
   sudo cp tensorflow.pc /usr/lib/pkgconfig/
   pkg-config --libs tensorflow # checks if installed correctly
   ```
+
+ But f**k: unfortunately tensorflow/ROCm ignores my RX 580 with this message:
+ `2023-07-16 15:44:55.968387: I tensorflow/core/common_runtime/gpu/gpu_device.cc:2011] Ignoring visible gpu device (device: 0, name: Radeon RX 580 Series, pci bus id: 0000:0a:00.0) with AMDGPU version : gfx803. The supported AMDGPU versions are gfx1030, gfx900, gfx906, gfx908, gfx90a.`
 
 # Rust
 - follow https://www.rust-lang.org/tools/install
