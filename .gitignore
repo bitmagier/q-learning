@@ -6,3 +6,6 @@
 **/*.rs.bk
 
 /.idea/
+
+/tf_model/saved/*
+!/tf_model/saved/.gitkeep
