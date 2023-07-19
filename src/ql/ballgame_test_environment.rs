@@ -20,8 +20,8 @@ use crate::ql::prelude::{Action, DebugVisualizer, Environment, ModelActionType, 
 /// - Two obstacles - one in the center at (1,1) and the other one somewhere on one of the remaining free fields. 
 /// - Game goal: move the ball into the goal - each round one step into one of the available directions: (west, north, east or south)
 ///
-/// This environment Requires a q-learning model with spec: 3x3x3_4_32
-/// - input dims: `[3,3,3]`
+/// This environment Requires a q-learning model with spec: 5x5x3_4_32
+/// - input dims: `[5,5,3]`
 /// - out dims: `[4]`
 /// - batch_size: 32
 pub struct BallGameTestEnvironment {
@@ -35,6 +35,7 @@ impl BallGameTestEnvironment {
         }
     }
 
+    #[cfg(test)]
     pub fn test_state_00_01_11_22() -> Self {
         Self {
             state: BallGameState::test_state_00_01_11_22()
@@ -75,20 +76,6 @@ impl BallGameState {
         }
     }
 
-    fn test_state_00_01_11_22() -> Self {
-        let mut field = Field::default();
-
-        field.set((0, 0), Entry::Goal);
-        field.set((0, 1), Entry::Obstacle);
-        field.set((1, 1), Entry::Obstacle);
-        field.set((2, 2), Entry::Ball);
-
-        BallGameState {
-            field,
-            ball_coord: (2, 2),
-        }
-    }
-
     fn do_move(&mut self, action: BallGameAction) -> MoveResult {
         use BallGameAction::*;
         const VALID_TARGET_ENTRIES: [Entry; 2] = [Entry::Void, Entry::Goal];
@@ -112,6 +99,21 @@ impl BallGameState {
                 self.ball_coord = c;
                 MoveResult::Legal { done }
             }
+        }
+    }
+
+    #[cfg(test)]
+    fn test_state_00_01_11_22() -> Self {
+        let mut field = Field::default();
+
+        field.set((0, 0), Entry::Goal);
+        field.set((0, 1), Entry::Obstacle);
+        field.set((1, 1), Entry::Obstacle);
+        field.set((2, 2), Entry::Ball);
+
+        BallGameState {
+            field,
+            ball_coord: (2, 2),
         }
     }
 }
@@ -252,16 +254,15 @@ impl Environment for BallGameTestEnvironment {
 const CHANNEL_GOAL: u64 = 0;
 const CHANNEL_BALL: u64 = 1;
 const CHANNEL_OBSTACLE: u64 = 2;
-const CHANNEL_VOID: u64 = 3;
 
 impl ToMultiDimArray<Tensor<f32>> for BallGameState {
     fn dims(&self) -> &[u64] {
-        &[5_u64, 5_u64, 4_u64]
+        &[5_u64, 5_u64, 3_u64]
     }
 
     /// out of a 3x3 field we create a 5x5 one with Obstacles at the border
     fn to_multi_dim_array(&self) -> Tensor<f32> {
-        let mut tensor = Tensor::new(&[5_u64, 5_u64, 4_u64]);
+        let mut tensor = Tensor::new(&[5_u64, 5_u64, 3_u64]);
         for x in 0..5 {
             tensor.set(&[x, 0, CHANNEL_OBSTACLE], 1.0);
             tensor.set(&[x, 4, CHANNEL_OBSTACLE], 1.0);
@@ -272,20 +273,21 @@ impl ToMultiDimArray<Tensor<f32>> for BallGameState {
         }
         for y in 0_u64..3 {
             for x in 0_u64..3 {
-                let channel = match self.field.get((x as usize, y as usize)) {
-                    Entry::Goal => CHANNEL_GOAL,
-                    Entry::Ball => CHANNEL_BALL,
-                    Entry::Obstacle => CHANNEL_OBSTACLE,
-                    Entry::Void => CHANNEL_VOID,
-                };
-                tensor.set(&[x + 1, y + 1, channel], 1.0);
+                if let Some(channel) = match self.field.get((x as usize, y as usize)) {
+                    Entry::Goal => Some(CHANNEL_GOAL),
+                    Entry::Ball => Some(CHANNEL_BALL),
+                    Entry::Obstacle => Some(CHANNEL_OBSTACLE),
+                    Entry::Void => None,
+                } {
+                    tensor.set(&[x + 1, y + 1, channel], 1.0);
+                }
             }
         }
         tensor
     }
 
     fn batch_to_multi_dim_array<const N: usize>(batch: &[&Rc<Self>; N]) -> Tensor<f32> {
-        let mut tensor = Tensor::new(&[N as u64, 5_u64, 5_u64, 4_u64]);
+        let mut tensor = Tensor::new(&[N as u64, 5_u64, 5_u64, 3_u64]);
         for b in 0_u64..N as u64 {
             for x in 0..5 {
                 tensor.set(&[b, x, 0, CHANNEL_OBSTACLE], 1.0);
@@ -297,13 +299,14 @@ impl ToMultiDimArray<Tensor<f32>> for BallGameState {
             }
             for y in 0_u64..3 {
                 for x in 0_u64..3 {
-                    let channel = match batch[b as usize].field.get((x as usize, y as usize)) {
-                        Entry::Goal => CHANNEL_GOAL,
-                        Entry::Ball => CHANNEL_BALL,
-                        Entry::Obstacle => CHANNEL_OBSTACLE,
-                        Entry::Void => CHANNEL_VOID,
-                    };
-                    tensor.set(&[b, x + 1, y + 1, channel], 1.0)
+                    if let Some(channel) = match batch[b as usize].field.get((x as usize, y as usize)) {
+                        Entry::Goal => Some(CHANNEL_GOAL),
+                        Entry::Ball => Some(CHANNEL_BALL),
+                        Entry::Obstacle => Some(CHANNEL_OBSTACLE),
+                        Entry::Void => None,
+                    } {
+                        tensor.set(&[b, x + 1, y + 1, channel], 1.0)
+                    }
                 }
             }
         }
