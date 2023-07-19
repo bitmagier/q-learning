@@ -4,11 +4,13 @@ use std::rc::Rc;
 use console_engine::screen::Screen;
 use image::{imageops, Pixel};
 use tensorflow::Tensor;
+use anyhow::Result;
 
 use crate::environment::breakout::breakout_drawer::BreakoutDrawer;
 use crate::environment::breakout::mechanics::{BreakoutMechanics, GameInput, PanelControl};
 use crate::environment::util::frame_ring_buffer::FrameRingBuffer;
-use crate::ql::prelude::{Action, DebugVisualizer, Environment, ModelActionType, ToMultiDimArray};
+use crate::ql::prelude::{Action, DebugVisualizer, Environment, ModelActionType, QlError, ToMultiDimArray};
+
 
 const WORLD_STATE_NUM_FRAMES: usize = 4;
 
@@ -103,12 +105,12 @@ impl Action for BreakoutAction {
         }
     }
 
-    fn try_from_numeric(value: ModelActionType) -> Result<Self, String> {
+    fn try_from_numeric(value: ModelActionType) -> Result<Self> {
         match value {
             0 => Ok(BreakoutAction::None),
             1 => Ok(BreakoutAction::Left),
             2 => Ok(BreakoutAction::Right),
-            _ => Err("value out of range".to_string())
+            _ => Err(QlError("value out of range".to_string()))?
         }
     }
 }

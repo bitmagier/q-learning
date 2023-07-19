@@ -13,12 +13,12 @@ class QLearningModel_BallGame_5x5x4_4_32(tf.keras.Sequential):
     def __init__(self, *args, **kwargs):
         super(QLearningModel_BallGame_5x5x4_4_32, self).__init__(*args, **kwargs)
         self.add(tf.keras.Input(shape=(INPUT_SIZE_X, INPUT_SIZE_Y, INPUT_LAYERS,)))
-        self.add(layers.Conv2D(32, 3, strides=1, activation='relu', name='convolution_layer1'))
+        self.add(layers.Conv2D(32, 2, strides=1, activation='relu', name='convolution_layer1'))
         self.add(layers.Flatten(name='flatten'))
-        self.add(layers.Dense(512, activation='relu', name='full_layer1'))
+        self.add(layers.Dense(256, activation='relu', name='full_layer1'))
         self.add(layers.Dense(ACTION_SPACE, activation='linear', name='action_layer'))
 
-        self.compile(optimizer=keras.optimizers.Adam(learning_rate=0.0005, clipnorm=1.0),
+        self.compile(optimizer=keras.optimizers.Adam(learning_rate=0.00025, clipnorm=1.0),
                      # Using huber loss for stability
                      loss=keras.losses.Huber(),
                      metrics=['accuracy'],
@@ -41,7 +41,7 @@ class QLearningModel_BallGame_5x5x4_4_32(tf.keras.Sequential):
         tf.TensorSpec(shape=[BATCH_SIZE, INPUT_SIZE_X, INPUT_SIZE_Y, INPUT_LAYERS], dtype=tf.float32,
                       name='state_batch')])
     def batch_predict_max_future_reward(self, state_batch):
-        reward_batch = tf.reduce_max(self.call(state_batch), axis=1)
+        reward_batch = tf.reduce_max(self.call(state_batch, training=False), axis=1)
         return {'reward_batch': reward_batch}
 
     @tf.function(input_signature=[
@@ -52,11 +52,11 @@ class QLearningModel_BallGame_5x5x4_4_32(tf.keras.Sequential):
     ])
     def train_model(self, state_batch, action_batch, updated_q_values):
         # Create a mask - so we only calculate loss on the updated Q-values
-        masks = tf.one_hot(indices=action_batch, depth=ACTION_SPACE)
+        masks = tf.one_hot(action_batch, ACTION_SPACE)
 
         with tf.GradientTape() as tape:
             # Train the model on the states and updated Q-values
-            q_values = self.call(state_batch)
+            q_values = self.call(state_batch, training=True)
             # Apply the masks to the Q-values to get the Q-value for action taken
             q_action = tf.reduce_sum(tf.multiply(q_values, masks), axis=1)
             # Calculate loss between new Q-value and old Q-value

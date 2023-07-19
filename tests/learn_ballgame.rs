@@ -1,4 +1,5 @@
 use std::sync::{Arc, RwLock};
+use anyhow::Result;
 
 use q_learning_breakout::ql::ballgame_test_environment::BallGameTestEnvironment;
 use q_learning_breakout::ql::learn::self_driving_q_learner::{Parameter, SelfDrivingQLearner};
@@ -6,13 +7,14 @@ use q_learning_breakout::ql::model::tensorflow::q_learning_model::{QL_MODEL_BALL
 use q_learning_breakout::util::init_logging;
 
 #[test]
-fn test_learn_ballgame_until_mastered() {
+fn test_learn_ballgame_until_mastered() -> Result<()>{
     init_logging();
 
     let mut param = Parameter::default();
-    param.max_steps_per_episode = 16;
+    param.max_steps_per_episode = 20;
     param.update_after_actions = 4;
-    param.history_buffer_len = 500_000;
+    param.history_buffer_len = 50_000;
+    param.epsilon_greedy_steps = 1_000_000.0;
 
     let model_init = || QLearningTensorflowModel::<BallGameTestEnvironment>::load(&QL_MODEL_BALLGAME_5x5x4_4_32_PATH);
     let model_instance1 = model_init();
@@ -23,8 +25,10 @@ fn test_learn_ballgame_until_mastered() {
     assert!(!learner.solved());
 
     while !learner.solved() {
-        learner.learn_episode();
+        learner.learn_episode()?;
     }
 
     assert!(learner.solved());
+    
+    Ok(())
 }

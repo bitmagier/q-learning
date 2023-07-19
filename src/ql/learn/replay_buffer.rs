@@ -70,7 +70,7 @@ where A: Copy
         self.done_history.len()
     }
 
-    pub fn add_step_items(&mut self, action: A, state: S, state_next: S, reward: f32, done: bool) {
+    pub fn add(&mut self, action: A, state: S, state_next: S, reward: f32, done: bool) {
         self.action_history.add(action);
         self.state_history.add(state);
         self.state_next_history.add(state_next);
@@ -82,14 +82,10 @@ where A: Copy
         self.episode_reward_history.add(episode_reward)
     }
 
-    pub fn avg_episode_rewards(&self) -> Option<f32> {
-        if self.episode_reward_history.len() < self.episode_reward_history.max_buffer_len {
-            None
-        } else {
-            let c = &self.episode_reward_history.buffer;
-            let avg = c.iter().sum::<f32>() / c.len() as f32;
-            Some(avg)
-        }
+    pub fn avg_episode_rewards(&self) -> f32 {
+        assert!(self.episode_reward_history.len() > 0);
+        let c = &self.episode_reward_history.buffer;
+        c.iter().sum::<f32>() / c.len() as f32
     }
 
     pub fn get_many<const N: usize>(&self, indices: &[usize; N]) -> BufferSample<N, S, A> {

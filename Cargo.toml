@@ -12,13 +12,15 @@ maintenance = { status = "as-is" }
 
 
 [dev-dependencies]
-rstest = "0.17"
+rstest = "0"
 ctor = "0.2"
 
 [dependencies]
 log = "0.4"
 env_logger = "0.10"
-itertools = "0.10"
+itertools = "0.11.0"
+anyhow = "1"
+num-format = "0.4"
 lazy_static = "1.4"
 egui = "0.22.0"
 eframe = "0.22.0"
@@ -26,6 +28,7 @@ parry2d = "0.13"
 nalgebra = "0.32"
 image = "0.24"
 tensorflow = { version = "0.20.0", features = ["tensorflow_gpu"] }
+tensorflow-sys = { version = "0.23.0", features = ["tensorflow_gpu"] }
 rand = "0"
 tempfile = "3"
 plotters = "0.3"

@@ -1,0 +1,4 @@
+- separate crates:
+  - q-learning lib (incl. tensorflow model)
+  - breakout game binaries
+  - go game binaries

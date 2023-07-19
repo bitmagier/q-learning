@@ -3,6 +3,9 @@ use std::path::Path;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 
+use anyhow::Result;
+use num_format::{CustomFormat, Grouping, ToFormattedString};
+use rand::distributions::Uniform;
 use rand::prelude::*;
 
 use crate::ql::learn::replay_buffer::ReplayBuffer;
@@ -19,18 +22,18 @@ pub struct Parameter {
     pub epsilon_min: f64,
     pub max_steps_per_episode: usize,
     // Number of frames to take only random action and observe output
-    pub epsilon_random_frames: usize,
+    pub epsilon_pure_random_steps: usize,
     // Number of frames for exploration
-    pub epsilon_greedy_frames: f64,
+    pub epsilon_greedy_steps: f64,
     // Maximum replay length
     // Note from python reference code: The Deepmind paper suggests 1000000 however this causes memory issues
     pub history_buffer_len: usize,
-    // this determines directly the number of recent goal-achieving episodes required to consider the learning task done
-    pub episode_reward_history_buffer_len: usize,
     // Train the model after n actions
     pub update_after_actions: usize,
     // After how many frames we want to update the target network
-    pub update_target_network_after_num_frames: usize,
+    pub update_target_network_after_num_steps: usize,
+    // this determines directly the number of recent goal-achieving episodes required to consider the learning task done
+    pub episode_reward_history_buffer_len: usize,
     pub stats_after_steps: usize,
 }
 
@@ -47,13 +50,13 @@ impl Default for Parameter {
             epsilon_max: 1.0,
             epsilon_min: 0.1,
             max_steps_per_episode: 10_000,
-            epsilon_random_frames: 50_000,
-            epsilon_greedy_frames: 1_000_000.0,
-            history_buffer_len: 1_000_000, 
-            episode_reward_history_buffer_len: 100,
+            epsilon_pure_random_steps: 50_000,
+            epsilon_greedy_steps: 1_000_000.0,
+            history_buffer_len: 1_000_000,
             update_after_actions: 4,
-            update_target_network_after_num_frames: 10_000,
-            stats_after_steps: 5_000,
+            update_target_network_after_num_steps: 10_000,
+            episode_reward_history_buffer_len: 100,
+            stats_after_steps: 10_000,
         }
     }
 }
@@ -210,15 +213,16 @@ where
         let checkpoint_file = checkpoint_file.to_str()
             .expect("file name should have a UTF-8 compatible path")
             .to_owned();
-        let replay_buffers = ReplayBuffer::new(param.history_buffer_len, param.episode_reward_history_buffer_len);
+        let replay_buffer = ReplayBuffer::new(param.history_buffer_len, param.episode_reward_history_buffer_len);
         let epsilon = param.epsilon_max;
+
         Self {
             environment,
             param: Immutable::new(param),
             model: model_instance1,
             stabilized_model: model_instance2,
             checkpoint_file,
-            replay_buffer: replay_buffers,
+            replay_buffer,
             step_count: 0,
             episode_count: 0,
             running_reward: 0.0,
@@ -233,10 +237,11 @@ where
         self.stabilized_model.read_checkpoint(&checkpoint_file);
     }
 
-    pub fn learn_till_mastered(&mut self) {
+    pub fn learn_till_mastered(&mut self) -> Result<()> {
         while !self.solved() {
-            self.learn_episode();
+            self.learn_episode()?
         }
+        Ok(())
     }
 
     pub fn solved(&self) -> bool {
@@ -248,9 +253,12 @@ where
         }
     }
 
-    pub fn learn_episode(&mut self) {
+    pub fn learn_episode(&mut self) -> Result<()> {
+        let number_format = number_format();
+
         self.environment.write().unwrap().reset();
-        let mut state = Rc::new(self.environment.read().unwrap().state().clone());
+
+        let mut state = self.environment.read().unwrap().state_as_rc();
         log::trace!("started learning episode {}", self.episode_count);
 
         let mut episode_reward: f32 = 0.0;
@@ -260,11 +268,11 @@ where
 
             // Use epsilon-greedy for exploration
             let action: E::A =
-                if self.step_count < self.param.epsilon_random_frames
-                    || self.epsilon > thread_rng().gen::<f64>() {
+                if self.step_count < self.param.epsilon_pure_random_steps
+                    || self.epsilon > thread_rng().gen_range(0_f64..1.0_f64) {
                     // Take random action
                     let a = thread_rng().gen_range(0..E::A::ACTION_SPACE);
-                    Action::try_from_numeric(a).unwrap()
+                    Action::try_from_numeric(a)?
                 } else {
                     // Predict best action Q-values from environment state
                     self.model.predict_action(&state)
@@ -272,33 +280,34 @@ where
 
             // Decay probability of taking random action
             self.epsilon = f64::max(
-                self.epsilon - self.param.epsilon_interval() / self.param.epsilon_greedy_frames,
+                self.epsilon - self.param.epsilon_interval() / self.param.epsilon_greedy_steps,
                 self.param.epsilon_min,
             );
 
             log::trace!("{}", state.one_line_info());
             // Apply the sampled action in our environment
-            let (state_next, reward, done) = self.environment.write().unwrap().step_rc(action);
+            let (state_next, reward, done) = self.environment.write().unwrap().step_as_rc(action);
             log::trace!("step with action {} resulted in reward: {:.2}, done: {}", action, reward, done);
 
             episode_reward += reward;
 
             // Save actions and states in replay buffer
-            self.replay_buffer.add_step_items(action, state, Rc::clone(&state_next), reward, done);
+            self.replay_buffer.add(action, state, Rc::clone(&state_next), reward, done);
             state = state_next;
 
-            // Update every n-th (e.g. fourth) frame, once batch size is over 32
+            // Update every n-th (e.g. fourth) frame, once the replay buffer is beyond BATCH_SIZE
             if self.step_count % self.param.update_after_actions == 0
                 && self.replay_buffer.len() > BATCH_SIZE {
-                
+
                 // Get indices of samples for replay buffers
-                let indices: [usize; BATCH_SIZE] = generate_distinct_random_numbers(0..self.replay_buffer.len());
+                let indices: [usize; BATCH_SIZE] = generate_distinct_random_ids(0..self.replay_buffer.len());
 
                 let replay_samples = self.replay_buffer.get_many(&indices);
 
                 // Build the updated Q-values for the sampled future states
                 // Use the target model for stability
                 let max_future_rewards = self.stabilized_model.batch_predict_max_future_reward(replay_samples.state_next);
+
                 // Q value = reward + discount factor * expected future reward
                 let mut updated_q_values = add_arrays(&replay_samples.reward, &array_mul(max_future_rewards, self.param.gamma));
 
@@ -308,20 +317,25 @@ where
                         updated_q_values[i] = replay_samples.reward[i]
                     }
                 }
-                
+
                 let loss = self.model.train(replay_samples.state, replay_samples.action, updated_q_values);
-                log::debug!("training step: loss: {}", loss)
+                if log::log_enabled!(log::Level::Trace) || self.step_count % self.param.stats_after_steps == 0 {
+                    log::debug!("training step: loss: {}", loss)
+                }
             }
 
-            if self.step_count % self.param.stats_after_steps == 0 {
+            if log::log_enabled!(log::Level::Trace) || self.step_count % self.param.stats_after_steps == 0 {
                 log::debug!("step: {}, episode: {}, running_reward: {}", self.step_count, self.episode_count, self.running_reward);
             }
 
-            if self.step_count % self.param.update_target_network_after_num_frames == 0 {
+            if self.step_count % self.param.update_target_network_after_num_steps == 0 {
                 // update the target network with new weights
                 self.model.write_checkpoint(&self.checkpoint_file);
                 self.stabilized_model.read_checkpoint(&self.checkpoint_file);
-                log::info!("episode {}, step count (frames): {}, epsilon: {:.2}, running reward: {:.2}", self.episode_count, self.step_count, self.epsilon, self.running_reward);
+                log::info!("episode {}, step count (frames): {}, epsilon: {:.2}, running reward: {:.2}", 
+                    self.episode_count.to_formatted_string(&number_format), 
+                    self.step_count.to_formatted_string(&number_format), 
+                    self.epsilon, self.running_reward);
             }
 
             if done {
@@ -331,25 +345,31 @@ where
 
         // Update running reward to check condition for solving
         self.replay_buffer.add_episode_reward(episode_reward);
-        
-        if let Some(avg_episode_rewards) = self.replay_buffer.avg_episode_rewards() {
-            self.running_reward = avg_episode_rewards
-        }
+        self.running_reward = self.replay_buffer.avg_episode_rewards();
         self.episode_count += 1;
+
+        Ok(())
     }
 }
 
-fn generate_distinct_random_numbers<const BATCH_SIZE: usize>(range: Range<usize>) -> [usize; BATCH_SIZE] {
-    assert!(range.end - range.start >= BATCH_SIZE);
-    let mut result = Vec::with_capacity(BATCH_SIZE);
 
-    while result.len() < BATCH_SIZE {
-        let candidate = thread_rng().gen_range(range.clone());
-        if !result.contains(&candidate) {
-            result.push(candidate);
-        }
+fn generate_distinct_random_ids<const BATCH_SIZE: usize>(range: Range<usize>) -> [usize; BATCH_SIZE] {
+    assert!(range.end - range.start >= BATCH_SIZE);
+    let mut result = [0_usize; BATCH_SIZE];
+
+    let distribution = Uniform::from(range);
+    let mut rng = thread_rng();
+
+    for i in 0..BATCH_SIZE {
+        result[i] =
+            loop {
+                let x = distribution.sample(&mut rng);
+                if !result[0..i].contains(&x) {
+                    break x;
+                }
+            }
     }
-    result.try_into().unwrap()
+    result
 }
 
 fn bool_to_f32(v: bool) -> f32 {
@@ -369,6 +389,14 @@ fn array_mul<const N: usize>(slice: [f32; N], value: f32) -> [f32; N] {
     slice.map(|e| e * value)
 }
 
+fn number_format() -> CustomFormat {
+    CustomFormat::builder()
+        .grouping(Grouping::Standard)
+        .minus_sign("-")
+        .separator("_")
+        .build().unwrap()
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -380,7 +408,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_learner_single_episode() {
+    fn test_learner_single_episode() -> Result<()> {
         let param = Parameter::default();
         let model_init = || QLearningTensorflowModel::<BallGameTestEnvironment>::load(&QL_MODEL_BALLGAME_5x5x4_4_32_PATH);
         let model_instance1 = model_init();
@@ -390,10 +418,29 @@ mod tests {
         let mut learner = SelfDrivingQLearner::new(environment, param, model_instance1, model_instance2, &checkpoint_file);
         assert!(!learner.solved());
 
-        learner.learn_episode();
+        learner.learn_episode()?;
 
         assert!(!learner.solved());
         assert!(learner.step_count > 1);
         assert_eq!(learner.episode_count, 1);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_100x_generate_distinct_random_ids() {
+        for _ in 0..100 {
+            test_generate_distinct_random_ids();
+        }
+    }
+
+    #[test]
+    fn test_generate_distinct_random_ids() {
+        let result: [usize; 5] = generate_distinct_random_ids(0..10);
+        let mut r = Vec::from(result);
+        r.sort();
+        r.dedup();
+        assert_eq!(r.len(), 5);
+        assert!(r.iter().all(|e| (0..10).contains(e)));
     }
 }

@@ -4,9 +4,7 @@
 
 # Tensorflow for CUDA
 
-
-
-## Build Tensorflow 2.12 for Nvidia GPU / CUDA
+## Build Tensorflow 2.12 for Nvidia GPU / CUDA 11.8
 
   - Ubuntu jammy
   - Python 3.10
@@ -22,8 +20,10 @@
 ### cuDNN (libcudnn8) (cuDNN runtime libraries) version 8.6 for cuda 11.8
   - It is absolutely necessary to use the exact version - otherwise we will face compile errors with tensorflow
    ```sh
-   apt install libcudnn8=8.6.0.163-1+cuda11.8
-   apt install libcudnn8-dev=libcudnn8=8.6.0.163-1+cuda11.8
+   sudo apt install libcudnn8=8.6.0.163-1+cuda11.8
+   auso apt install libcudnn8-dev=8.6.0.163-1+cuda11.8
+   sudo apt-mark hold libcudnn8  # prevent automatic upgrade
+   sudo apt-mark hold libcudnn8-dev 
    ```
 ### Tensorflow 2.12 (https://www.tensorflow.org/install)
 
@@ -61,6 +61,7 @@
    remove tensorflow source folder and clone again
    bazel clean --expunge
 ```
+
 
 
 ## NVIDIA Alternative 1: Use pre-build python wheel packages

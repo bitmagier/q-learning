@@ -1,13 +1,14 @@
 use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 
+use anyhow::Result;
 use console_engine::pixel;
 use console_engine::pixel::Pixel;
 use console_engine::screen::Screen;
 use rand::Rng;
 use tensorflow::Tensor;
 
-use crate::ql::prelude::{Action, DebugVisualizer, Environment, ModelActionType, ToMultiDimArray};
+use crate::ql::prelude::{Action, DebugVisualizer, Environment, ModelActionType, QlError, ToMultiDimArray};
 
 /// A quite simple TestEnvironment simulating a ball game.
 ///
@@ -92,6 +93,7 @@ impl BallGameState {
         use BallGameAction::*;
         const VALID_TARGET_ENTRIES: [Entry; 2] = [Entry::Void, Entry::Goal];
         let valid_target_coord = |x, y| VALID_TARGET_ENTRIES.contains(&self.field.get((x, y)));
+        
         let (x, y) = self.ball_coord;
         let valid_target = match action {
             West if x > 0 && valid_target_coord(x - 1, y) => Some((x - 1, y)),
@@ -100,6 +102,7 @@ impl BallGameState {
             South if y < 2 && valid_target_coord(x, y + 1) => Some((x, y + 1)),
             _ => None
         };
+        
         match valid_target {
             None => MoveResult::Illegal,
             Some(c @ (x, y)) => {
@@ -208,14 +211,14 @@ impl Action for BallGameAction {
         }
     }
 
-    fn try_from_numeric(value: ModelActionType) -> Result<Self, String> {
+    fn try_from_numeric(value: ModelActionType) -> Result<Self> {
         use BallGameAction::*;
         match value {
             0 => Ok(West),
             1 => Ok(North),
             2 => Ok(East),
             3 => Ok(South),
-            _ => Err(format!("value {} out of range", value))
+            _ => Err(QlError(format!("value {} out of range", value)).into())
         }
     }
 }

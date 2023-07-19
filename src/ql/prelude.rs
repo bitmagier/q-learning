@@ -1,6 +1,7 @@
-use std::fmt::Display;
+use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 
+use anyhow::Result;
 use console_engine::screen::Screen;
 
 /// Data type we use to encode an `Action` to feed the model.
@@ -12,7 +13,7 @@ pub trait Action: Display + Sized + Clone + Copy {
     const ACTION_SPACE: ModelActionType;
     /// identifying the Action as a unique value in range (0..Self::action_space)
     fn numeric(&self) -> ModelActionType;
-    fn try_from_numeric(value: ModelActionType) -> Result<Self, String>;
+    fn try_from_numeric(value: ModelActionType) -> Result<Self>;
 }
 
 /// Learning environment, modeling the world of a learning agent
@@ -33,18 +34,23 @@ pub trait Environment
     /// Current state
     fn state(&self) -> &Self::S;
 
+    /// Convenience wrapper around [Self::state]
+    fn state_as_rc(&self) -> Rc<Self::S> {
+        Rc::new(self.state().clone())
+    }
+
     /// Performs one time/action-step.    
-    /// 
+    ///
     /// Applies the given `action` to the environment and returns:
     ///   - next state
     ///   - immediate reward earned during performing that step
     ///   - done flag (e.g. game ended)
     ///
     fn step(&mut self, action: Self::A) -> (&Self::S, f32, bool);
-    
+
     /// Convenience wrapper around [Self::step] returning an [Rc] with a copy of the state.
     /// This should match the typical use-case.
-    fn step_rc(&mut self, action: Self::A) -> (Rc<Self::S>, f32, bool) {
+    fn step_as_rc(&mut self, action: Self::A) -> (Rc<Self::S>, f32, bool) {
         match self.step(action) {
             (state, reward, done) => (Rc::new(state.clone()), reward, done)
         }
@@ -138,3 +144,14 @@ pub trait ToMultiDimArray<D> {
     /// more than for a single object (as returned by [Self::to_tensor]).
     fn batch_to_multi_dim_array<const N: usize>(batch: &[&Rc<Self>; N]) -> D;
 }
+
+#[derive(Debug)]
+pub struct QlError(pub String);
+
+impl Display for QlError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for QlError {}
