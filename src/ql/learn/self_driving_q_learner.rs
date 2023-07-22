@@ -10,8 +10,8 @@ use rand::prelude::*;
 
 use crate::ql::learn::replay_buffer::ReplayBuffer;
 use crate::ql::prelude::{Action, DebugVisualizer, Environment, QLearningModel};
-
-use super::misc::Immutable;
+use crate::util::immutable::Immutable;
+use crate::util::dbscan;
 
 pub struct Parameter {
     /// Discount factor for past rewards
@@ -336,6 +336,14 @@ where
                     self.episode_count.to_formatted_string(&number_format), 
                     self.step_count.to_formatted_string(&number_format), 
                     self.epsilon, self.running_reward);
+
+
+                let cluster_analysis_result = dbscan::cluster_analysis(
+                    self.replay_buffer.episode_rewards(),
+                    0.3,
+                    3
+                );
+                log::info!("recent reward distribution: {}", cluster_analysis_result);
             }
 
             if done {
@@ -372,13 +380,6 @@ fn generate_distinct_random_ids<const BATCH_SIZE: usize>(range: Range<usize>) ->
             }
     }
     result
-}
-
-fn bool_to_f32(v: bool) -> f32 {
-    match v {
-        true => 1.0,
-        false => 0.0
-    }
 }
 
 fn add_arrays<const N: usize>(lhs: &[f32; N], rhs: &[f32; N]) -> [f32; N] {

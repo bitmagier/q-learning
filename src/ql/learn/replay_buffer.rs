@@ -87,6 +87,10 @@ where A: Copy
         let c = &self.episode_reward_history.buffer;
         c.iter().sum::<f32>() / c.len() as f32
     }
+    
+    pub fn episode_rewards(&mut self) -> &[f32] {
+        self.episode_reward_history.buffer.make_contiguous()
+    }
 
     pub fn get_many<const N: usize>(&self, indices: &[usize; N]) -> BufferSample<N, S, A> {
         BufferSample {

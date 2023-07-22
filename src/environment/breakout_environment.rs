@@ -8,7 +8,7 @@ use anyhow::Result;
 
 use crate::environment::breakout::breakout_drawer::BreakoutDrawer;
 use crate::environment::breakout::mechanics::{BreakoutMechanics, GameInput, PanelControl};
-use crate::environment::util::frame_ring_buffer::FrameRingBuffer;
+use crate::environment::frame_ring_buffer::FrameRingBuffer;
 use crate::ql::prelude::{Action, DebugVisualizer, Environment, ModelActionType, QlError, ToMultiDimArray};
 
 

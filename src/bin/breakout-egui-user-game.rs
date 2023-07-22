@@ -9,7 +9,7 @@ use egui::{Context, Id, LayerId, Order, Painter, Vec2};
 
 use q_learning_breakout::environment::breakout::app_game_drawer::AppGameDrawer;
 use q_learning_breakout::environment::breakout::mechanics::*;
-use q_learning_breakout::util::init_logging;
+use q_learning_breakout::util::log::init_logging;
 
 pub const FRAME_SIZE_X: usize = MODEL_GRID_LEN_X as usize;
 pub const FRAME_SIZE_Y: usize = MODEL_GRID_LEN_Y as usize;

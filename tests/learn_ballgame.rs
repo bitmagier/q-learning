@@ -5,7 +5,7 @@ use anyhow::Result;
 use q_learning_breakout::ql::ballgame_test_environment::BallGameTestEnvironment;
 use q_learning_breakout::ql::learn::self_driving_q_learner::{Parameter, SelfDrivingQLearner};
 use q_learning_breakout::ql::model::tensorflow::q_learning_model::{QL_MODEL_BALLGAME_5x5x3_4_256_PATH, QLearningTensorflowModel};
-use q_learning_breakout::util::init_logging;
+use q_learning_breakout::util::log::init_logging;
 
 #[test]
 fn test_learn_ballgame_until_mastered() -> Result<()>{
