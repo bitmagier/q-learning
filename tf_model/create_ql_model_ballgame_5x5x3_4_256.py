@@ -15,12 +15,11 @@ class QLearningModel_BallGame_5x5x3_4_256(tf.keras.Sequential):
         # Ideas:
         # - decrease learning rate while learning => tf.keras.optimizers.schedules.LearningRateSchedule
         self.add(tf.keras.Input(shape=(INPUT_SIZE_X, INPUT_SIZE_Y, INPUT_LAYERS,)))
-        self.add(layers.Conv2D(32, 3, strides=1, activation='relu', name='convolution_layer1'))
-        self.add(layers.Conv2D(32, 1, strides=1, activation='relu', name='convolution_layer2'))
+        # self.add(layers.Conv2D(64, 3, strides=1, activation='relu', name='convolution_layer1'))
+        self.add(layers.Conv2D(16, 1, strides=1, activation='relu', name='convolution_layer2'))
         self.add(layers.Flatten(name='flatten'))
         self.add(layers.Dense(256, activation='relu', name='full_layer1'))
         self.add(layers.Dense(256, activation='softmax', name='full_layer2'))
-        # TODO try different activation function here
         self.add(layers.Dense(ACTION_SPACE, activation='linear', name='action_layer'))
 
         self.compile(optimizer=keras.optimizers.Adam(learning_rate=0.00025, clipnorm=1.0),

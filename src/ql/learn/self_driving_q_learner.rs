@@ -340,10 +340,10 @@ where
 
                 let cluster_analysis_result = dbscan::cluster_analysis(
                     self.replay_buffer.episode_rewards(),
-                    0.3,
-                    3
+                    0.25,
+                    10
                 );
-                log::info!("recent reward distribution: {}", cluster_analysis_result);
+                log::info!("reward distribution: {}", cluster_analysis_result);
             }
 
             if done {

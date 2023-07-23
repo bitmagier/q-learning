@@ -72,7 +72,7 @@ fn f32_cmp(a: &f32, b: &f32) -> Ordering {
     }
 }
 
-/// (Yx[B..C], ...), YxNoise
+/// Yx(B..C), ..., Yx(noise)
 impl Display for ClusterAnalysisResult<'_, f32> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         fn cluster_range(f: &mut Formatter<'_>, max_neighbor_distance: f32, from: f32, to: f32) -> std::fmt::Result {
@@ -86,7 +86,6 @@ impl Display for ClusterAnalysisResult<'_, f32> {
             }
         }
         
-        f.write_str("(")?;
         // cluster
         for (i, c) in self
             .clusters()
@@ -98,13 +97,13 @@ impl Display for ClusterAnalysisResult<'_, f32> {
             }
             let &&from = c.iter().min_by(|&&a,&&b| f32_cmp(a,b)).expect("cluster should not be empty");
             let &&to = c.iter().max_by(|&&a, &&b| f32_cmp(a,b)).unwrap();
-            write!(f, "{}x[", c.len())?;
+            write!(f, "{}x(", c.len())?;
             cluster_range(f, self.max_neighbor_distance, from, to)?;
-            write!(f, "]")?;
+            write!(f, ")")?;
         }
-        f.write_str("), ")?;
+        f.write_str(", ")?;
         // noise
-        write!(f, "{}xNoise", self.noise.len())
+        write!(f, "{}x(noise)", self.noise.len())
     }
 }
 
