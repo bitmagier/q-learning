@@ -1,8 +1,9 @@
 use std::collections::VecDeque;
+use itertools::Itertools;
 
-struct Buffer<T> {
-    max_buffer_len: usize,
-    buffer: VecDeque<T>,
+pub struct Buffer<T> {
+    pub max_buffer_len: usize,
+    pub buffer: VecDeque<T>,
 }
 
 impl<T> Buffer<T> {
@@ -88,8 +89,12 @@ where A: Copy
         c.iter().sum::<f32>() / c.len() as f32
     }
     
-    pub fn episode_rewards(&mut self) -> &[f32] {
-        self.episode_reward_history.buffer.make_contiguous()
+    pub fn actions(&self) -> &Buffer<A> {
+        &self.action_history
+    }
+    
+    pub fn episode_rewards(&self) -> Vec<f32> {
+        self.episode_reward_history.buffer.iter().map(|e| *e).collect_vec()
     }
 
     pub fn get_many<const N: usize>(&self, indices: &[usize; N]) -> BufferSample<N, S, A> {

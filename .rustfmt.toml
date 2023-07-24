@@ -1,1 +1,5 @@
-max_width = 140 
+max_width = 140
+# indent_style = "Block"
+fn_params_layout = "Vertical"
+fn_single_line = true
+group_imports = "StdExternalCrate" 

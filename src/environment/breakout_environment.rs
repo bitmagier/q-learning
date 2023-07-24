@@ -87,7 +87,7 @@ impl DebugVisualizer for BreakoutState {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum BreakoutAction {
     None,
     Left,
@@ -191,8 +191,8 @@ impl Environment for BreakoutEnvironment {
         (state, reward, done)
     }
 
-    fn total_reward_goal(&self) -> u64 {
+    fn total_reward_goal(&self) -> f32 {
         // hanging the goal a little lower than the exact value to avoid obstructive blur effects introduced by float calculations
-        (BreakoutMechanics::new().bricks.len() - 1) as u64
+        (BreakoutMechanics::new().bricks.len() - 1) as f32
     }
 }

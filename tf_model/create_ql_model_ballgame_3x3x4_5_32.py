@@ -2,25 +2,23 @@ import keras
 import tensorflow as tf
 from keras import layers, optimizers, losses
 
-INPUT_SIZE_X = 5
-INPUT_SIZE_Y = 5
-INPUT_LAYERS = 3
-ACTION_SPACE = 4
-BATCH_SIZE = 1024
+INPUT_SIZE_X = 3
+INPUT_SIZE_Y = 3
+INPUT_LAYERS = 4
+ACTION_SPACE = 5
+BATCH_SIZE = 32
 
 
-class QLearningModel_BallGame_5x5x3_4_1024(tf.keras.Sequential):
+class QLearningModel_BallGame_3x3x4_5_32(tf.keras.Sequential):
+    loss = keras.losses.Huber()
+
     def __init__(self, *args, **kwargs):
-        super(QLearningModel_BallGame_5x5x3_4_1024, self).__init__(*args, **kwargs)
-        # Ideas:
-        # - decrease learning rate while learning => tf.keras.optimizers.schedules.LearningRateSchedule
+        super(QLearningModel_BallGame_3x3x4_5_32, self).__init__(*args, **kwargs)
         self.add(tf.keras.Input(shape=(INPUT_SIZE_X, INPUT_SIZE_Y, INPUT_LAYERS,)))
-        self.add(layers.Conv2D(32, 3, strides=1, activation='relu', name='convolution_layer1'))
-        # self.add(layers.Conv2D(32, 1, strides=1, activation='relu', name='convolution_layer2'))
         self.add(layers.Flatten(name='flatten'))
-        self.add(layers.Dense(128, activation='softmax', name='full_layer1'))
-        self.add(layers.Dense(128, activation='softmax', name='full_layer2'))
-        # TODO try different activation function here
+        self.add(layers.Dense(256, activation='sigmoid', name='full_layer1'))
+        self.add(layers.Dense(256, activation='sigmoid', name='full_layer2'))
+        self.add(layers.Dense(256, activation='sigmoid', name='full_layer3'))
         self.add(layers.Dense(ACTION_SPACE, activation='linear', name='action_layer'))
 
         self.compile(optimizer=keras.optimizers.Adam(learning_rate=0.00025, clipnorm=1.0),
@@ -31,7 +29,8 @@ class QLearningModel_BallGame_5x5x3_4_1024(tf.keras.Sequential):
 
     # Predict action from environment state
     @tf.function(input_signature=[
-        tf.TensorSpec(shape=[INPUT_SIZE_X, INPUT_SIZE_Y, INPUT_LAYERS], dtype=tf.float32, name='state')])
+        tf.TensorSpec(shape=[INPUT_SIZE_X, INPUT_SIZE_Y, INPUT_LAYERS], dtype=tf.float32, name='state')
+    ])
     def predict_action(self, state):
         state_tensor = tf.expand_dims(state, 0)
         action_probs = self.call(state_tensor, training=False)
@@ -43,27 +42,23 @@ class QLearningModel_BallGame_5x5x3_4_1024(tf.keras.Sequential):
     # So we have to stick with call()
     # => Maybe we try a model based on tf.Module instead of tf.keras.Model
     @tf.function(input_signature=[
-        tf.TensorSpec(shape=[BATCH_SIZE, INPUT_SIZE_X, INPUT_SIZE_Y, INPUT_LAYERS], dtype=tf.float32,
-                      name='state_batch')])
+        tf.TensorSpec(shape=[BATCH_SIZE, INPUT_SIZE_X, INPUT_SIZE_Y, INPUT_LAYERS], dtype=tf.float32, name='state_batch')
+    ])
     def batch_predict_max_future_reward(self, state_batch):
         reward_batch = tf.reduce_max(self.call(state_batch, training=False), axis=1)
         return {'reward_batch': reward_batch}
 
     @tf.function(input_signature=[
-        tf.TensorSpec(shape=[BATCH_SIZE, INPUT_SIZE_X, INPUT_SIZE_Y, INPUT_LAYERS], dtype=tf.float32,
-                      name='state_batch'),
-        tf.TensorSpec(shape=[BATCH_SIZE, 1], dtype=tf.uint8, name='action_batch'),
-        tf.TensorSpec(shape=[BATCH_SIZE, 1], dtype=tf.float32, name='updated_q_values')
+        tf.TensorSpec(shape=[BATCH_SIZE, INPUT_SIZE_X, INPUT_SIZE_Y, INPUT_LAYERS], dtype=tf.float32, name='state_batch'),
+        tf.TensorSpec(shape=[BATCH_SIZE, ACTION_SPACE], dtype=tf.float32, name='action_batch_one_hot'),
+        tf.TensorSpec(shape=[BATCH_SIZE], dtype=tf.float32, name='updated_q_values')
     ])
-    def train_model(self, state_batch, action_batch, updated_q_values):
-        # Create a mask - so we only calculate loss on the updated Q-values
-        masks = tf.one_hot(action_batch, ACTION_SPACE)
-
+    def train_model(self, state_batch, action_batch_one_hot, updated_q_values):
         with tf.GradientTape() as tape:
             # Train the model on the states and updated Q-values
             q_values = self.call(state_batch, training=True)
             # Apply the masks to the Q-values to get the Q-value for action taken
-            q_action = tf.reduce_sum(tf.multiply(q_values, masks), axis=1)
+            q_action = tf.reduce_sum(tf.multiply(q_values, action_batch_one_hot), axis=1)
             # Calculate loss between new Q-value and old Q-value
             loss = self.loss(updated_q_values, q_action)
 
@@ -87,10 +82,10 @@ class QLearningModel_BallGame_5x5x3_4_1024(tf.keras.Sequential):
         return {'dummy': tf.constant("")}
 
 
-model = QLearningModel_BallGame_5x5x3_4_1024()
+model = QLearningModel_BallGame_3x3x4_5_32()
 model.summary()
 
-model.save('saved/ql_model_ballgame_5x5x3_4_1024',
+model.save('saved/ql_model_ballgame_3x3x4_5_32',
            save_format='tf',
            signatures={
                'predict_action': model.predict_action,

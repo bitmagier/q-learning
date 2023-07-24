@@ -2577,6 +2577,7 @@ dependencies = [
  "plotters",
  "rand",
  "rstest",
+ "rustc-hash",
  "tempfile",
  "tensorflow",
  "tensorflow-sys",

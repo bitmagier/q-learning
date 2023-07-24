@@ -16,6 +16,7 @@ rstest = "0"
 ctor = "0.2"
 
 [dependencies]
+rustc-hash = "1.1"
 log = "0.4"
 env_logger = "0.10"
 itertools = "0.11.0"

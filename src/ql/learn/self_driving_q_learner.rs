@@ -7,11 +7,12 @@ use anyhow::Result;
 use num_format::{CustomFormat, Grouping, ToFormattedString};
 use rand::distributions::Uniform;
 use rand::prelude::*;
+use rustc_hash::FxHashMap;
 
 use crate::ql::learn::replay_buffer::ReplayBuffer;
 use crate::ql::prelude::{Action, DebugVisualizer, Environment, QLearningModel};
-use crate::util::immutable::Immutable;
 use crate::util::dbscan;
+use crate::util::immutable::Immutable;
 
 pub struct Parameter {
     /// Discount factor for past rewards
@@ -183,8 +184,10 @@ impl Default for Parameter {
  ```
  */
 pub struct SelfDrivingQLearner<E, M, const BATCH_SIZE: usize>
-where E: Environment,
-      M: QLearningModel<BATCH_SIZE, E=E> {
+where
+    E: Environment,
+    M: QLearningModel<BATCH_SIZE, E = E>,
+{
     environment: Arc<RwLock<E>>,
     param: Immutable<Parameter>,
     model: M,
@@ -202,15 +205,11 @@ where E: Environment,
 impl<E, M, const BATCH_SIZE: usize> SelfDrivingQLearner<E, M, BATCH_SIZE>
 where
     E: Environment,
-    M: QLearningModel<BATCH_SIZE, E=E>,
+    M: QLearningModel<BATCH_SIZE, E = E>,
 {
-    pub fn new(environment: Arc<RwLock<E>>,
-               param: Parameter,
-               model_instance1: M,
-               model_instance2: M,
-               checkpoint_file: &Path,
-    ) -> Self {
-        let checkpoint_file = checkpoint_file.to_str()
+    pub fn new(environment: Arc<RwLock<E>>, param: Parameter, model_instance1: M, model_instance2: M, checkpoint_file: &Path) -> Self {
+        let checkpoint_file = checkpoint_file
+            .to_str()
             .expect("file name should have a UTF-8 compatible path")
             .to_owned();
         let replay_buffer = ReplayBuffer::new(param.history_buffer_len, param.episode_reward_history_buffer_len);
@@ -231,8 +230,7 @@ where
     }
 
     pub fn load_model_checkpoint(&mut self, checkpoint_file: &Path) {
-        let checkpoint_file = checkpoint_file.to_str()
-            .expect("file name should have a UTF-8 compatible path");
+        let checkpoint_file = checkpoint_file.to_str().expect("file name should have a UTF-8 compatible path");
         self.model.read_checkpoint(&checkpoint_file);
         self.stabilized_model.read_checkpoint(&checkpoint_file);
     }
@@ -245,7 +243,7 @@ where
     }
 
     pub fn solved(&self) -> bool {
-        if self.running_reward >= self.environment.read().unwrap().total_reward_goal() as f32 {
+        if self.running_reward >= self.environment.read().unwrap().total_reward_goal() {
             log::info!("Solved at episode {}!", self.episode_count);
             true
         } else {
@@ -254,8 +252,6 @@ where
     }
 
     pub fn learn_episode(&mut self) -> Result<()> {
-        let number_format = number_format();
-
         self.environment.write().unwrap().reset();
 
         let mut state = self.environment.read().unwrap().state_as_rc();
@@ -268,8 +264,7 @@ where
 
             // Use epsilon-greedy for exploration
             let action: E::A =
-                if self.step_count < self.param.epsilon_pure_random_steps
-                    || self.epsilon > thread_rng().gen_range(0_f64..1.0_f64) {
+                if self.step_count < self.param.epsilon_pure_random_steps || self.epsilon > thread_rng().gen_range(0_f64..1.0_f64) {
                     // Take random action
                     let a = thread_rng().gen_range(0..E::A::ACTION_SPACE);
                     Action::try_from_numeric(a)?
@@ -296,9 +291,7 @@ where
             state = state_next;
 
             // Update every n-th (e.g. fourth) frame, once the replay buffer is beyond BATCH_SIZE
-            if self.step_count % self.param.update_after_actions == 0
-                && self.replay_buffer.len() > BATCH_SIZE {
-
+            if self.step_count % self.param.update_after_actions == 0 && self.replay_buffer.len() > BATCH_SIZE {
                 // Get indices of samples for replay buffers
                 let indices: [usize; BATCH_SIZE] = generate_distinct_random_ids(0..self.replay_buffer.len());
 
@@ -312,38 +305,33 @@ where
                 let mut updated_q_values = add_arrays(&replay_samples.reward, &array_mul(max_future_rewards, self.param.gamma));
 
                 // for terminal steps, the updated q-value shall be exactly the reward (see deepmind paper)
-                for i in 0..replay_samples.state.len() {
+                for (i,_) in replay_samples.state.iter().enumerate() {
                     if replay_samples.done[i] {
                         updated_q_values[i] = replay_samples.reward[i]
                     }
                 }
 
-                let loss = self.model.train(replay_samples.state, replay_samples.action, updated_q_values);
+                let loss = self.model.train(replay_samples.state, replay_samples.action, updated_q_values)?;
                 if log::log_enabled!(log::Level::Trace) || self.step_count % self.param.stats_after_steps == 0 {
                     log::debug!("training step: loss: {}", loss)
                 }
             }
 
             if log::log_enabled!(log::Level::Trace) || self.step_count % self.param.stats_after_steps == 0 {
-                log::debug!("step: {}, episode: {}, running_reward: {}", self.step_count, self.episode_count, self.running_reward);
+                log::debug!(
+                    "step: {}, episode: {}, running_reward: {}",
+                    self.step_count,
+                    self.episode_count,
+                    self.running_reward
+                );
             }
 
             if self.step_count % self.param.update_target_network_after_num_steps == 0 {
                 // update the target network with new weights
                 self.model.write_checkpoint(&self.checkpoint_file);
                 self.stabilized_model.read_checkpoint(&self.checkpoint_file);
-                log::info!("episode {}, step count (frames): {}, epsilon: {:.2}, running reward: {:.2}", 
-                    self.episode_count.to_formatted_string(&number_format), 
-                    self.step_count.to_formatted_string(&number_format), 
-                    self.epsilon, self.running_reward);
 
-
-                let cluster_analysis_result = dbscan::cluster_analysis(
-                    self.replay_buffer.episode_rewards(),
-                    0.25,
-                    10
-                );
-                log::info!("reward distribution: {}", cluster_analysis_result);
+                self.learning_update_log();
             }
 
             if done {
@@ -360,8 +348,35 @@ where
 
         Ok(())
     }
-}
 
+    fn learning_update_log(&self) {
+        let number_format = number_format();
+        log::info!(
+            "episode {}, step count: {}, epsilon: {:.2}, running reward: {:.2}",
+            self.episode_count.to_formatted_string(&number_format),
+            self.step_count.to_formatted_string(&number_format),
+            self.epsilon,
+            self.running_reward
+        );
+
+        let num_rewards = self.replay_buffer.episode_rewards().len();
+        let episode_rewards = self.replay_buffer.episode_rewards();
+        let reward_distribution = dbscan::cluster_analysis(&episode_rewards, 0.3, num_rewards / 30);
+        log::info!("reward distribution: {}", reward_distribution);
+
+        let mut action_counts = FxHashMap::<E::A, usize>::default();
+        for &a in &self.replay_buffer.actions().buffer {
+            action_counts.entry(a).and_modify(|e| *e += 1).or_insert(1);
+        }
+        let mut action_distribution_line = String::new();
+        let total_actions = self.replay_buffer.actions().buffer.len();
+        for (&action, &count) in &action_counts {
+            let ratio = 100.0 * count as f32 / total_actions as f32;
+            action_distribution_line.push_str(&format!("({:.1}%{}) ", ratio, action));
+        }
+        log::info!("action distribution (last {}): {}", total_actions.to_formatted_string(&number_format), action_distribution_line);
+    }
+}
 
 fn generate_distinct_random_ids<const BATCH_SIZE: usize>(range: Range<usize>) -> [usize; BATCH_SIZE] {
     assert!(range.end - range.start >= BATCH_SIZE);
@@ -371,21 +386,23 @@ fn generate_distinct_random_ids<const BATCH_SIZE: usize>(range: Range<usize>) ->
     let mut rng = thread_rng();
 
     for i in 0..BATCH_SIZE {
-        result[i] =
-            loop {
-                let x = distribution.sample(&mut rng);
-                if !result[0..i].contains(&x) {
-                    break x;
-                }
+        result[i] = loop {
+            let x = distribution.sample(&mut rng);
+            if !result[0..i].contains(&x) {
+                break x;
             }
+        }
     }
     result
 }
 
 fn add_arrays<const N: usize>(lhs: &[f32; N], rhs: &[f32; N]) -> [f32; N] {
-    lhs.iter().zip(rhs.iter())
+    lhs.iter()
+        .zip(rhs.iter())
         .map(|(&lhs, &rhs)| lhs + rhs)
-        .collect::<Vec<_>>().try_into().unwrap()
+        .collect::<Vec<_>>()
+        .try_into()
+        .unwrap()
 }
 
 fn array_mul<const N: usize>(slice: [f32; N], value: f32) -> [f32; N] {
@@ -397,23 +414,23 @@ fn number_format() -> CustomFormat {
         .grouping(Grouping::Standard)
         .minus_sign("-")
         .separator("_")
-        .build().unwrap()
+        .build()
+        .unwrap()
 }
-
 
 #[cfg(test)]
 mod tests {
     use std::sync::{Arc, RwLock};
 
     use crate::ql::ballgame_test_environment::BallGameTestEnvironment;
-    use crate::ql::model::tensorflow::q_learning_model::{QL_MODEL_BALLGAME_5x5x3_4_32_PATH, QLearningTensorflowModel};
+    use crate::ql::model::tensorflow::q_learning_model::{QL_MODEL_BALLGAME_3x3x4_5_32_PATH, QLearningTensorflowModel};
 
     use super::*;
 
     #[test]
     fn test_learner_single_episode() -> Result<()> {
         let param = Parameter::default();
-        let model_init = || QLearningTensorflowModel::<BallGameTestEnvironment>::load(&QL_MODEL_BALLGAME_5x5x3_4_32_PATH);
+        let model_init = || QLearningTensorflowModel::<BallGameTestEnvironment>::load(&QL_MODEL_BALLGAME_3x3x4_5_32_PATH);
         let model_instance1 = model_init();
         let model_instance2 = model_init();
         let checkpoint_file = tempfile::tempdir().unwrap().into_path().join("test_learner_ckpt");
@@ -439,11 +456,11 @@ mod tests {
 
     #[test]
     fn test_generate_distinct_random_ids() {
-        let result: [usize; 5] = generate_distinct_random_ids(0..10);
+        let result: [usize; 50] = generate_distinct_random_ids(0..100);
         let mut r = Vec::from(result);
         r.sort();
         r.dedup();
-        assert_eq!(r.len(), 5);
-        assert!(r.iter().all(|e| (0..10).contains(e)));
+        assert_eq!(r.len(), 50);
+        assert!(r.iter().all(|e| (0..100).contains(e)));
     }
 }
