@@ -290,7 +290,7 @@ where
             self.replay_buffer.add(action, state, Rc::clone(&state_next), reward, done);
             state = state_next;
 
-            // Update every n-th (e.g. fourth) frame, once the replay buffer is beyond BATCH_SIZE
+            // Update every n-th step (e.g. fourth frame), once the replay buffer is beyond BATCH_SIZE
             if self.step_count % self.param.update_after_actions == 0 && self.replay_buffer.len() > BATCH_SIZE {
                 // Get indices of samples for replay buffers
                 let indices: [usize; BATCH_SIZE] = generate_distinct_random_ids(0..self.replay_buffer.len());

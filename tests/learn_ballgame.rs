@@ -7,17 +7,10 @@ use q_learning_breakout::ql::learn::self_driving_q_learner::{Parameter, SelfDriv
 use q_learning_breakout::ql::model::tensorflow::q_learning_model::{QL_MODEL_BALLGAME_3x3x4_5_32_PATH, QLearningTensorflowModel};
 use q_learning_breakout::util::log::init_logging;
 
-// -----------------------------------------------------------------------------------------------
-//         self.add(layers.Flatten(name='flatten'))
-//         self.add(layers.Dense(256, activation='sigmoid', name='full_layer1'))
-//         self.add(layers.Dense(256, activation='sigmoid', name='full_layer2'))
-//         self.add(layers.Dense(256, activation='sigmoid', name='full_layer3'))
-//         self.add(layers.Dense(ACTION_SPACE, activation='linear', name='action_layer'))
-//
-// episode 120_174, step count: 3_010_000, epsilon: 0.10, running reward: 0.18
-// reward distribution: 5x(-2.2..-2.2), 6x(-1.7..-1.7), 25x(-1.3..-1.3), 28x(-0.8..-0.8), 23x(-0.3..-0.3), 7x(9.8..10.0), 6x(noise)
-// action distribution (last 200000): (43.4%Nothing) (7.1%North) (5.9%South) (21.4%West) (22.2%East)
-// -----------------------------------------------------------------------------------------------
+
+// [2023-07-24T16:17:16Z INFO ] episode 50_379, step count: 920_000, epsilon: 0.17, running reward: 4.66
+// [2023-07-24T16:17:16Z INFO ] reward distribution: 8x(-2.2..-2.2), 10x(-1.7..-1.7), 10x(-1.3..-1.3), 12x(-0.8..-0.8), 51x(9.2..10.0), 9x(noise)
+// [2023-07-24T16:17:16Z INFO ] action distribution (last 500_000): (52.0%Nothing) (16.7%North) (9.4%South) (10.0%West) (11.9%East)
 
 #[test]
 fn test_learn_ballgame_until_mastered() -> Result<()>{
@@ -25,8 +18,8 @@ fn test_learn_ballgame_until_mastered() -> Result<()>{
 
     let mut param = Parameter::default();
     param.max_steps_per_episode = 28;
-    param.update_after_actions = 1;
-    param.history_buffer_len = 200_000;
+    // param.update_after_actions = 1;
+    param.history_buffer_len = 500_000;
     param.epsilon_greedy_steps = 1_000_000.0;
     param.episode_reward_history_buffer_len = 100;
 

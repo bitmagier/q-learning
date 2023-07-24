@@ -10,20 +10,19 @@ BATCH_SIZE = 32
 
 
 class QLearningModel_BallGame_3x3x4_5_32(tf.keras.Sequential):
-    loss = keras.losses.Huber()
+    loss = keras.losses.MeanSquaredError()
 
     def __init__(self, *args, **kwargs):
         super(QLearningModel_BallGame_3x3x4_5_32, self).__init__(*args, **kwargs)
         self.add(tf.keras.Input(shape=(INPUT_SIZE_X, INPUT_SIZE_Y, INPUT_LAYERS,)))
         self.add(layers.Flatten(name='flatten'))
-        self.add(layers.Dense(256, activation='sigmoid', name='full_layer1'))
-        self.add(layers.Dense(256, activation='sigmoid', name='full_layer2'))
-        self.add(layers.Dense(256, activation='sigmoid', name='full_layer3'))
+        self.add(layers.Dense(256, activation='relu', name='full_layer1'))
+        self.add(layers.Dense(256, activation='relu', name='full_layer2'))
         self.add(layers.Dense(ACTION_SPACE, activation='linear', name='action_layer'))
 
         self.compile(optimizer=keras.optimizers.Adam(learning_rate=0.00025, clipnorm=1.0),
                      # Using huber loss for stability
-                     loss=keras.losses.Huber(),
+                     loss=self.loss,
                      metrics=['accuracy'],
                      )
 
