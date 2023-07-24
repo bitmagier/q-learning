@@ -372,7 +372,7 @@ where
         let total_actions = self.replay_buffer.actions().buffer.len();
         for (&action, &count) in &action_counts {
             let ratio = 100.0 * count as f32 / total_actions as f32;
-            action_distribution_line.push_str(&format!("({:.1}%{}) ", ratio, action));
+            action_distribution_line.push_str(&format!("({:.1}% {}) ", ratio, action));
         }
         log::info!("action distribution (last {}): {}", total_actions.to_formatted_string(&number_format), action_distribution_line);
     }

@@ -8,23 +8,32 @@ INPUT_LAYERS = 4
 ACTION_SPACE = 5
 BATCH_SIZE = 32
 
+# TODO introduce a frame history dimension
 
 class QLearningModel_BallGame_3x3x4_5_32(tf.keras.Sequential):
-    loss = keras.losses.MeanSquaredError()
+    loss = keras.losses.Huber()
 
     def __init__(self, *args, **kwargs):
         super(QLearningModel_BallGame_3x3x4_5_32, self).__init__(*args, **kwargs)
         self.add(tf.keras.Input(shape=(INPUT_SIZE_X, INPUT_SIZE_Y, INPUT_LAYERS,)))
+        self.add(layers.Conv2D(filters=32, kernel_size=3, padding="same", activation="relu"))
+        # self.add(layers.MaxPooling2D())
+        self.add(layers.Conv2D(filters=32, kernel_size=1, activation="relu"))
         self.add(layers.Flatten(name='flatten'))
         self.add(layers.Dense(256, activation='relu', name='full_layer1'))
         self.add(layers.Dense(256, activation='relu', name='full_layer2'))
         self.add(layers.Dense(ACTION_SPACE, activation='linear', name='action_layer'))
 
-        self.compile(optimizer=keras.optimizers.Adam(learning_rate=0.00025, clipnorm=1.0),
-                     # Using huber loss for stability
-                     loss=self.loss,
-                     metrics=['accuracy'],
-                     )
+        learning_rate = keras.optimizers.learning_rate_schedule.PolynomialDecay(initial_learning_rate=0.01,
+                                                                                decay_steps=500_000,
+                                                                                end_learning_rate=0.00025,
+                                                                                power=1.5)
+        self.compile(
+            # optimizer=keras.optimizers.Adam(learning_rate=0.0005, clipnorm=1.0),
+            optimizer=keras.optimizers.Adam(learning_rate, clipnorm=1.0),
+            loss=self.loss,
+            metrics=['accuracy'],
+        )
 
     # Predict action from environment state
     @tf.function(input_signature=[
@@ -32,7 +41,7 @@ class QLearningModel_BallGame_3x3x4_5_32(tf.keras.Sequential):
     ])
     def predict_action(self, state):
         state_tensor = tf.expand_dims(state, 0)
-        action_probs = self.call(state_tensor, training=False)
+        action_probs = self.__call__(state_tensor, training=False)
         # Take best action
         action = tf.argmax(action_probs[0])
         return {'action': action}
@@ -44,7 +53,7 @@ class QLearningModel_BallGame_3x3x4_5_32(tf.keras.Sequential):
         tf.TensorSpec(shape=[BATCH_SIZE, INPUT_SIZE_X, INPUT_SIZE_Y, INPUT_LAYERS], dtype=tf.float32, name='state_batch')
     ])
     def batch_predict_max_future_reward(self, state_batch):
-        reward_batch = tf.reduce_max(self.call(state_batch, training=False), axis=1)
+        reward_batch = tf.reduce_max(self.__call__(state_batch, training=False), axis=1)
         return {'reward_batch': reward_batch}
 
     @tf.function(input_signature=[
@@ -55,7 +64,7 @@ class QLearningModel_BallGame_3x3x4_5_32(tf.keras.Sequential):
     def train_model(self, state_batch, action_batch_one_hot, updated_q_values):
         with tf.GradientTape() as tape:
             # Train the model on the states and updated Q-values
-            q_values = self.call(state_batch, training=True)
+            q_values = self.__call__(state_batch, training=True)
             # Apply the masks to the Q-values to get the Q-value for action taken
             q_action = tf.reduce_sum(tf.multiply(q_values, action_batch_one_hot), axis=1)
             # Calculate loss between new Q-value and old Q-value

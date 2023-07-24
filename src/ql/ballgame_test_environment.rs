@@ -59,6 +59,7 @@ impl Environment for BallGameTestEnvironment {
         match self.state.do_move(action) {
             MoveResult::Illegal => (self.state(), -0.5, false),
             MoveResult::Legal { done } if done => (self.state(), 10.0, done),
+            MoveResult::Legal { done } if action == BallGameAction::Nothing => (self.state(), -0.1, done),
             MoveResult::Legal { done } => (self.state(), -0.01, done),
         }
     }
@@ -174,22 +175,22 @@ impl Action for BallGameAction {
     fn numeric(&self) -> ModelActionType {
         use BallGameAction::*;
         match self {
-            Nothing => 0,
-            West => 1,
-            North => 2,
-            East => 3,
-            South => 4,
+            Nothing => 4,
+            West => 0,
+            North => 1,
+            East => 2,
+            South => 3,
         }
     }
 
     fn try_from_numeric(value: ModelActionType) -> Result<Self> {
         use BallGameAction::*;
         match value {
-            0 => Ok(Nothing),
-            1 => Ok(West),
-            2 => Ok(North),
-            3 => Ok(East),
-            4 => Ok(South),
+            4 => Ok(Nothing),
+            0 => Ok(West),
+            1 => Ok(North),
+            2 => Ok(East),
+            3 => Ok(South),
             _ => Err(QlError(format!("value {} out of range", value)).into())
         }
     }
