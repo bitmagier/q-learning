@@ -4,6 +4,7 @@ use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 
 use anyhow::Result;
+use itertools::Itertools;
 use num_format::{CustomFormat, Grouping, ToFormattedString};
 use rand::distributions::Uniform;
 use rand::prelude::*;
@@ -61,6 +62,8 @@ impl Default for Parameter {
         }
     }
 }
+
+// TODO Add TEST without an AI model, but with a Q-tabular  
 
 /**
     A self-driving Q learning algorithm.
@@ -264,7 +267,7 @@ where
 
             // Use epsilon-greedy for exploration
             let action: E::A =
-                if self.step_count < self.param.epsilon_pure_random_steps || self.epsilon > thread_rng().gen_range(0_f64..1.0_f64) {
+                if self.step_count < self.param.epsilon_pure_random_steps || self.epsilon > thread_rng().gen_range(0_f64..1_f64) {
                     // Take random action
                     let a = thread_rng().gen_range(0..E::A::ACTION_SPACE);
                     Action::try_from_numeric(a)?
@@ -368,12 +371,14 @@ where
         for &a in &self.replay_buffer.actions().buffer {
             action_counts.entry(a).and_modify(|e| *e += 1).or_insert(1);
         }
-        let mut action_distribution_line = String::new();
+
         let total_actions = self.replay_buffer.actions().buffer.len();
-        for (&action, &count) in &action_counts {
-            let ratio = 100.0 * count as f32 / total_actions as f32;
-            action_distribution_line.push_str(&format!("({:.1}% {}) ", ratio, action));
-        }
+        let action_distribution_line = action_counts.iter()
+            .map(|(&action, &count)| {
+                let ratio = 100.0 * count as f32 / total_actions as f32;
+                format!("{:.1}% {}", ratio, action)
+            }).join(", ");
+        
         log::info!("action distribution (last {}): {}", total_actions.to_formatted_string(&number_format), action_distribution_line);
     }
 }
@@ -423,14 +428,14 @@ mod tests {
     use std::sync::{Arc, RwLock};
 
     use crate::ql::ballgame_test_environment::BallGameTestEnvironment;
-    use crate::ql::model::tensorflow::q_learning_model::{QL_MODEL_BALLGAME_3x3x4_5_32_PATH, QLearningTensorflowModel};
+    use crate::ql::model::tensorflow::q_learning_model::{QL_MODEL_BALLGAME_3x3x12_5_32_PATH, QLearningTensorflowModel};
 
     use super::*;
 
     #[test]
     fn test_learner_single_episode() -> Result<()> {
         let param = Parameter::default();
-        let model_init = || QLearningTensorflowModel::<BallGameTestEnvironment>::load(&QL_MODEL_BALLGAME_3x3x4_5_32_PATH);
+        let model_init = || QLearningTensorflowModel::<BallGameTestEnvironment>::load(&QL_MODEL_BALLGAME_3x3x12_5_32_PATH);
         let model_instance1 = model_init();
         let model_instance2 = model_init();
         let checkpoint_file = tempfile::tempdir().unwrap().into_path().join("test_learner_ckpt");

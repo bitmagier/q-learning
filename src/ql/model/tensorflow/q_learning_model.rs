@@ -12,9 +12,8 @@ use crate::ql::model::tensorflow::model_function::{ModelFunction1, ModelFunction
 use crate::ql::prelude::{Action, DEFAULT_BATCH_SIZE, Environment, ModelActionType, QLearningModel, ToMultiDimArray};
 
 lazy_static!(
-    pub static ref QL_MODEL_BALLGAME_3x3x4_5_32_PATH: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tf_model/saved/ql_model_ballgame_3x3x4_5_32");
-    // pub static ref QL_MODEL_BREAKOUT_84x84x4_3_32_PATH: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tf_model/saved/ql_model_breakout_84x84x4_3_32");
-    // pub static ref QL_MODEL_BREAKOUT_600x600x4_3_32_PATH: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tf_model/saved/ql_model_breakout_600x600x4_3_32");
+    pub static ref QL_MODEL_BALLGAME_3x3x12_5_32_PATH: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tf_model/saved/ql_model_ballgame_3x3x12_5_32");
+    pub static ref QL_MODEL_BALLGAME_3x3x12_5_512_PATH: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tf_model/saved/ql_model_ballgame_3x3x12_5_512");
 );
 
 pub struct QLearningTensorflowModel<E, const BATCH_SIZE: usize = DEFAULT_BATCH_SIZE> {
@@ -204,7 +203,7 @@ mod tests {
     const BATCH_SIZE: usize = 32;
 
     fn load_model() -> QLearningTensorflowModel<BallGameTestEnvironment, BATCH_SIZE> {
-        QLearningTensorflowModel::<BallGameTestEnvironment, BATCH_SIZE>::load(&QL_MODEL_BALLGAME_3x3x4_5_32_PATH)
+        QLearningTensorflowModel::<BallGameTestEnvironment, BATCH_SIZE>::load(&QL_MODEL_BALLGAME_3x3x12_5_32_PATH)
     }
 
     #[test]
@@ -224,7 +223,7 @@ mod tests {
         let mut env = BallGameTestEnvironment::new();
         let states_batch = [0; BATCH_SIZE].map(|_| {
             for _ in 0..5 {
-                let action = BallGameAction::try_from_numeric(thread_rng().gen_range(0..5)).unwrap();
+                let action = BallGameAction::try_from_numeric(thread_rng().gen_range(0..BallGameAction::ACTION_SPACE)).unwrap();
                 env.step(action);
             }
             Rc::new(env.state().clone())

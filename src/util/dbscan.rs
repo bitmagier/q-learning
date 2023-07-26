@@ -15,13 +15,19 @@ use num_traits::Num;
 
 pub trait Distance<Rhs = Self>: PartialOrd {
     type Output: PartialOrd + Copy + Debug;
-    fn distance(&self, rhs: &Self) -> Self::Output;
+    fn distance(
+        &self,
+        rhs: &Self,
+    ) -> Self::Output;
 }
 
 impl<T: Num + PartialOrd + Copy + Debug> Distance for T {
     type Output = T;
 
-    fn distance(&self, rhs: &Self) -> Self::Output {
+    fn distance(
+        &self,
+        rhs: &Self,
+    ) -> Self::Output {
         if self >= rhs {
             self.sub(*rhs)
         } else {
@@ -33,7 +39,10 @@ impl<T: Num + PartialOrd + Copy + Debug> Distance for T {
 #[derive(PartialEq, Debug)]
 pub struct Clusters(pub Vec<Vec<usize>>);
 impl Clusters {
-    pub fn contains(&self, element_idx: usize) -> bool {
+    pub fn contains(
+        &self,
+        element_idx: usize,
+    ) -> bool {
         self.0.iter().any(|c| c.contains(&element_idx))
     }
 }
@@ -62,7 +71,10 @@ where
     }
 }
 
-fn f32_cmp(a: &f32, b: &f32) -> Ordering {
+fn f32_cmp(
+    a: &f32,
+    b: &f32,
+) -> Ordering {
     match (a, b) {
         (a, _) if a.is_nan() => Ordering::Less,
         (_, b) if b.is_nan() => Ordering::Greater,
@@ -74,8 +86,16 @@ fn f32_cmp(a: &f32, b: &f32) -> Ordering {
 
 /// Yx(B..C), ..., Yx(noise)
 impl Display for ClusterAnalysisResult<'_, f32> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        fn cluster_range(f: &mut Formatter<'_>, max_neighbor_distance: f32, from: f32, to: f32) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        f: &mut Formatter<'_>,
+    ) -> std::fmt::Result {
+        fn cluster_range(
+            f: &mut Formatter<'_>,
+            max_neighbor_distance: f32,
+            from: f32,
+            to: f32,
+        ) -> std::fmt::Result {
             match max_neighbor_distance {
                 n if n < 0.00001 => write!(f, "{:.6}..{:.6}", from, to),
                 n if n < 0.0001 => write!(f, "{:.5}..{:.5}", from, to),
@@ -85,7 +105,7 @@ impl Display for ClusterAnalysisResult<'_, f32> {
                 _ => write!(f, "{:.1}..{:.1}", from, to),
             }
         }
-        
+
         // cluster
         for (i, c) in self
             .clusters()
@@ -95,15 +115,18 @@ impl Display for ClusterAnalysisResult<'_, f32> {
             if i != 0 {
                 write!(f, ", ")?;
             }
-            let &&from = c.iter().min_by(|&&a,&&b| f32_cmp(a,b)).expect("cluster should not be empty");
-            let &&to = c.iter().max_by(|&&a, &&b| f32_cmp(a,b)).unwrap();
+            let &&from = c.iter().min_by(|&&a, &&b| f32_cmp(a, b)).expect("cluster should not be empty");
+            let &&to = c.iter().max_by(|&&a, &&b| f32_cmp(a, b)).unwrap();
             write!(f, "{}x(", c.len())?;
             cluster_range(f, self.max_neighbor_distance, from, to)?;
             write!(f, ")")?;
         }
-        f.write_str(", ")?;
         // noise
-        write!(f, "{}x(noise)", self.noise.len())
+        if !self.noise.is_empty() {
+            f.write_str(", ")?;
+            write!(f, "{}x(noise)", self.noise.len())?;
+        }
+        Ok(())
     }
 }
 
@@ -234,7 +257,11 @@ where
 
 /// region query
 /// returns indices of all neighbors of p (including p)
-fn region_query<T>(elements: &[T], p_idx: usize, max_neighbor_distance: <T as Distance>::Output) -> Vec<usize>
+fn region_query<T>(
+    elements: &[T],
+    p_idx: usize,
+    max_neighbor_distance: <T as Distance>::Output,
+) -> Vec<usize>
 where
     T: Distance,
 {
@@ -300,7 +327,10 @@ where
 }
 
 /// append new elements (seen from `base`) from `new` into `base` (ignore entries, which are already present in base)
-fn append_new(base: &mut Vec<usize>, new: Vec<usize>) {
+fn append_new(
+    base: &mut Vec<usize>,
+    new: Vec<usize>,
+) {
     for e in new {
         if !base.contains(&e) {
             base.push(e);
@@ -326,7 +356,10 @@ mod tests {
     #[case(999, 3)]
     #[case(1000, 3)]
     #[case(1001, 4)]
-    fn test_magnitude(#[case] v: usize, #[case] m: usize) {
+    fn test_magnitude(
+        #[case] v: usize,
+        #[case] m: usize,
+    ) {
         assert_eq!(magnitude(v), m);
     }
 

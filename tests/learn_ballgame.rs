@@ -4,28 +4,31 @@ use anyhow::Result;
 
 use q_learning_breakout::ql::ballgame_test_environment::BallGameTestEnvironment;
 use q_learning_breakout::ql::learn::self_driving_q_learner::{Parameter, SelfDrivingQLearner};
-use q_learning_breakout::ql::model::tensorflow::q_learning_model::{QL_MODEL_BALLGAME_3x3x4_5_32_PATH, QLearningTensorflowModel};
+use q_learning_breakout::ql::model::tensorflow::q_learning_model::{QL_MODEL_BALLGAME_3x3x12_5_512_PATH, QLearningTensorflowModel};
 use q_learning_breakout::util::log::init_logging;
 
-
-// we are coming closer
-// [2023-07-24T18:45:25Z INFO ] episode 128_446, step count: 1_890_000, epsilon: 0.20, running reward: 6.73
-// [2023-07-24T18:45:25Z INFO ] reward distribution: 15x(-1.9..-1.2), 5x(-0.9..-0.8), 22x(8.9..9.5), 48x(9.9..10.0), 10x(noise)
-// [2023-07-24T18:45:25Z INFO ] action distribution (last 500_000): (6.3% Nothing) (35.3% North) (22.6% South) (16.7% West) (19.1% East)
+// Der aktuelle Stand ist eine brauchbare Ausgangslage um das Model und den Lernprozess zu optimieren.
+// Aktuell erreichen wir einen Lernerfolg von ca. 66%.
+// [2023-07-26T09:40:07Z INFO ] episode 476_869, step count: 3_730_000, epsilon: 0.05, running reward: 3.05
+// [2023-07-26T09:40:07Z INFO ] reward distribution: 96x(-1.1..-1.0), 204x(4.9..5.0)
+// [2023-07-26T09:40:07Z INFO ] action distribution (last 200_000): 20.2% Nothing, 31.0% North, 11.3% South, 20.0% West, 17.5% East
 
 #[test]
 fn test_learn_ballgame_until_mastered() -> Result<()>{
     init_logging();
-
+    
     let mut param = Parameter::default();
-    param.max_steps_per_episode = 24;
+    param.max_steps_per_episode = 20;
     param.update_after_actions = 4;
-    param.history_buffer_len = 500_000;
+    param.history_buffer_len = 200_000;
+    param.epsilon_pure_random_steps = 50_000; 
     param.epsilon_greedy_steps = 2_000_000.0;
-    param.episode_reward_history_buffer_len = 100;
-    param.epsilon_min = 0.15;
+    param.episode_reward_history_buffer_len = 300;
+    param.epsilon_max = 1.0;
+    param.epsilon_min = 0.05;
 
-    let model_init = || QLearningTensorflowModel::<BallGameTestEnvironment, 32>::load(&QL_MODEL_BALLGAME_3x3x4_5_32_PATH);
+    const BATCH_SIZE: usize = 512;
+    let model_init = || QLearningTensorflowModel::<BallGameTestEnvironment, BATCH_SIZE>::load(&QL_MODEL_BALLGAME_3x3x12_5_512_PATH);
     let model_instance1 = model_init();
     let model_instance2 = model_init();
     let checkpoint_file = tempfile::tempdir().unwrap().into_path().join("test_learner_ckpt");
