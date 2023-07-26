@@ -11,26 +11,27 @@ ACTION_SPACE = 5
 
 class QLearningModel_BallGame_3x3x12_5_512(tf.keras.Sequential):
 
+    # TODO make leaner=faster!
     def __init__(self, *args, **kwargs):
         super(QLearningModel_BallGame_3x3x12_5_512, self).__init__(*args, **kwargs)
         self.add(tf.keras.Input(shape=(INPUT_SIZE_X, INPUT_SIZE_Y, INPUT_CHANNELS,)))
-        self.add(layers.Conv2D(filters=64, kernel_size=(3, 3), padding="same", activation="relu"))
-        # # self.add(layers.MaxPooling2D())
-        # TODO add a Conv2D layer and remove a Dense layer
-        self.add(layers.Conv2D(filters=64, kernel_size=1, activation="relu"))
+        # self.add(layers.Conv2D(filters=32, kernel_size=(3, 3), padding="same", activation="relu"))
+        # self.add(layers.Conv2D(filters=32, kernel_size=(3, 3), padding="same", activation="relu"))
         self.add(layers.Flatten(name='flatten'))
-        self.add(layers.Dense(256, activation='relu', name='full_layer1'))
-        self.add(layers.Dense(256, activation='sigmoid', name='full_layer2'))
+        self.add(layers.Dense(256, activation='sigmoid'))
+        self.add(layers.Dense(128, activation='sigmoid'))
+        self.add(layers.Dense(128, activation='sigmoid'))
+        # self.add(layers.Dense(256, activation='sigmoid', name='full_layer2'))
         self.add(layers.Dense(ACTION_SPACE, activation='softmax', name='action_layer'))
 
         # learning_rate = keras.optimizers.learning_rate_schedule.PolynomialDecay(
-        #     initial_learning_rate=0.01,
-        #     decay_steps=500_000,
-        #     end_learning_rate=0.00025,
-        #     power=2.0)
+        #      initial_learning_rate=0.01,
+        #      decay_steps=500_000,
+        #      end_learning_rate=0.00025,
+        #      power=2.0)
 
         self.compile(
-            optimizer=keras.optimizers.Adam(learning_rate=0.0005, clipnorm=1.0),
+            optimizer=keras.optimizers.Adam(learning_rate=0.0005),
             loss=keras.losses.MeanSquaredError(),
             metrics=['accuracy'],
             jit_compile=True

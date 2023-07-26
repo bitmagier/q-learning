@@ -376,7 +376,7 @@ where
         let action_distribution_line = action_counts.iter()
             .map(|(&action, &count)| {
                 let ratio = 100.0 * count as f32 / total_actions as f32;
-                format!("{:.1}% {}", ratio, action)
+                format!("{} {:.1}%", action, ratio)
             }).join(", ");
         
         log::info!("action distribution (last {}): {}", total_actions.to_formatted_string(&number_format), action_distribution_line);

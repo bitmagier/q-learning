@@ -13,6 +13,12 @@ use q_learning_breakout::util::log::init_logging;
 // [2023-07-26T09:40:07Z INFO ] reward distribution: 96x(-1.1..-1.0), 204x(4.9..5.0)
 // [2023-07-26T09:40:07Z INFO ] action distribution (last 200_000): 20.2% Nothing, 31.0% North, 11.3% South, 20.0% West, 17.5% East
 
+// Now. WHY?
+// [2023-07-26T15:29:07Z INFO ] episode 437_621, step count: 3_290_000, epsilon: 0.10, running reward: 2.62
+// [2023-07-26T15:29:07Z INFO ] reward distribution: 117x(-1.1..-1.0), 183x(4.9..5.0)
+// [2023-07-26T15:29:07Z INFO ] action distribution (last 100_000): Nothing 13.5%, North 31.5%, South 9.0%, West 23.6%, East 22.4%
+// Ist das Model überhaupt lernbar?
+
 #[test]
 fn test_learn_ballgame_until_mastered() -> Result<()>{
     init_logging();
@@ -20,12 +26,12 @@ fn test_learn_ballgame_until_mastered() -> Result<()>{
     let mut param = Parameter::default();
     param.max_steps_per_episode = 20;
     param.update_after_actions = 4;
-    param.history_buffer_len = 200_000;
+    param.history_buffer_len = 100_000;
     param.epsilon_pure_random_steps = 50_000; 
-    param.epsilon_greedy_steps = 2_000_000.0;
+    param.epsilon_greedy_steps = 1_000_000.0;
     param.episode_reward_history_buffer_len = 300;
     param.epsilon_max = 1.0;
-    param.epsilon_min = 0.05;
+    param.epsilon_min = 0.10;
 
     const BATCH_SIZE: usize = 512;
     let model_init = || QLearningTensorflowModel::<BallGameTestEnvironment, BATCH_SIZE>::load(&QL_MODEL_BALLGAME_3x3x12_5_512_PATH);
