@@ -5,15 +5,15 @@ from keras import layers, optimizers, losses
 BATCH_SIZE = 512
 INPUT_SIZE_X = 3
 INPUT_SIZE_Y = 3
-INPUT_CHANNELS = 4 * 3
+INPUT_CHANNELS = 4
 ACTION_SPACE = 5
 
 
-class QLearningModel_BallGame_3x3x12_5_512(tf.keras.Sequential):
+class QLearningModel_BallGame_3x3x4_5_512(tf.keras.Sequential):
 
     # TODO make leaner=faster!
     def __init__(self, *args, **kwargs):
-        super(QLearningModel_BallGame_3x3x12_5_512, self).__init__(*args, **kwargs)
+        super(QLearningModel_BallGame_3x3x4_5_512, self).__init__(*args, **kwargs)
         self.add(tf.keras.Input(shape=(INPUT_SIZE_X, INPUT_SIZE_Y, INPUT_CHANNELS,)))
         # self.add(layers.Conv2D(filters=32, kernel_size=(3, 3), padding="same", activation="relu"))
         # self.add(layers.Conv2D(filters=32, kernel_size=(3, 3), padding="same", activation="relu"))
@@ -76,33 +76,35 @@ class QLearningModel_BallGame_3x3x12_5_512(tf.keras.Sequential):
 
         # Backpropagation
         grads = tape.gradient(loss, self.trainable_variables)
-        self.optimizer.apply_gradients(zip(grads, self.trainable_variables))
+        _ = self.optimizer.apply_gradients(zip(grads, self.trainable_variables))
 
         return {'loss': loss}
 
     @tf.function(input_signature=[tf.TensorSpec(shape=None, dtype=tf.string, name='file')])
     def write_checkpoint(self, file):
         checkpoint = tf.train.Checkpoint(self)
-        file = checkpoint.write(file)
-        return {'file': tf.convert_to_tensor(file)}
+        out = checkpoint.write(file)
+        return {'file': tf.convert_to_tensor(out)}
 
     @tf.function(input_signature=[tf.TensorSpec(shape=None, dtype=tf.string, name='file')])
     def read_checkpoint(self, file):
         checkpoint = tf.train.Checkpoint(self)
         file = tf.get_static_value(file)
-        checkpoint.read(file)
+        status = checkpoint.read(file)
+        if file is not None:
+            status.assert_consumed()
         return {'dummy': tf.constant("")}
 
 
-model = QLearningModel_BallGame_3x3x12_5_512()
+model = QLearningModel_BallGame_3x3x4_5_512()
 model.summary()
 
-model.save('saved/ql_model_ballgame_3x3x12_5_512',
+model.save('saved/ql_model_ballgame_3x3x4_5_512',
            save_format='tf',
            signatures={
                'predict_action': model.predict_action,
                'batch_predict_max_future_reward': model.batch_predict_max_future_reward,
                'train_model': model.train_model,
                'write_checkpoint': model.write_checkpoint,
-               'read_checkpoint': model.read_checkpoint
+               'read_checkpoint': model.read_checkpoint,
            })

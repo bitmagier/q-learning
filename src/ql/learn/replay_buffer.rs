@@ -1,5 +1,6 @@
 use std::collections::VecDeque;
-use itertools::Itertools;
+
+use itertools::{Itertools, MinMaxResult};
 
 pub struct Buffer<T> {
     pub max_buffer_len: usize,
@@ -88,22 +89,31 @@ where A: Copy
         let c = &self.episode_reward_history.buffer;
         c.iter().sum::<f32>() / c.len() as f32
     }
-    
+
+    pub fn min_episode_reward(&self) -> f32 {
+        assert!(self.episode_reward_history.len() > 0);
+        match self.episode_reward_history.buffer.iter().minmax() {
+            MinMaxResult::NoElements => panic!(),
+            MinMaxResult::OneElement(e) => *e,
+            MinMaxResult::MinMax(min, _) => *min
+        }
+    }
+
     pub fn actions(&self) -> &Buffer<A> {
         &self.action_history
     }
-    
+
     pub fn episode_rewards(&self) -> Vec<f32> {
-        self.episode_reward_history.buffer.iter().map(|e| *e).collect_vec()
+        self.episode_reward_history.buffer.iter().copied().collect_vec()
     }
 
     pub fn get_many<const N: usize>(&self, indices: &[usize; N]) -> BufferSample<N, S, A> {
         BufferSample {
-            state: self.state_history.get_many(&indices),
-            state_next: self.state_next_history.get_many(&indices),
-            reward: self.reward_history.get_many_as_val(&indices),
-            action: self.action_history.get_many_as_val(&indices),
-            done: self.done_history.get_many_as_val(&indices),
+            state: self.state_history.get_many(indices),
+            state_next: self.state_next_history.get_many(indices),
+            reward: self.reward_history.get_many_as_val(indices),
+            action: self.action_history.get_many_as_val(indices),
+            done: self.done_history.get_many_as_val(indices),
         }
     }
 }

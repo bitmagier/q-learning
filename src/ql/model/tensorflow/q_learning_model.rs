@@ -12,8 +12,7 @@ use crate::ql::model::tensorflow::model_function::{ModelFunction1, ModelFunction
 use crate::ql::prelude::{Action, DEFAULT_BATCH_SIZE, Environment, ModelActionType, QLearningModel, ToMultiDimArray};
 
 lazy_static!(
-    pub static ref QL_MODEL_BALLGAME_3x3x12_5_32_PATH: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tf_model/saved/ql_model_ballgame_3x3x12_5_32");
-    pub static ref QL_MODEL_BALLGAME_3x3x12_5_512_PATH: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tf_model/saved/ql_model_ballgame_3x3x12_5_512");
+    pub static ref QL_MODEL_BALLGAME_3x3x4_5_512_PATH: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tf_model/saved/ql_model_ballgame_3x3x4_5_512");
 );
 
 pub struct QLearningTensorflowModel<E, const BATCH_SIZE: usize = DEFAULT_BATCH_SIZE> {
@@ -46,7 +45,7 @@ where
             &mut graph,
             model_dir.to_str().expect("should have UTF-8 compatible path"),
         )
-        .expect("Can't load model");
+            .expect("Can't load model");
 
         // One way to get output names via saved_model_cli:
         // saved_model_cli show --dir /path/to/saved-model/ --all
@@ -200,10 +199,10 @@ mod tests {
 
     use super::*;
 
-    const BATCH_SIZE: usize = 32;
+    const BATCH_SIZE: usize = 512;
 
     fn load_model() -> QLearningTensorflowModel<BallGameTestEnvironment, BATCH_SIZE> {
-        QLearningTensorflowModel::<BallGameTestEnvironment, BATCH_SIZE>::load(&QL_MODEL_BALLGAME_3x3x12_5_32_PATH)
+        QLearningTensorflowModel::<BallGameTestEnvironment, BATCH_SIZE>::load(&QL_MODEL_BALLGAME_3x3x4_5_512_PATH)
     }
 
     #[test]

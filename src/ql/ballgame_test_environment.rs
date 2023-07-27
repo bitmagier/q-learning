@@ -1,4 +1,3 @@
-use std::collections::VecDeque;
 use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 
@@ -11,17 +10,7 @@ use tensorflow::Tensor;
 
 use crate::ql::prelude::{Action, DebugVisualizer, Environment, ModelActionType, QlError, ToMultiDimArray};
 
-#[derive(Clone)]
-pub struct BallGameStateFrames {
-    frames: VecDeque<BallGameState>,
-    steps: usize,
-}
-impl BallGameStateFrames {
-    pub fn now(&self) -> &BallGameState { self.frames.front().expect("should have one state") }
-}
-
-const NUM_FRAMES: usize = 3;
-const MAX_STEPS: usize = 10;
+const MAX_STEPS: usize = 20;
 
 /// A quite simple TestEnvironment simulating a ball game.
 ///
@@ -34,54 +23,41 @@ const MAX_STEPS: usize = 10;
 /// - Game goal: move the ball into the goal - each round one step into one of the available directions: (west, north, east or south)
 ///
 /// This environment requires a q-learning model with:
-/// - input dims: `[3,3,12]`  (3x3 pixel, 3 frames x 4 channels)
+/// - input dims: `[3,3,4]`  (3x3 pixel, 4 channels)
 /// - out dims: `[5]`
-/// - batch_size: 32
+/// - batch_size: 512
+#[derive(Clone)]
 pub struct BallGameTestEnvironment {
-    state: BallGameStateFrames,
+    state: BallGameState,
 }
 
 impl BallGameTestEnvironment {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self {
-            state: BallGameStateFrames {
-                frames: VecDeque::from([BallGameState::random_initial_state()]),
-                steps: 0,
-            },
-        }
-    }
-
-    fn add_new_state(
-        &mut self,
-        state: BallGameState,
-    ) {
-        self.state.steps += 1;
-        self.state.frames.push_front(state);
-        if self.state.frames.len() > NUM_FRAMES {
-            self.state.frames.pop_back();
-            assert_eq!(self.state.frames.len(), NUM_FRAMES);
+            state: BallGameState::random_initial_state(),
         }
     }
 
     #[cfg(test)]
     pub fn test_state_00_01_11_22() -> Self {
         Self {
-            state: BallGameStateFrames {
-                frames: VecDeque::from([BallGameState::test_state_00_01_11_22()]),
-                steps: 0,
-            },
+            state: BallGameState::test_state_00_01_11_22(),
         }
     }
 }
 
+impl Default for BallGameTestEnvironment {
+    fn default() -> Self {
+        BallGameTestEnvironment::new()
+    }
+}
+
 impl Environment for BallGameTestEnvironment {
-    type S = BallGameStateFrames;
+    type S = BallGameState;
     type A = BallGameAction;
 
     fn reset(&mut self) {
-        self.state.frames.clear();
-        self.state.frames.push_front(BallGameState::random_initial_state());
-        self.state.steps = 0;
+        self.state = BallGameState::random_initial_state();
     }
 
     fn state(&self) -> &Self::S { &self.state }
@@ -90,24 +66,24 @@ impl Environment for BallGameTestEnvironment {
         &mut self,
         action: Self::A,
     ) -> (&Self::S, f32, bool) {
-        let mut state = self.state.now().clone();
-        let r = state.do_move(action);
-        self.add_new_state(state);
+        let r = self.state.do_move(action);
 
         if let MoveResult::Legal { done: true } = r {
             (self.state(), 5.0, true)
         } else if self.state.steps >= MAX_STEPS {
-            (self.state(), -1.0, true)
+            (self.state(), -5.0, true)
         } else if let MoveResult::Legal { done: false } = r {
-            (self.state(), -0.005, false)
-        } else if let MoveResult::Illegal = r {
             (self.state(), -0.01, false)
+        } else if let MoveResult::Illegal = r {
+            (self.state(), -0.5, false)
         } else {
             unreachable!()
         }
     }
 
-    fn total_reward_goal(&self) -> f32 { 4.5 }
+    fn reward_goal_all_episodes_mean(&self) -> f32 { 4.9 }
+
+    fn reward_goal_episode_min(&self) -> f32 { 4.7 }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -115,6 +91,7 @@ pub struct BallGameState {
     /// [x,y]
     field: Field,
     ball_coord: (usize, usize),
+    steps: usize,
 }
 
 impl BallGameState {
@@ -136,7 +113,11 @@ impl BallGameState {
         field.set(obstacle1_coord, Entry::Obstacle);
         field.set(obstacle2_coord, Entry::Obstacle);
 
-        BallGameState { field, ball_coord }
+        BallGameState { field, ball_coord, steps: 0 }
+    }
+
+    pub fn steps(&self) -> usize {
+        self.steps
     }
 
     fn do_move(
@@ -144,8 +125,11 @@ impl BallGameState {
         action: BallGameAction,
     ) -> MoveResult {
         use BallGameAction::*;
+
         const VALID_TARGET_ENTRIES: [Entry; 2] = [Entry::Empty, Entry::Goal];
         let valid_target_coord = |x, y| VALID_TARGET_ENTRIES.contains(&self.field.get((x, y)));
+
+        self.steps += 1;
 
         let (x, y) = self.ball_coord;
         let valid_target = match action {
@@ -178,7 +162,7 @@ impl BallGameState {
         field.set((1, 1), Entry::Obstacle);
         field.set((2, 2), Entry::Ball);
 
-        BallGameState { field, ball_coord: (2, 2) }
+        BallGameState { field, ball_coord: (2, 2), steps: 0 }
     }
 }
 
@@ -264,15 +248,14 @@ impl Default for Field {
     fn default() -> Self { Field([[Entry::Empty; 3]; 3]) }
 }
 
-impl DebugVisualizer for BallGameStateFrames {
+impl DebugVisualizer for BallGameState {
     fn one_line_info(&self) -> String {
-        let state = self.now();
-        let goal_pos_x = (0_usize..3).find(|&x| state.field.get((x, 0)) == Entry::Goal);
+        let goal_pos_x = (0_usize..3).find(|&x| self.field.get((x, 0)) == Entry::Goal);
         let distance = match goal_pos_x {
             None => 0, // ball already on goal pos
             Some(goal_pos_x) => {
-                let distance_x = (state.ball_coord.0 as isize - goal_pos_x as isize).abs();
-                let distance_y = (state.ball_coord.1 - 0) as isize;
+                let distance_x = (self.ball_coord.0 as isize - goal_pos_x as isize).abs();
+                let distance_y = (self.ball_coord.1) as isize;
                 distance_x + distance_y
             }
         };
@@ -280,13 +263,11 @@ impl DebugVisualizer for BallGameStateFrames {
     }
 
     fn render_to_console(&self) -> Screen {
-        let mut screen = Screen::new_empty(3, 3);
-        screen.clear();
+        let mut screen = Screen::new_fill(3, 3, pixel::pxl(' '));
 
-        let state = self.now();
-        for y in 0..state.field.0.len() {
-            for x in 0..state.field.0[0].len() {
-                let pixel: Option<Pixel> = match state.field.get((x, y)) {
+        for y in 0..self.field.0.len() {
+            for x in 0..self.field.0[0].len() {
+                let pixel: Option<Pixel> = match self.field.get((x, y)) {
                     Entry::Empty => None,
                     Entry::Goal => Some(pixel::pxl('□')),
                     Entry::Ball => Some(pixel::pxl('●')),
@@ -307,42 +288,38 @@ const CHANNEL_GOAL: u64 = 1;
 const CHANNEL_BALL: u64 = 2;
 const CHANNEL_OBSTACLE: u64 = 3;
 
-impl ToMultiDimArray<Tensor<f32>> for BallGameStateFrames {
-    fn dims(&self) -> &[u64] { &[3_u64, 3_u64, 12_u64] }
+impl ToMultiDimArray<Tensor<f32>> for BallGameState {
+    fn dims(&self) -> &[u64] { &[3_u64, 3_u64, 4_u64] }
 
     // TODO (maybe) eliminate that special function by using a batch of 1 instead (also adjust/merge TF model function)
     fn to_multi_dim_array(&self) -> Tensor<f32> {
-        let mut tensor = Tensor::new(&[3_u64, 3_u64, 12_u64]);
-        for (i_frame, frame) in self.frames.iter().enumerate() {
-            for y in 0_u64..3 {
-                for x in 0_u64..3 {
-                    let channel = match frame.field.get((x as usize, y as usize)) {
-                        Entry::Empty => CHANNEL_EMPTY,
-                        Entry::Goal => CHANNEL_GOAL,
-                        Entry::Ball => CHANNEL_BALL,
-                        Entry::Obstacle => CHANNEL_OBSTACLE,
-                    };
-                    tensor.set(&[x, y, (i_frame * 4) as u64 + channel], 1.0);
-                }
+        let mut tensor = Tensor::new(&[3_u64, 3_u64, 4_u64]);
+        for y in 0_u64..3 {
+            for x in 0_u64..3 {
+                let channel = match self.field.get((x as usize, y as usize)) {
+                    Entry::Empty => CHANNEL_EMPTY,
+                    Entry::Goal => CHANNEL_GOAL,
+                    Entry::Ball => CHANNEL_BALL,
+                    Entry::Obstacle => CHANNEL_OBSTACLE,
+                };
+                tensor.set(&[x, y, channel], 1.0);
             }
         }
         tensor
     }
 
     fn batch_to_multi_dim_array<const N: usize>(batch: &[&Rc<Self>; N]) -> Tensor<f32> {
-        let mut tensor = Tensor::new(&[N as u64, 3_u64, 3_u64, 12_u64]);
-        for b in 0_u64..N as u64 {
-            for (i_frame, frame) in batch[b as usize].frames.iter().enumerate() {
-                for y in 0_u64..3 {
-                    for x in 0_u64..3 {
-                        let channel = match frame.field.get((x as usize, y as usize)) {
-                            Entry::Empty => CHANNEL_EMPTY,
-                            Entry::Goal => CHANNEL_GOAL,
-                            Entry::Ball => CHANNEL_BALL,
-                            Entry::Obstacle => CHANNEL_OBSTACLE,
-                        };
-                        tensor.set(&[b, x, y, (i_frame * 4) as u64 + channel], 1.0)
-                    }
+        let mut tensor = Tensor::new(&[N as u64, 3_u64, 3_u64, 4_u64]);
+        for (b, &state) in batch.iter().enumerate() {
+            for y in 0_u64..3 {
+                for x in 0_u64..3 {
+                    let channel = match state.field.get((x as usize, y as usize)) {
+                        Entry::Empty => CHANNEL_EMPTY,
+                        Entry::Goal => CHANNEL_GOAL,
+                        Entry::Ball => CHANNEL_BALL,
+                        Entry::Obstacle => CHANNEL_OBSTACLE,
+                    };
+                    tensor.set(&[b as u64, x, y, channel], 1.0)
                 }
             }
         }
@@ -357,23 +334,20 @@ mod tests {
     #[test]
     fn test_ballgame_environment() {
         let mut env = BallGameTestEnvironment::test_state_00_01_11_22();
-        let initial_state = env.state().now().clone();
+        let initial_state = env.state().clone();
         let (state, reward, done) = env.step(BallGameAction::East);
-        let state = state.now();
         assert_eq!(state.field, initial_state.field);
         assert_eq!(state.ball_coord, initial_state.ball_coord);
         assert!(reward < 0.0);
         assert_eq!(done, false);
 
         let (state, reward, done) = env.step(BallGameAction::South);
-        let state = state.now();
         assert_eq!(state.field, initial_state.field);
         assert_eq!(state.ball_coord, initial_state.ball_coord);
         assert!(reward < 0.0);
         assert_eq!(done, false);
 
         let (state, reward, done) = env.step(BallGameAction::North);
-        let state = state.now();
         assert_eq!(state.ball_coord, (2, 1));
         assert_eq!(state.field.get((2, 1)), Entry::Ball);
         assert_eq!(state.field.get((2, 2)), Entry::Empty);
@@ -389,19 +363,16 @@ mod tests {
 
         let last_state = state.clone();
         let (state, _, _) = env.step(BallGameAction::West);
-        let state = state.now();
         assert_eq!(state.field, last_state.field);
         assert_eq!(state.ball_coord, last_state.ball_coord);
 
         let (state, reward, done) = env.step(BallGameAction::East);
-        let state = state.now();
         assert_eq!(state.field, last_state.field);
         assert_eq!(state.ball_coord, last_state.ball_coord);
         assert!(reward <= 0.0);
         assert_eq!(done, false);
 
         let (state, reward, done) = env.step(BallGameAction::North);
-        let state = state.now();
         assert_eq!(state.ball_coord, (2, 0));
         assert_eq!(state.field.get((2, 1)), Entry::Empty);
         assert_eq!(state.field.get((2, 0)), Entry::Ball);
@@ -410,14 +381,12 @@ mod tests {
 
         let last_state = state.clone();
         let (state, reward, done) = env.step(BallGameAction::North);
-        let state = state.now();
         assert_eq!(state.field, last_state.field);
         assert_eq!(state.ball_coord, last_state.ball_coord);
         assert!(reward <= 0.0);
         assert_eq!(done, false);
 
         let (state, reward, done) = env.step(BallGameAction::West);
-        let state = state.now();
         assert!(reward <= 0.0);
         assert_eq!(done, false);
         assert_eq!(state.ball_coord, (1, 0));
@@ -426,21 +395,19 @@ mod tests {
 
         let last_state = state.clone();
         let (state, reward, done) = env.step(BallGameAction::North);
-        let state = state.now();
         assert_eq!(state.field, last_state.field);
         assert_eq!(state.ball_coord, last_state.ball_coord);
         assert!(reward <= 0.0);
         assert_eq!(done, false);
 
         let (state, reward, done) = env.step(BallGameAction::West);
-        let state = state.now();
         assert_eq!(state.ball_coord, (0, 0));
         assert_eq!(state.field.get((1, 0)), Entry::Empty);
         assert_eq!(state.field.get((0, 0)), Entry::Ball);
         assert_eq!(state.field.get((0, 1)), Entry::Obstacle);
         assert_eq!(state.field.get((1, 1)), Entry::Obstacle);
 
-        assert!(reward > env.total_reward_goal());
+        assert!(reward > env.reward_goal_all_episodes_mean());
         assert_eq!(done, true)
     }
 }

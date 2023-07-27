@@ -55,14 +55,16 @@ pub trait Environment {
         &mut self,
         action: Self::A,
     ) -> (Rc<Self::S>, f32, bool) {
-        match self.step(action) {
-            (state, reward, done) => (Rc::new(state.clone()), reward, done),
-        }
+        let (state, reward, done) = self.step(action);
+        (Rc::new(state.clone()), reward, done)
     }
 
-    /// Total reward considering the task solved
+    /// Average reward to reach over all episodes
     /// (expected to be a constant - not a moving target)
-    fn total_reward_goal(&self) -> f32;
+    fn reward_goal_all_episodes_mean(&self) -> f32;
+
+    /// Minimum reward to reach for any single episode
+    fn reward_goal_episode_min(&self) -> f32;
 }
 
 pub const DEFAULT_BATCH_SIZE: usize = 32;
@@ -159,6 +161,12 @@ pub trait ToMultiDimArray<D> {
 
 #[derive(Debug)]
 pub struct QlError(pub String);
+
+impl QlError {
+    pub fn from(msg: &str) -> Self {
+        QlError(msg.to_string())
+    }
+}
 
 impl Display for QlError {
     fn fmt(

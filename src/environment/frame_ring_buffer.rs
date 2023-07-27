@@ -47,7 +47,7 @@ impl<const NUM_FRAMES: usize> FrameRingBuffer<NUM_FRAMES> {
         assert!(steps_into_history < 4, "available steps into history: 0..3");
         let slot = match self.next_slot as isize - 1 - steps_into_history as isize {
             slot @ 0.. => slot as usize,
-            slot @ _ => (slot + 4) as usize
+            slot => (slot + 4) as usize
         };
         &self.buffer[slot]
     }

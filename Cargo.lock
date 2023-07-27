@@ -2566,6 +2566,7 @@ dependencies = [
  "eframe",
  "egui",
  "env_logger",
+ "glob",
  "image",
  "itertools",
  "lazy_static",

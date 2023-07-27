@@ -1,16 +1,15 @@
 use std::fmt::{Debug, Display, Formatter};
 use std::rc::Rc;
 
+use anyhow::Result;
 use console_engine::screen::Screen;
 use image::{imageops, Pixel};
 use tensorflow::Tensor;
-use anyhow::Result;
 
 use crate::environment::breakout::breakout_drawer::BreakoutDrawer;
 use crate::environment::breakout::mechanics::{BreakoutMechanics, GameInput, PanelControl};
 use crate::environment::frame_ring_buffer::FrameRingBuffer;
 use crate::ql::prelude::{Action, DebugVisualizer, Environment, ModelActionType, QlError, ToMultiDimArray};
-
 
 const WORLD_STATE_NUM_FRAMES: usize = 4;
 
@@ -60,7 +59,7 @@ impl ToMultiDimArray<Tensor<f32>> for BreakoutState {
         dims.extend_from_slice(&batch[0].model_dims);
         let mut tensor = Tensor::new(&dims);
 
-        for (batch_num, &state) in batch.into_iter().enumerate() {
+        for (batch_num, &state) in batch.iter().enumerate() {
             for hist in 0..WORLD_STATE_NUM_FRAMES {
                 let frame = &state.frame_buffer.buffer[hist];
                 debug_assert_eq!(frame.len(), (frame_size_x * frame_size_y));
@@ -135,7 +134,7 @@ impl BreakoutEnvironment {
             frame_size_x,
             frame_size_y,
             state: BreakoutState {
-                mechanics: BreakoutMechanics::new(),
+                mechanics: BreakoutMechanics::default(),
                 frame_buffer: FrameRingBuffer::new(frame_size_x, frame_size_y),
                 model_dims: [frame_size_x as u64, frame_size_y as u64, WORLD_STATE_NUM_FRAMES as u64],
             },
@@ -167,7 +166,7 @@ impl Environment for BreakoutEnvironment {
     type A = BreakoutAction;
 
     fn reset(&mut self) {
-        self.state.mechanics = BreakoutMechanics::new();
+        self.state.mechanics = BreakoutMechanics::default();
         self.state.frame_buffer = FrameRingBuffer::new(self.frame_size_x, self.frame_size_y)
     }
 
@@ -191,8 +190,12 @@ impl Environment for BreakoutEnvironment {
         (state, reward, done)
     }
 
-    fn total_reward_goal(&self) -> f32 {
+    fn reward_goal_all_episodes_mean(&self) -> f32 {
         // hanging the goal a little lower than the exact value to avoid obstructive blur effects introduced by float calculations
-        (BreakoutMechanics::new().bricks.len() - 1) as f32
+        (BreakoutMechanics::default().bricks.len() - 1) as f32
+    }
+
+    fn reward_goal_episode_min(&self) -> f32 {
+        self.reward_goal_all_episodes_mean()
     }
 }

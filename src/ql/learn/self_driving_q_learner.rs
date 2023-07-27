@@ -189,7 +189,7 @@ impl Default for Parameter {
 pub struct SelfDrivingQLearner<E, M, const BATCH_SIZE: usize>
 where
     E: Environment,
-    M: QLearningModel<BATCH_SIZE, E = E>,
+    M: QLearningModel<BATCH_SIZE, E=E>,
 {
     environment: Arc<RwLock<E>>,
     param: Immutable<Parameter>,
@@ -208,7 +208,7 @@ where
 impl<E, M, const BATCH_SIZE: usize> SelfDrivingQLearner<E, M, BATCH_SIZE>
 where
     E: Environment,
-    M: QLearningModel<BATCH_SIZE, E = E>,
+    M: QLearningModel<BATCH_SIZE, E=E>,
 {
     pub fn new(environment: Arc<RwLock<E>>, param: Parameter, model_instance1: M, model_instance2: M, checkpoint_file: &Path) -> Self {
         let checkpoint_file = checkpoint_file
@@ -234,8 +234,8 @@ where
 
     pub fn load_model_checkpoint(&mut self, checkpoint_file: &Path) {
         let checkpoint_file = checkpoint_file.to_str().expect("file name should have a UTF-8 compatible path");
-        self.model.read_checkpoint(&checkpoint_file);
-        self.stabilized_model.read_checkpoint(&checkpoint_file);
+        self.model.read_checkpoint(checkpoint_file);
+        self.stabilized_model.read_checkpoint(checkpoint_file);
     }
 
     pub fn learn_till_mastered(&mut self) -> Result<()> {
@@ -246,7 +246,10 @@ where
     }
 
     pub fn solved(&self) -> bool {
-        if self.running_reward >= self.environment.read().unwrap().total_reward_goal() {
+        let env = self.environment.read().unwrap();
+        if self.running_reward >= env.reward_goal_all_episodes_mean()
+            && self.replay_buffer.min_episode_reward() >= env.reward_goal_episode_min()
+        {
             log::info!("Solved at episode {}!", self.episode_count);
             true
         } else {
@@ -308,7 +311,7 @@ where
                 let mut updated_q_values = add_arrays(&replay_samples.reward, &array_mul(max_future_rewards, self.param.gamma));
 
                 // for terminal steps, the updated q-value shall be exactly the reward (see deepmind paper)
-                for (i,_) in replay_samples.state.iter().enumerate() {
+                for (i, _) in replay_samples.state.iter().enumerate() {
                     if replay_samples.done[i] {
                         updated_q_values[i] = replay_samples.reward[i]
                     }
@@ -378,7 +381,7 @@ where
                 let ratio = 100.0 * count as f32 / total_actions as f32;
                 format!("{} {:.1}%", action, ratio)
             }).join(", ");
-        
+
         log::info!("action distribution (last {}): {}", total_actions.to_formatted_string(&number_format), action_distribution_line);
     }
 }
@@ -428,14 +431,14 @@ mod tests {
     use std::sync::{Arc, RwLock};
 
     use crate::ql::ballgame_test_environment::BallGameTestEnvironment;
-    use crate::ql::model::tensorflow::q_learning_model::{QL_MODEL_BALLGAME_3x3x12_5_32_PATH, QLearningTensorflowModel};
+    use crate::ql::model::tensorflow::q_learning_model::{QL_MODEL_BALLGAME_3x3x4_5_512_PATH, QLearningTensorflowModel};
 
     use super::*;
 
     #[test]
     fn test_learner_single_episode() -> Result<()> {
         let param = Parameter::default();
-        let model_init = || QLearningTensorflowModel::<BallGameTestEnvironment>::load(&QL_MODEL_BALLGAME_3x3x12_5_32_PATH);
+        let model_init = || QLearningTensorflowModel::<BallGameTestEnvironment>::load(&QL_MODEL_BALLGAME_3x3x4_5_512_PATH);
         let model_instance1 = model_init();
         let model_instance2 = model_init();
         let checkpoint_file = tempfile::tempdir().unwrap().into_path().join("test_learner_ckpt");

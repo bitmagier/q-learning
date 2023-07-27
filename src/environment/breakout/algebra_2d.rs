@@ -3,6 +3,7 @@ use parry2d::na::{Isometry2, Vector2};
 use parry2d::query;
 use parry2d::query::Contact;
 use parry2d::shape::{Ball, Cuboid};
+
 use crate::environment::breakout::mechanics::CONTACT_PREDICTION;
 
 /// Axis-aligned Bounding Box
@@ -39,7 +40,8 @@ pub struct Circle {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ContactSurface {
     pub way: f32,
-    pub approximation: f32, // after way
+    pub approximation: f32,
+    // after way
     pub surface_normal: Vec2,
 }
 
@@ -65,5 +67,5 @@ pub fn contact_test_circle_aabb(circle: &Circle, aabb: &AaBB) -> Option<Contact>
         )),
         CONTACT_PREDICTION,
     )
-    .expect("contact calculation failed")
+        .expect("contact calculation failed")
 }

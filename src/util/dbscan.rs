@@ -38,6 +38,7 @@ impl<T: Num + PartialOrd + Copy + Debug> Distance for T {
 
 #[derive(PartialEq, Debug)]
 pub struct Clusters(pub Vec<Vec<usize>>);
+
 impl Clusters {
     pub fn contains(
         &self,
@@ -167,7 +168,7 @@ pub fn magnitude(value: usize) -> usize {
     let mut v = value - 1;
     let mut mag = 1;
     loop {
-        v = v / 10;
+        v /= 10;
         if v == 0 {
             return mag;
         } else {
@@ -222,7 +223,7 @@ where
 
     while let Some(p) = unvisited.pop_front() {
         let neighbors = region_query(elements, p, max_neighbor_distance);
-        debug_assert!(neighbors.len() > 0);
+        debug_assert!(!neighbors.is_empty());
         debug_assert!(neighbors.contains(&p));
 
         // core point?
@@ -277,8 +278,9 @@ where
 /// returns an ordered Vector of cluster elements
 /// - `unvisited` is and stays sorted
 /// - `noise` is and stays sorted
-fn build_cluster<'a, T>(
-    elements: &'a [T],
+#[allow(clippy::too_many_arguments)]
+fn build_cluster<T>(
+    elements: &[T],
     p: usize,
     neighbors: Vec<usize>,
     unvisited: &mut VecDeque<usize>,
@@ -292,7 +294,7 @@ where
 {
     let mut forming_cluster = vec![p];
 
-    debug_assert!(neighbors.len() > 0);
+    debug_assert!(!neighbors.is_empty());
     let mut neighbors = neighbors;
     let mut neighbors_idx = 0;
 
@@ -364,10 +366,10 @@ mod tests {
     }
 
     #[rstest]
-    #[case(&[1, 2, 3, 5, 10, 12, 20, 21], 2, 2, Clusters(vec![ vec![0,1,2,3]]), vec![4,5,6,7])]
-    #[case(&[1, 2, 3, 5, 10, 12, 20, 21], 2, 1, Clusters(vec![ vec![0,1,2,3], vec![4,5], vec![6,7]]), vec![])]
-    #[case(&[0.9, 1.2, 1.1, 5.5, 10.1, 10.2, 1.1], 1.0, 1, Clusters(vec![ vec![0, 1, 2, 6], vec![4,5]]), vec![3])]
-    #[case(&[0, 0, 1, 2, 3, 6, 5, 0, 778, 780, 783, 1012, 1014, 1018, 1019, 1500], 3, 2, Clusters(vec![vec![0,1,2,3,4,5,6,7], vec![8,9,10]]), vec![11,12,13,14,15])]
+    #[case(& [1, 2, 3, 5, 10, 12, 20, 21], 2, 2, Clusters(vec ! [ vec ! [0, 1, 2, 3]]), vec ! [4, 5, 6, 7])]
+    #[case(& [1, 2, 3, 5, 10, 12, 20, 21], 2, 1, Clusters(vec ! [ vec ! [0, 1, 2, 3], vec ! [4, 5], vec ! [6, 7]]), vec ! [])]
+    #[case(& [0.9, 1.2, 1.1, 5.5, 10.1, 10.2, 1.1], 1.0, 1, Clusters(vec ! [ vec ! [0, 1, 2, 6], vec ! [4, 5]]), vec ! [3])]
+    #[case(& [0, 0, 1, 2, 3, 6, 5, 0, 778, 780, 783, 1012, 1014, 1018, 1019, 1500], 3, 2, Clusters(vec ! [vec ! [0, 1, 2, 3, 4, 5, 6, 7], vec ! [8, 9, 10]]), vec ! [11, 12, 13, 14, 15])]
     fn test_cluster_analysis<T: Distance + Debug>(
         #[case] elements: &[T],
         #[case] max_neighbor_distance: <T as Distance>::Output,
@@ -383,7 +385,7 @@ mod tests {
                 clusters: expected_clusters_idx,
                 noise: expected_noise_idx.into_iter().collect::<Vec<_>>(),
                 max_neighbor_distance,
-                core_point_min_neighbors
+                core_point_min_neighbors,
             }
         );
     }

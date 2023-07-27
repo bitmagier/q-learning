@@ -109,7 +109,7 @@ impl eframe::App for BreakoutApp {
 fn mechanics_thread(game_input: Arc<RwLock<GameInput>>, game_state: Arc<RwLock<BreakoutMechanics>>, egui_ctx: Context) {
     let read_input = || -> GameInput {
         let read_handle = game_input.read().unwrap();
-        let input = read_handle.clone();
+        let input = *read_handle;
         drop(read_handle);
         input
     };
@@ -120,7 +120,7 @@ fn mechanics_thread(game_input: Arc<RwLock<GameInput>>, game_state: Arc<RwLock<B
         drop(write_handle);
     };
 
-    let mut mechanics = BreakoutMechanics::new();
+    let mut mechanics = BreakoutMechanics::default();
     let mut next_step_time = Instant::now().add(TIME_GRANULARITY);
     let sleep_time_ms = TIME_GRANULARITY.div(5);
     loop {
@@ -145,13 +145,12 @@ fn mechanics_thread(game_input: Arc<RwLock<GameInput>>, game_state: Arc<RwLock<B
 
 fn breakout_user_game() -> eframe::Result<()> {
     let game_input = Arc::new(RwLock::new(GameInput::none()));
-    let game_state = Arc::new(RwLock::new(BreakoutMechanics::new()));
+    let game_state = Arc::new(RwLock::new(BreakoutMechanics::default()));
 
     let m_game_input = Arc::clone(&game_input);
     let m_game_state = Arc::clone(&game_state);
 
-    let mut native_options = eframe::NativeOptions::default();
-    native_options.default_theme = eframe::Theme::Dark;
+    let native_options = eframe::NativeOptions { default_theme: eframe::Theme::Dark, ..Default::default() };
     eframe::run_native("Breakout", native_options, Box::new(|cc| {
         let egui_ctx = cc.egui_ctx.clone();
         let mechanics_join_handle = thread::spawn(move || mechanics_thread(m_game_input, m_game_state, egui_ctx));
