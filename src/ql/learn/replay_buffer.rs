@@ -84,7 +84,7 @@ where A: Copy
         self.episode_reward_history.add(episode_reward)
     }
 
-    pub fn avg_episode_rewards(&self) -> f32 {
+    pub fn avg_episode_reward(&self) -> f32 {
         assert!(self.episode_reward_history.len() > 0);
         let c = &self.episode_reward_history.buffer;
         c.iter().sum::<f32>() / c.len() as f32

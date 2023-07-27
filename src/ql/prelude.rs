@@ -61,10 +61,7 @@ pub trait Environment {
 
     /// Average reward to reach over all episodes
     /// (expected to be a constant - not a moving target)
-    fn reward_goal_all_episodes_mean(&self) -> f32;
-
-    /// Minimum reward to reach for any single episode
-    fn reward_goal_episode_min(&self) -> f32;
+    fn episode_reward_goal_mean(&self) -> f32;
 }
 
 pub const DEFAULT_BATCH_SIZE: usize = 32;

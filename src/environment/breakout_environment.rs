@@ -190,12 +190,8 @@ impl Environment for BreakoutEnvironment {
         (state, reward, done)
     }
 
-    fn reward_goal_all_episodes_mean(&self) -> f32 {
+    fn episode_reward_goal_mean(&self) -> f32 {
         // hanging the goal a little lower than the exact value to avoid obstructive blur effects introduced by float calculations
         (BreakoutMechanics::default().bricks.len() - 1) as f32
-    }
-
-    fn reward_goal_episode_min(&self) -> f32 {
-        self.reward_goal_all_episodes_mean()
     }
 }

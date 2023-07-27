@@ -81,9 +81,7 @@ impl Environment for BallGameTestEnvironment {
         }
     }
 
-    fn reward_goal_all_episodes_mean(&self) -> f32 { 4.9 }
-
-    fn reward_goal_episode_min(&self) -> f32 { 4.7 }
+    fn episode_reward_goal_mean(&self) -> f32 { 4.9 }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -407,7 +405,7 @@ mod tests {
         assert_eq!(state.field.get((0, 1)), Entry::Obstacle);
         assert_eq!(state.field.get((1, 1)), Entry::Obstacle);
 
-        assert!(reward > env.reward_goal_all_episodes_mean());
+        assert!(reward > env.episode_reward_goal_mean());
         assert_eq!(done, true)
     }
 }

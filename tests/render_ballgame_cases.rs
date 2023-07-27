@@ -56,14 +56,14 @@ fn find_successful_case(model: &QLearningTensorflowModel<BallGameTestEnvironment
         if episode > max_episodes {
             return Err(QlError::from("could not find successful case"))?
         }
-        let candidate = BallGameTestEnvironment::new();
+        let candidate = BallGameTestEnvironment::default();
         let mut env = candidate.clone();
         let mut reward_sum = 0.0;
         loop {
             let action = model.predict_action(env.state());
             let (_,r,done) = env.step(action);
             reward_sum += r;
-            if done && reward_sum >= env.reward_goal_all_episodes_mean() {
+            if done && reward_sum >= env.episode_reward_goal_mean() {
                 return Ok(candidate)
             }
             if done {
@@ -81,7 +81,7 @@ fn find_unsuccessful_case(model: &QLearningTensorflowModel<BallGameTestEnvironme
         if episode > max_episodes {
             return Err(QlError::from("could not find unsuccessful case"))?
         }
-        let candidate = BallGameTestEnvironment::new();
+        let candidate = BallGameTestEnvironment::default();
         let mut env = candidate.clone();
         let mut reward_sum = 0.0;
         loop {
@@ -89,7 +89,7 @@ fn find_unsuccessful_case(model: &QLearningTensorflowModel<BallGameTestEnvironme
             let (_,r,done) = env.step(action);
             reward_sum += r;
             if done {
-                if reward_sum >= env.reward_goal_all_episodes_mean() {
+                if reward_sum >= env.episode_reward_goal_mean() {
                     break
                 } else {
                     return Ok(candidate)

@@ -211,7 +211,7 @@ mod tests {
     #[test]
     fn test_predict_single() {
         let model = load_model();
-        let env = BallGameTestEnvironment::new();
+        let env = BallGameTestEnvironment::default();
         let action: BallGameAction = model.predict_action(&env.state());
         log::info!("action: {}", action)
     }
@@ -219,7 +219,7 @@ mod tests {
     #[test]
     fn test_batch_predict_max_future_reward() {
         let model = load_model();
-        let mut env = BallGameTestEnvironment::new();
+        let mut env = BallGameTestEnvironment::default();
         let states_batch = [0; BATCH_SIZE].map(|_| {
             for _ in 0..5 {
                 let action = BallGameAction::try_from_numeric(thread_rng().gen_range(0..BallGameAction::ACTION_SPACE)).unwrap();
@@ -233,7 +233,7 @@ mod tests {
     #[test]
     fn test_train_function_call() -> Result<()> {
         let model = load_model();
-        let env = BallGameTestEnvironment::new();
+        let env = BallGameTestEnvironment::default();
         let states_batch = [0; BATCH_SIZE].map(|_| Rc::new(env.state().clone()));
         let action_batch = [0; BATCH_SIZE]
             .map(|_| thread_rng().gen_range(0..BallGameAction::ACTION_SPACE))
