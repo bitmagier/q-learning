@@ -26,7 +26,8 @@ fn test_learn_ballgame_until_mastered() -> Result<()> {
     param.epsilon_greedy_steps = 2_000_000.0;
     param.episode_reward_history_buffer_len = 500;
     param.epsilon_max = 1.0;
-    param.epsilon_min = 0.03;
+    param.epsilon_min = 0.07;
+    param.lowest_episode_reward_goal_threshold_pct = 0.95;
     
     let model_init = || QLearningTensorflowModel::<BallGameTestEnvironment, BATCH_SIZE>::load(&QL_MODEL_BALLGAME_3x3x4_5_512_PATH);
     let model_instance1 = model_init();
@@ -44,7 +45,7 @@ fn test_learn_ballgame_until_mastered() -> Result<()> {
     let mut learner = SelfDrivingQLearner::new(Arc::clone(&environment), param, model_instance1, model_instance2, CHECKPOINT_FILE_BASE.as_path());
     assert!(!learner.solved());
 
-    let mut episodes_left = 1_000_000;
+    let mut episodes_left = 400_000;
     while !learner.solved() {
         learner.learn_episode()?;
         episodes_left -= 1;

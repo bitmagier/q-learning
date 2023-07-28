@@ -11,12 +11,12 @@ ACTION_SPACE = 5
 
 class QLearningModel_BallGame_3x3x4_5_512(tf.keras.Sequential):
 
-    # TODO make leaner=faster!
+    # TODO make leaner=faster
     def __init__(self, *args, **kwargs):
         super(QLearningModel_BallGame_3x3x4_5_512, self).__init__(*args, **kwargs)
         self.add(tf.keras.Input(shape=(INPUT_SIZE_X, INPUT_SIZE_Y, INPUT_CHANNELS,)))
         self.add(layers.Flatten(name='flatten'))
-        self.add(layers.Dense(256, activation='sigmoid'))
+        self.add(layers.Dense(128, activation='sigmoid'))
         self.add(layers.Dense(128, activation='sigmoid'))
         self.add(layers.Dense(128, activation='sigmoid'))
         self.add(layers.Dense(ACTION_SPACE, activation='softmax', name='action_layer'))
@@ -28,7 +28,7 @@ class QLearningModel_BallGame_3x3x4_5_512(tf.keras.Sequential):
               power=2.0)
 
         self.compile(
-            # optimizer=keras.optimizers.Adam(learning_rate=0.0005),
+            # TODO try other optimizers: rmsprop, SGD, Adamax  
             optimizer=keras.optimizers.Adam(learning_rate),
             loss=keras.losses.MeanSquaredError(),
             metrics=['accuracy'],

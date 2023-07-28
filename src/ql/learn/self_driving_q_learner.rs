@@ -259,16 +259,16 @@ where
             }).join(", ");
         
         log::info!("\n\
-    episode {}, step count: {}, epsilon: {:.2}, current rewards: (mean: {:.1}, low: {:.1}), reward goal: (mean: {:.1}, low: {:.1})\n\
-    reward distribution: {}\n\
-    action distribution (last {}): {}",
+    episode {}, step_count: {}, epsilon: {:.2}, reward_goal: {{mean: {:.1}, low: {:.1}}}, current_rewards: {{mean: {:.1}, low: {:.1}}}\n\
+    reward_distribution: {}\n\
+    action_distribution (of last {}): {}",
             self.episode_count.to_formatted_string(&number_format),
             self.step_count.to_formatted_string(&number_format),
             self.epsilon,
-            self.replay_buffer.avg_episode_reward(),
-            self.replay_buffer.min_episode_reward(),
             self.environment.read().unwrap().episode_reward_goal_mean(),
             self.environment.read().unwrap().episode_reward_goal_mean() * self.param.lowest_episode_reward_goal_threshold_pct,
+            self.replay_buffer.avg_episode_reward(),
+            self.replay_buffer.min_episode_reward(),
             reward_distribution,
             total_actions.to_formatted_string(&number_format), 
             action_distribution_line
