@@ -41,6 +41,8 @@ class QLearningModel_BallGame_3x3x4_5_512(tf.keras.Sequential):
             jit_compile=True
         )
 
+        self.checkpoint = tf.train.Checkpoint(self)
+
     # Predict action from environment state
     @tf.function(input_signature=[
         tf.TensorSpec(shape=[INPUT_SIZE_X, INPUT_SIZE_Y, INPUT_CHANNELS], dtype=tf.float32, name='state')
@@ -86,15 +88,15 @@ class QLearningModel_BallGame_3x3x4_5_512(tf.keras.Sequential):
 
     @tf.function(input_signature=[tf.TensorSpec(shape=None, dtype=tf.string, name='file')])
     def write_checkpoint(self, file):
-        checkpoint = tf.train.Checkpoint(self)
-        out = checkpoint.write(file)
+        out = self.checkpoint.write(file)
         return {'file': tf.convert_to_tensor(out)}
+
+    # TODO Houston: reading a model from a checkpoint does not restore what we wrote in another process before
 
     @tf.function(input_signature=[tf.TensorSpec(shape=None, dtype=tf.string, name='file')])
     def read_checkpoint(self, file):
-        checkpoint = tf.train.Checkpoint(self)
         file = tf.get_static_value(file)
-        status = checkpoint.read(file)
+        status = self.checkpoint.read(file)
         if file is not None:
             status.assert_consumed()
         return {'dummy': tf.constant("")}

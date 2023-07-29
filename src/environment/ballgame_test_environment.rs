@@ -30,7 +30,7 @@ const MAX_STEPS: usize = 16;
 #[derive(Clone)]
 pub struct BallGameTestEnvironment {
     state: BallGameState,
-    rng: ThreadRng
+    rng: ThreadRng,
 }
 
 impl BallGameTestEnvironment {
@@ -38,32 +38,33 @@ impl BallGameTestEnvironment {
         let mut rng = rand::thread_rng();
         Self {
             state: BallGameState::random_initial_state(&mut rng),
-            rng
+            rng,
         }
+    }
+
+    pub fn from(state: BallGameState) -> Self {
+        let rng = rand::thread_rng();
+        Self { state, rng }
     }
 
     #[cfg(test)]
     pub fn test_state_00_01_11_22() -> Self {
         Self {
             state: BallGameState::test_state_00_01_11_22(),
-            rng: rand::thread_rng()
+            rng: rand::thread_rng(),
         }
     }
 }
 
 impl Default for BallGameTestEnvironment {
-    fn default() -> Self {
-        BallGameTestEnvironment::new()
-    }
+    fn default() -> Self { BallGameTestEnvironment::new() }
 }
 
 impl Environment for BallGameTestEnvironment {
     type S = BallGameState;
     type A = BallGameAction;
 
-    fn reset(&mut self) {
-        self.state = BallGameState::random_initial_state(&mut self.rng);
-    }
+    fn reset(&mut self) { self.state = BallGameState::random_initial_state(&mut self.rng); }
 
     fn state(&self) -> &Self::S { &self.state }
 
@@ -116,12 +117,42 @@ impl BallGameState {
         field.set(obstacle1_coord, Entry::Obstacle);
         field.set(obstacle2_coord, Entry::Obstacle);
 
-        BallGameState { field, ball_coord, steps: 0 }
+        BallGameState {
+            field,
+            ball_coord,
+            steps: 0,
+        }
     }
 
-    pub fn steps(&self) -> usize {
-        self.steps
+    pub fn all_possible_initial_states() -> Vec<BallGameState> {
+        let mut result = vec![];
+        for goal_x in 0..3 {
+            for ball_x in 0..3 {
+                for possible_o2_x in 0..3 {
+                    for possible_o2_y in 0..3 {
+                        if (possible_o2_x, possible_o2_y) != (goal_x, 0) && (possible_o2_x, possible_o2_y) != (ball_x, 2) {
+                            let ball_coord = (ball_x, 2);
+                            let mut field = Field::default();
+                            field.set((goal_x, 0), Entry::Goal);
+                            field.set(ball_coord, Entry::Ball);
+                            field.set((1, 1), Entry::Obstacle);
+                            field.set((possible_o2_x, possible_o2_y), Entry::Obstacle);
+
+                            let state = BallGameState {
+                                field,
+                                ball_coord,
+                                steps: 0,
+                            };
+                            result.push(state)
+                        }
+                    }
+                }
+            }
+        }
+        result
     }
+
+    pub fn steps(&self) -> usize { self.steps }
 
     fn do_move(
         &mut self,
@@ -165,7 +196,11 @@ impl BallGameState {
         field.set((1, 1), Entry::Obstacle);
         field.set((2, 2), Entry::Ball);
 
-        BallGameState { field, ball_coord: (2, 2), steps: 0 }
+        BallGameState {
+            field,
+            ball_coord: (2, 2),
+            steps: 0,
+        }
     }
 }
 
