@@ -219,6 +219,7 @@ where
         self.episode_count += 1;
 
         if self.solved() {
+            self.model.write_checkpoint(&self.checkpoint_file);
             self.learning_update_log()
         }
         

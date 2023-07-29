@@ -19,10 +19,10 @@ class QLearningModel_BallGame_3x3x4_5_512(tf.keras.Sequential):
         # self.add(layers.Dense(128, activation='sigmoid'))
         # self.add(layers.Dense(128, activation='sigmoid'))
 
-        self.add(layers.Conv2D(filters=64, kernel_size=(2, 2), strides=(1, 1), activation="relu"))
-        self.add(layers.Conv2D(filters=32, kernel_size=(1, 1), activation="relu"))
+        self.add(layers.Conv2D(filters=32, kernel_size=(2, 2), strides=1, padding="same", activation="relu"))
+        self.add(layers.Conv2D(filters=32, kernel_size=1, activation="relu"))
         self.add(layers.Flatten(name='flatten'))
-        self.add(layers.Dense(units=256, activation="relu"))
+        self.add(layers.Dense(units=512, activation="relu"))
 
         # activation function should be linear, to provide a value-range matching the Q-value-range
         self.add(layers.Dense(ACTION_SPACE, activation='linear', name='action_layer'))
@@ -34,7 +34,8 @@ class QLearningModel_BallGame_3x3x4_5_512(tf.keras.Sequential):
         #       power=2.0)
 
         self.compile(
-            optimizer=keras.optimizers.Adam(learning_rate=0.00015, clipvalue=1.0),
+            optimizer=keras.optimizers.Adam(learning_rate=0.00025, clipnorm=1.0),
+            # loss=keras.losses.Huber(),
             loss=keras.losses.MeanSquaredError(),
             metrics=['accuracy'],
             jit_compile=True

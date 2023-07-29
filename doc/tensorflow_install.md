@@ -1,14 +1,20 @@
 # Software framework stack
 
+- Python
+- Tensorflow
+- CUDA or ROCm framework (optional)
 
+## A: Quick and easy install
 
-# Tensorflow for CUDA
+For a quick & simple install just follow the official tensorflow guides and use the way via a python wheel package.
+If you do so, then you can quit reading that file here.
 
-## Build Tensorflow 2.12 for Nvidia GPU / CUDA 11.8
+## B: Build Tensorflow 2.12 for Nvidia GPU / CUDA 11.8
 
   - Ubuntu jammy
   - Python 3.10
   - bazelisk
+  - GCC 11.3
 
 ### CUDA 11.8
    ```sh
@@ -56,7 +62,6 @@
       pkg-config --libs tensorflow # checks if installed correctly
 ```
 
-
   - Cleanup procedure in case something goes wrong during the build:
 ```sh
    remove tensorflow source folder and clone again
@@ -65,16 +70,16 @@
 
 
 
-## NVIDIA Alternative 1: Use pre-build python wheel packages
+## B.1 NVIDIA Alternative 1: Use pre-build python wheel packages
 
-## NVIDIA Alternative 2: Run Tensorflow NVIDIA via Docker:
+## B.2 NVIDIA Alternative 2: Run Tensorflow NVIDIA via Docker:
 
 - [docker setup](https://docs.docker.com/desktop/install/linux-install/)
 - [nvidia-docker setup](https://github.com/NVIDIA/nvidia-docker)
 - `docker run --gpus all -it --rm tensorflow/tensorflow:2.12.0-gpu bash`
 
 
-# Tensorflow + AMD GPU / ROCm
+# C: Tensorflow + AMD GPU / ROCm
 
   ## Install AMD driver + ROCm 5.6
   https://github.com/RadeonOpenCompute/ROCm-docker/blob/master/quick-start.md

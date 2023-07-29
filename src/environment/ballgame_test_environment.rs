@@ -26,7 +26,6 @@ const MAX_STEPS: usize = 16;
 /// - input dims: `[3,3,4]`  (3x3 pixel, 4 stone-channels)
 /// - out dims: `[5]`
 /// - batch_size: 512
-/// TODO encode step count
 #[derive(Clone)]
 pub struct BallGameTestEnvironment {
     state: BallGameState,
