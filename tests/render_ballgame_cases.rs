@@ -30,9 +30,6 @@ fn render_case(case_select_fn: fn(&QLearningTensorflowModel<BallGameTestEnvironm
     model.read_checkpoint(CHECKPOINT_FILE_BASE.to_str().unwrap());
 
     let mut env = case_select_fn(&model)?;
-    // let mut env: BallGameTestEnvironment = find_successful_case(
-    //     &model
-    // )?;
     render(env.state())?;
 
     loop {
@@ -63,8 +60,7 @@ fn find_successful_case(model: &QLearningTensorflowModel<BallGameTestEnvironment
         loop {
             let action = model.predict_action(env.state());
             let (_,r,done) = env.step(action);
-            reward_sum += r;
-            if done && reward_sum >= env.episode_reward_goal_mean() {
+            if done && r >= env.episode_reward_goal_mean() {
                 return Ok(candidate)
             }
             if done {
@@ -90,9 +86,8 @@ fn find_unsuccessful_case(model: &QLearningTensorflowModel<BallGameTestEnvironme
         loop {
             let action = model.predict_action(env.state());
             let (_,r,done) = env.step(action);
-            reward_sum += r;
             if done {
-                if reward_sum >= env.episode_reward_goal_mean() {
+                if r >= env.episode_reward_goal_mean() {
                     break
                 } else {
                     return Ok(candidate)
