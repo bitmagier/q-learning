@@ -60,7 +60,7 @@ impl Default for Parameter {
             update_after_actions: 4,
             update_target_network_after_num_steps: 10_000,
             episode_reward_history_buffer_len: 100,
-            stats_after_steps: 10_000,
+            stats_after_steps: 25_000,
             lowest_episode_reward_goal_threshold_pct: 0.9
         }
     }
@@ -199,7 +199,7 @@ where
                 let _loss = self.model.train(replay_samples.state, replay_samples.action, updated_q_values)?;
             }
 
-            if self.step_count % self.param.update_target_network_after_num_steps == 0 {
+            if self.step_count % self.param.stats_after_steps == 0 {
                 // update the target network with new weights
                 self.model.write_checkpoint(&self.checkpoint_file);
                 self.stabilized_model.read_checkpoint(&self.checkpoint_file);
