@@ -49,14 +49,15 @@ fn render_case(case_select_fn: fn(&QLearningTensorflowModel<BallGameTestEnvironm
 }
 
 fn find_successful_case(model: &QLearningTensorflowModel<BallGameTestEnvironment, BATCH_SIZE>) -> Result<BallGameTestEnvironment> {
-    let max_episodes = 10_000;
-    let mut episode: usize = 0;
+    let mut episodes_left = 10_000;
+    let mut candidate = BallGameTestEnvironment::default();
+    
     loop {
-        episode += 1;
-        if episode > max_episodes {
+        episodes_left -= 1;
+        if episodes_left <= 0 {
             return Err(QlError::from("could not find successful case"))?
         }
-        let candidate = BallGameTestEnvironment::default();
+        
         let mut env = candidate.clone();
         let mut reward_sum = 0.0;
         loop {
@@ -70,18 +71,20 @@ fn find_successful_case(model: &QLearningTensorflowModel<BallGameTestEnvironment
                 break;
             }
         }
+        candidate.reset();
     }
 }
 
 fn find_unsuccessful_case(model: &QLearningTensorflowModel<BallGameTestEnvironment, BATCH_SIZE>) -> Result<BallGameTestEnvironment> {
-    let max_episodes = 10_000;
-    let mut episode: usize = 0;
+    let mut episodes_left = 10_000;
+    let mut candidate = BallGameTestEnvironment::default();
+    
     loop {
-        episode += 1;
-        if episode > max_episodes {
+        episodes_left -= 1;
+        if episodes_left <= 0 {
             return Err(QlError::from("could not find unsuccessful case"))?
         }
-        let candidate = BallGameTestEnvironment::default();
+        
         let mut env = candidate.clone();
         let mut reward_sum = 0.0;
         loop {
@@ -96,6 +99,8 @@ fn find_unsuccessful_case(model: &QLearningTensorflowModel<BallGameTestEnvironme
                 }
             }
         }
+        
+        candidate.reset();
     }
 }
 

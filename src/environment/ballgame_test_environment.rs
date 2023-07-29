@@ -5,6 +5,7 @@ use anyhow::Result;
 use console_engine::pixel;
 use console_engine::pixel::Pixel;
 use console_engine::screen::Screen;
+use rand::prelude::ThreadRng;
 use rand::Rng;
 use tensorflow::Tensor;
 
@@ -29,12 +30,15 @@ const MAX_STEPS: usize = 16;
 #[derive(Clone)]
 pub struct BallGameTestEnvironment {
     state: BallGameState,
+    rng: ThreadRng
 }
 
 impl BallGameTestEnvironment {
     fn new() -> Self {
+        let mut rng = rand::thread_rng();
         Self {
-            state: BallGameState::random_initial_state(),
+            state: BallGameState::random_initial_state(&mut rng),
+            rng
         }
     }
 
@@ -42,6 +46,7 @@ impl BallGameTestEnvironment {
     pub fn test_state_00_01_11_22() -> Self {
         Self {
             state: BallGameState::test_state_00_01_11_22(),
+            rng: rand::thread_rng()
         }
     }
 }
@@ -57,7 +62,7 @@ impl Environment for BallGameTestEnvironment {
     type A = BallGameAction;
 
     fn reset(&mut self) {
-        self.state = BallGameState::random_initial_state();
+        self.state = BallGameState::random_initial_state(&mut self.rng);
     }
 
     fn state(&self) -> &Self::S { &self.state }
@@ -93,13 +98,13 @@ pub struct BallGameState {
 }
 
 impl BallGameState {
-    fn random_initial_state() -> Self {
-        let goal_coord: (usize, usize) = (rand::thread_rng().gen_range(0..3), 0);
-        let ball_coord: (usize, usize) = (rand::thread_rng().gen_range(0..3), 2);
+    fn random_initial_state(rng: &mut ThreadRng) -> Self {
+        let goal_coord: (usize, usize) = (rng.gen_range(0..3), 0);
+        let ball_coord: (usize, usize) = (rng.gen_range(0..3), 2);
         // set one obstacle in the middle and the other one randomly
         let obstacle1_coord = (1, 1);
         let obstacle2_coord = loop {
-            let c = (rand::thread_rng().gen_range(0..3), rand::thread_rng().gen_range(0..3));
+            let c = (rng.gen_range(0..3), rng.gen_range(0..3));
             if c != goal_coord && c != ball_coord && c != obstacle1_coord {
                 break c;
             }

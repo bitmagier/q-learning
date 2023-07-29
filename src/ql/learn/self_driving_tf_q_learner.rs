@@ -7,13 +7,14 @@ use anyhow::Result;
 use itertools::Itertools;
 use num_format::ToFormattedString;
 use rand::distributions::Uniform;
-use rand::prelude::*;
+use rand::prelude::ThreadRng;
+use rand::Rng;
 use rustc_hash::FxHashMap;
 
 use crate::ql::learn::replay_buffer::ReplayBuffer;
 use crate::ql::prelude::{Action, DebugVisualizer, DeepQLearningModel, Environment};
-use crate::util::{dbscan, format};
 use crate::util::immutable::Immutable;
+use crate::util::{dbscan, format};
 
 pub struct Parameter {
     /// Discount rete; (0 <= 𝛾 <= 1) represents the value of future rewards. The bigger, the more farsighted the agent becomes
@@ -37,14 +38,12 @@ pub struct Parameter {
     // this determines directly the number of recent goal-achieving episodes required to consider the learning task done
     pub episode_reward_history_buffer_len: usize,
     pub stats_after_steps: usize,
-    // Percentage of total reward goal, which any single episode needs to reach (regardless of the average reward) 
-    pub lowest_episode_reward_goal_threshold_pct: f32
+    // Percentage of total reward goal, which any single episode needs to reach (regardless of the average reward)
+    pub lowest_episode_reward_goal_threshold_pct: f32,
 }
 
 impl Parameter {
-    fn epsilon_interval(&self) -> f64 {
-        self.epsilon_max - self.epsilon_min
-    }
+    fn epsilon_interval(&self) -> f64 { self.epsilon_max - self.epsilon_min }
 }
 
 impl Default for Parameter {
@@ -61,7 +60,7 @@ impl Default for Parameter {
             update_target_network_after_num_steps: 10_000,
             episode_reward_history_buffer_len: 100,
             stats_after_steps: 25_000,
-            lowest_episode_reward_goal_threshold_pct: 0.9
+            lowest_episode_reward_goal_threshold_pct: 0.9,
         }
     }
 }
@@ -69,10 +68,11 @@ impl Default for Parameter {
 pub struct SelfDrivingQLearner<E, M, const BATCH_SIZE: usize>
 where
     E: Environment,
-    M: DeepQLearningModel<BATCH_SIZE, E=E>,
+    M: DeepQLearningModel<BATCH_SIZE, E = E>,
 {
     environment: Arc<RwLock<E>>,
     param: Immutable<Parameter>,
+    rng: ThreadRng,
     model: M,
     // "target_model"
     stabilized_model: M,
@@ -88,9 +88,15 @@ where
 impl<E, M, const BATCH_SIZE: usize> SelfDrivingQLearner<E, M, BATCH_SIZE>
 where
     E: Environment,
-    M: DeepQLearningModel<BATCH_SIZE, E=E>,
+    M: DeepQLearningModel<BATCH_SIZE, E = E>,
 {
-    pub fn new(environment: Arc<RwLock<E>>, param: Parameter, model_instance1: M, model_instance2: M, checkpoint_file: &Path) -> Self {
+    pub fn new(
+        environment: Arc<RwLock<E>>,
+        param: Parameter,
+        model_instance1: M,
+        model_instance2: M,
+        checkpoint_file: &Path,
+    ) -> Self {
         let checkpoint_file = checkpoint_file
             .to_str()
             .expect("file name should have a UTF-8 compatible path")
@@ -101,6 +107,7 @@ where
         Self {
             environment,
             param: Immutable::new(param),
+            rng: rand::thread_rng(),
             model: model_instance1,
             stabilized_model: model_instance2,
             checkpoint_file,
@@ -112,7 +119,10 @@ where
         }
     }
 
-    pub fn load_model_checkpoint(&mut self, checkpoint_file: &Path) {
+    pub fn load_model_checkpoint(
+        &mut self,
+        checkpoint_file: &Path,
+    ) {
         let checkpoint_file = checkpoint_file.to_str().expect("file name should have a UTF-8 compatible path");
         self.model.read_checkpoint(checkpoint_file);
         self.stabilized_model.read_checkpoint(checkpoint_file);
@@ -128,7 +138,8 @@ where
     pub fn solved(&self) -> bool {
         let env = self.environment.read().unwrap();
         if self.running_reward >= env.episode_reward_goal_mean()
-            && self.replay_buffer.min_episode_reward() >= env.episode_reward_goal_mean() * self.param.lowest_episode_reward_goal_threshold_pct
+            && self.replay_buffer.min_episode_reward()
+                >= env.episode_reward_goal_mean() * self.param.lowest_episode_reward_goal_threshold_pct
         {
             true
         } else {
@@ -148,15 +159,15 @@ where
             self.step_count += 1;
 
             // Use epsilon-greedy for exploration
-            let action: E::A =
-                if self.step_count < self.param.epsilon_pure_random_steps || self.epsilon > thread_rng().gen_range(0_f64..1_f64) {
-                    // Take random action
-                    let a = thread_rng().gen_range(0..E::A::ACTION_SPACE);
-                    Action::try_from_numeric(a)?
-                } else {
-                    // Predict best action Q-values from environment state
-                    self.model.predict_action(&state)
-                };
+            let action: E::A = if self.step_count < self.param.epsilon_pure_random_steps || self.epsilon > self.rng.gen_range(0_f64..1_f64)
+            {
+                // Take random action
+                let a = self.rng.gen_range(0..E::A::ACTION_SPACE);
+                Action::try_from_numeric(a)?
+            } else {
+                // Predict best action Q-values from environment state
+                self.model.predict_action(&state)
+            };
 
             // Decay probability of taking random action
             self.epsilon = f64::max(
@@ -178,7 +189,7 @@ where
             // Update every n-th step (e.g. fourth frame), once the replay buffer is beyond BATCH_SIZE
             if self.step_count % self.param.update_after_actions == 0 && self.replay_buffer.len() > BATCH_SIZE {
                 // Get indices of samples for replay buffers
-                let indices: [usize; BATCH_SIZE] = generate_distinct_random_ids(0..self.replay_buffer.len());
+                let indices: [usize; BATCH_SIZE] = generate_distinct_random_ids(&mut self.rng, 0..self.replay_buffer.len());
 
                 let replay_samples = self.replay_buffer.get_many(&indices);
 
@@ -222,13 +233,13 @@ where
             self.model.write_checkpoint(&self.checkpoint_file);
             self.learning_update_log()
         }
-        
+
         Ok(())
     }
 
     fn learning_update_log(&self) {
         let number_format = format::number_format();
-        
+
         let num_rewards = self.replay_buffer.episode_rewards().len();
         let episode_rewards = self.replay_buffer.episode_rewards();
         let reward_distribution = dbscan::cluster_analysis(&episode_rewards, 0.35, num_rewards / 50);
@@ -239,13 +250,16 @@ where
         }
 
         let total_actions = self.replay_buffer.actions().buffer.len();
-        let action_distribution_line = action_counts.iter()
+        let action_distribution_line = action_counts
+            .iter()
             .map(|(&action, &count)| {
                 let ratio = 100.0 * count as f32 / total_actions as f32;
                 format!("{} {:.1}%", action, ratio)
-            }).join(", ");
-        
-        log::info!("\n\
+            })
+            .join(", ");
+
+        log::info!(
+            "\n\
     episode: {}, steps: {}, 𝛾={:.2}, 𝜀={:.2}, reward_goal: {{mean >= {:.1}, low >= {:.1}}}, current_rewards: {{mean: {:.1}, low: {:.1}}}\n\
     reward_distribution: {}\n\
     action_distribution (of last {}): {}",
@@ -258,22 +272,26 @@ where
             self.replay_buffer.avg_episode_reward(),
             self.replay_buffer.min_episode_reward(),
             reward_distribution,
-            total_actions.to_formatted_string(&number_format), 
+            total_actions.to_formatted_string(&number_format),
             action_distribution_line
         );
     }
 }
 
-fn generate_distinct_random_ids<const BATCH_SIZE: usize>(range: Range<usize>) -> [usize; BATCH_SIZE] {
+fn generate_distinct_random_ids<const BATCH_SIZE: usize>(
+    rng: &mut ThreadRng,
+    range: Range<usize>,
+) -> [usize; BATCH_SIZE] {
+    use rand::distributions::Distribution;
+
     assert!(range.end - range.start >= BATCH_SIZE);
     let mut result = [0_usize; BATCH_SIZE];
 
     let distribution = Uniform::from(range);
-    let mut rng = thread_rng();
 
     for i in 0..BATCH_SIZE {
         result[i] = loop {
-            let x = distribution.sample(&mut rng);
+            let x = distribution.sample(rng);
             if !result[0..i].contains(&x) {
                 break x;
             }
@@ -282,7 +300,10 @@ fn generate_distinct_random_ids<const BATCH_SIZE: usize>(range: Range<usize>) ->
     result
 }
 
-fn add_arrays<const N: usize>(lhs: &[f32; N], rhs: &[f32; N]) -> [f32; N] {
+fn add_arrays<const N: usize>(
+    lhs: &[f32; N],
+    rhs: &[f32; N],
+) -> [f32; N] {
     lhs.iter()
         .zip(rhs.iter())
         .map(|(&lhs, &rhs)| lhs + rhs)
@@ -291,19 +312,20 @@ fn add_arrays<const N: usize>(lhs: &[f32; N], rhs: &[f32; N]) -> [f32; N] {
         .unwrap()
 }
 
-fn array_mul<const N: usize>(slice: [f32; N], value: f32) -> [f32; N] {
+fn array_mul<const N: usize>(
+    slice: [f32; N],
+    value: f32,
+) -> [f32; N] {
     slice.map(|e| e * value)
 }
-
 
 #[cfg(test)]
 mod tests {
     use std::sync::{Arc, RwLock};
-    use crate::environment::ballgame_test_environment::BallGameTestEnvironment;
-
-    use crate::ql::model::tensorflow::q_learning_model::{QL_MODEL_BALLGAME_3x3x4_5_512_PATH, QLearningTensorflowModel};
 
     use super::*;
+    use crate::environment::ballgame_test_environment::BallGameTestEnvironment;
+    use crate::ql::model::tensorflow::q_learning_model::{QL_MODEL_BALLGAME_3x3x4_5_512_PATH, QLearningTensorflowModel};
 
     #[test]
     fn test_learner_single_episode() -> Result<()> {
@@ -334,7 +356,8 @@ mod tests {
 
     #[test]
     fn test_generate_distinct_random_ids() {
-        let result: [usize; 50] = generate_distinct_random_ids(0..100);
+        let mut rng = rand::thread_rng();
+        let result: [usize; 50] = generate_distinct_random_ids(&mut rng, 0..100);
         let mut r = Vec::from(result);
         r.sort();
         r.dedup();
