@@ -10,7 +10,7 @@ use tensorflow::Tensor;
 
 use crate::ql::prelude::{Action, DebugVisualizer, Environment, ModelActionType, QlError, ToMultiDimArray};
 
-const MAX_STEPS: usize = 20;
+const MAX_STEPS: usize = 16;
 
 /// A quite simple TestEnvironment simulating a ball game.
 ///
@@ -23,9 +23,10 @@ const MAX_STEPS: usize = 20;
 /// - Game goal: move the ball into the goal - each round one step into one of the available directions: (west, north, east or south)
 ///
 /// This environment requires a q-learning model with:
-/// - input dims: `[3,3,4]`  (3x3 pixel, 4 channels)
+/// - input dims: `[3,3,4]`  (3x3 pixel, 4 stone-channels)
 /// - out dims: `[5]`
 /// - batch_size: 512
+/// TODO encode step count
 #[derive(Clone)]
 pub struct BallGameTestEnvironment {
     state: BallGameState,
@@ -69,19 +70,19 @@ impl Environment for BallGameTestEnvironment {
         let r = self.state.do_move(action);
 
         if let MoveResult::Legal { done: true } = r {
-            (self.state(), 5.0, true)
+            (self.state(), 10.0, true)
         } else if self.state.steps >= MAX_STEPS {
-            (self.state(), -5.0, true)
+            (self.state(), -10.0, true)
         } else if let MoveResult::Legal { done: false } = r {
-            (self.state(), -0.01, false)
+            (self.state(), -0.02, false)
         } else if let MoveResult::Illegal = r {
-            (self.state(), -0.5, false)
+            (self.state(), -1.0, false)
         } else {
             unreachable!()
         }
     }
 
-    fn episode_reward_goal_mean(&self) -> f32 { 4.9 }
+    fn episode_reward_goal_mean(&self) -> f32 { 9.5 }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -186,7 +187,13 @@ impl Display for BallGameAction {
         &self,
         f: &mut Formatter<'_>,
     ) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        match self {
+            BallGameAction::Nothing => f.write_str("o"),
+            BallGameAction::West => f.write_str("←"),
+            BallGameAction::North => f.write_str("↑"),
+            BallGameAction::East => f.write_str("→"),
+            BallGameAction::South => f.write_str("↓"),
+        }
     }
 }
 

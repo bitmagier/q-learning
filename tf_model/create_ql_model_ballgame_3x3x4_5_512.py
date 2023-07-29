@@ -11,25 +11,30 @@ ACTION_SPACE = 5
 
 class QLearningModel_BallGame_3x3x4_5_512(tf.keras.Sequential):
 
-    # TODO make leaner=faster
     def __init__(self, *args, **kwargs):
         super(QLearningModel_BallGame_3x3x4_5_512, self).__init__(*args, **kwargs)
         self.add(tf.keras.Input(shape=(INPUT_SIZE_X, INPUT_SIZE_Y, INPUT_CHANNELS,)))
-        self.add(layers.Flatten(name='flatten'))
-        self.add(layers.Dense(128, activation='sigmoid'))
-        self.add(layers.Dense(128, activation='sigmoid'))
-        self.add(layers.Dense(128, activation='sigmoid'))
-        self.add(layers.Dense(ACTION_SPACE, activation='softmax', name='action_layer'))
 
-        learning_rate = keras.optimizers.learning_rate_schedule.PolynomialDecay(
-              initial_learning_rate=0.01,
-              decay_steps=750_000,
-              end_learning_rate=0.0004,
-              power=2.0)
+        # self.add(layers.Dense(128, activation='sigmoid'))
+        # self.add(layers.Dense(128, activation='sigmoid'))
+        # self.add(layers.Dense(128, activation='sigmoid'))
+
+        self.add(layers.Conv2D(filters=64, kernel_size=(2, 2), strides=(1, 1), activation="relu"))
+        self.add(layers.Conv2D(filters=32, kernel_size=(1, 1), activation="relu"))
+        self.add(layers.Flatten(name='flatten'))
+        self.add(layers.Dense(units=256, activation="relu"))
+
+        # activation function should be linear, to provide a value-range matching the Q-value-range
+        self.add(layers.Dense(ACTION_SPACE, activation='linear', name='action_layer'))
+
+        # learning_rate = keras.optimizers.learning_rate_schedule.PolynomialDecay(
+        #       initial_learning_rate=0.001,
+        #       decay_steps=1_000_000,
+        #       end_learning_rate=0.0002,
+        #       power=2.0)
 
         self.compile(
-            # TODO try other optimizers: rmsprop, SGD, Adamax  
-            optimizer=keras.optimizers.Adam(learning_rate),
+            optimizer=keras.optimizers.Adam(learning_rate=0.00015, clipvalue=1.0),
             loss=keras.losses.MeanSquaredError(),
             metrics=['accuracy'],
             jit_compile=True

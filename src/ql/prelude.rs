@@ -64,10 +64,11 @@ pub trait Environment {
     fn episode_reward_goal_mean(&self) -> f32;
 }
 
+
 pub const DEFAULT_BATCH_SIZE: usize = 32;
 
 /// 'Physical' AI model abstraction
-pub trait QLearningModel<const BATCH_SIZE: usize = DEFAULT_BATCH_SIZE> {
+pub trait DeepQLearningModel<const BATCH_SIZE: usize = DEFAULT_BATCH_SIZE> {
     type E: Environment;
 
     /// Predicts the next action based on the current state.

@@ -5,18 +5,18 @@ use std::sync::{Arc, RwLock};
 
 use anyhow::Result;
 use itertools::Itertools;
-use num_format::{CustomFormat, Grouping, ToFormattedString};
+use num_format::ToFormattedString;
 use rand::distributions::Uniform;
 use rand::prelude::*;
 use rustc_hash::FxHashMap;
 
 use crate::ql::learn::replay_buffer::ReplayBuffer;
-use crate::ql::prelude::{Action, DebugVisualizer, Environment, QLearningModel};
-use crate::util::dbscan;
+use crate::ql::prelude::{Action, DebugVisualizer, DeepQLearningModel, Environment};
+use crate::util::{dbscan, format};
 use crate::util::immutable::Immutable;
 
 pub struct Parameter {
-    /// Discount factor for past rewards
+    /// Discount rete; (0 <= 𝛾 <= 1) represents the value of future rewards. The bigger, the more farsighted the agent becomes
     pub gamma: f32,
     /// Maximum epsilon greedy parameter
     pub epsilon_max: f64,
@@ -66,12 +66,10 @@ impl Default for Parameter {
     }
 }
 
-// TODO Add TEST without an AI model, but with a Q-tabular  
-
 pub struct SelfDrivingQLearner<E, M, const BATCH_SIZE: usize>
 where
     E: Environment,
-    M: QLearningModel<BATCH_SIZE, E=E>,
+    M: DeepQLearningModel<BATCH_SIZE, E=E>,
 {
     environment: Arc<RwLock<E>>,
     param: Immutable<Parameter>,
@@ -90,7 +88,7 @@ where
 impl<E, M, const BATCH_SIZE: usize> SelfDrivingQLearner<E, M, BATCH_SIZE>
 where
     E: Environment,
-    M: QLearningModel<BATCH_SIZE, E=E>,
+    M: DeepQLearningModel<BATCH_SIZE, E=E>,
 {
     pub fn new(environment: Arc<RwLock<E>>, param: Parameter, model_instance1: M, model_instance2: M, checkpoint_file: &Path) -> Self {
         let checkpoint_file = checkpoint_file
@@ -198,19 +196,7 @@ where
                     }
                 }
 
-                let loss = self.model.train(replay_samples.state, replay_samples.action, updated_q_values)?;
-                if log::log_enabled!(log::Level::Trace) || self.step_count % self.param.stats_after_steps == 0 {
-                    log::debug!("training step: loss: {}", loss)
-                }
-            }
-
-            if log::log_enabled!(log::Level::Trace) || self.step_count % self.param.stats_after_steps == 0 {
-                log::debug!(
-                    "step: {}, episode: {}, running_reward: {}",
-                    self.step_count,
-                    self.episode_count,
-                    self.running_reward
-                );
+                let _loss = self.model.train(replay_samples.state, replay_samples.action, updated_q_values)?;
             }
 
             if self.step_count % self.param.update_target_network_after_num_steps == 0 {
@@ -240,7 +226,7 @@ where
     }
 
     fn learning_update_log(&self) {
-        let number_format = number_format();
+        let number_format = format::number_format();
         
         let num_rewards = self.replay_buffer.episode_rewards().len();
         let episode_rewards = self.replay_buffer.episode_rewards();
@@ -259,11 +245,12 @@ where
             }).join(", ");
         
         log::info!("\n\
-    episode {}, step_count: {}, epsilon: {:.2}, reward_goal: {{mean: {:.1}, low: {:.1}}}, current_rewards: {{mean: {:.1}, low: {:.1}}}\n\
+    episode: {}, steps: {}, 𝛾={:.2}, 𝜀={:.2}, reward_goal: {{mean >= {:.1}, low >= {:.1}}}, current_rewards: {{mean: {:.1}, low: {:.1}}}\n\
     reward_distribution: {}\n\
     action_distribution (of last {}): {}",
             self.episode_count.to_formatted_string(&number_format),
             self.step_count.to_formatted_string(&number_format),
+            self.param.gamma,
             self.epsilon,
             self.environment.read().unwrap().episode_reward_goal_mean(),
             self.environment.read().unwrap().episode_reward_goal_mean() * self.param.lowest_episode_reward_goal_threshold_pct,
@@ -307,20 +294,12 @@ fn array_mul<const N: usize>(slice: [f32; N], value: f32) -> [f32; N] {
     slice.map(|e| e * value)
 }
 
-fn number_format() -> CustomFormat {
-    CustomFormat::builder()
-        .grouping(Grouping::Standard)
-        .minus_sign("-")
-        .separator("_")
-        .build()
-        .unwrap()
-}
 
 #[cfg(test)]
 mod tests {
     use std::sync::{Arc, RwLock};
+    use crate::environment::ballgame_test_environment::BallGameTestEnvironment;
 
-    use crate::ql::ballgame_test_environment::BallGameTestEnvironment;
     use crate::ql::model::tensorflow::q_learning_model::{QL_MODEL_BALLGAME_3x3x4_5_512_PATH, QLearningTensorflowModel};
 
     use super::*;

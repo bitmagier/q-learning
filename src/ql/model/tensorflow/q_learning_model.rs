@@ -9,7 +9,7 @@ use lazy_static::lazy_static;
 use tensorflow::{Graph, SavedModelBundle, SessionOptions, Tensor};
 
 use crate::ql::model::tensorflow::model_function::{ModelFunction1, ModelFunction3};
-use crate::ql::prelude::{Action, DEFAULT_BATCH_SIZE, Environment, ModelActionType, QLearningModel, ToMultiDimArray};
+use crate::ql::prelude::{Action, DEFAULT_BATCH_SIZE, Environment, ModelActionType, DeepQLearningModel, ToMultiDimArray};
 
 lazy_static!(
     pub static ref QL_MODEL_BALLGAME_3x3x4_5_512_PATH: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tf_model/saved/ql_model_ballgame_3x3x4_5_512");
@@ -88,7 +88,7 @@ where
     }
 }
 
-impl<E, const BATCH_SIZE: usize> QLearningModel<BATCH_SIZE> for QLearningTensorflowModel<E, BATCH_SIZE>
+impl<E, const BATCH_SIZE: usize> DeepQLearningModel<BATCH_SIZE> for QLearningTensorflowModel<E, BATCH_SIZE>
 where
     E: Environment,
     <E as Environment>::S: ToMultiDimArray<Tensor<f32>>,
@@ -193,8 +193,8 @@ where
 #[cfg(test)]
 mod tests {
     use rand::prelude::*;
+    use crate::environment::ballgame_test_environment::{BallGameAction, BallGameTestEnvironment};
 
-    use crate::ql::ballgame_test_environment::{BallGameAction, BallGameTestEnvironment};
     use crate::ql::prelude::Action;
 
     use super::*;

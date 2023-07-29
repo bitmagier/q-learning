@@ -21,8 +21,9 @@
   - It is absolutely necessary to use the exact version - otherwise we will face compile errors with tensorflow
    ```sh
    sudo apt install libcudnn8=8.6.0.163-1+cuda11.8
-   auso apt install libcudnn8-dev=8.6.0.163-1+cuda11.8
-   sudo apt-mark hold libcudnn8  # prevent automatic upgrade
+   sudo apt install libcudnn8-dev=8.6.0.163-1+cuda11.8
+   # prevent automatic upgrade
+   sudo apt-mark hold libcudnn8  
    sudo apt-mark hold libcudnn8-dev 
    ```
 ### Tensorflow 2.12 (https://www.tensorflow.org/install)
@@ -112,7 +113,7 @@
 git clone git@github.com:bitmagier/q-learning-breakout.git
 cd q-learning-breakout
 cd tf_model
-python3 create_ql_model_ballgame_5x5x3_4_32.py
+python3 create_ql_model_ballgame_3x3x4_5_512.py
 cd ..
 
 cargo test --test learn_ballgame --release
