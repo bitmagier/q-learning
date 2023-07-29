@@ -56,7 +56,6 @@ fn find_successful_case(model: &QLearningTensorflowModel<BallGameTestEnvironment
         }
         
         let mut env = candidate.clone();
-        let mut reward_sum = 0.0;
         loop {
             let action = model.predict_action(env.state());
             let (_,r,done) = env.step(action);
@@ -82,7 +81,6 @@ fn find_unsuccessful_case(model: &QLearningTensorflowModel<BallGameTestEnvironme
         }
         
         let mut env = candidate.clone();
-        let mut reward_sum = 0.0;
         loop {
             let action = model.predict_action(env.state());
             let (_,r,done) = env.step(action);
