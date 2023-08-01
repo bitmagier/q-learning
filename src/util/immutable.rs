@@ -6,15 +6,11 @@ pub struct Immutable<T> {
 }
 
 impl<T> Immutable<T> {
-    pub fn new(value: T) -> Self {
-        Immutable { value }
-    }
+    pub fn new(value: T) -> Self { Immutable { value } }
 }
 
 impl<T> Deref for Immutable<T> {
     type Target = T;
 
-    fn deref(&self) -> &Self::Target {
-        &self.value
-    }
+    fn deref(&self) -> &Self::Target { &self.value }
 }

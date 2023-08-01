@@ -11,13 +11,16 @@ mod common;
 #[test]
 fn check_cases() -> Result<()> {
     use std::io::Write;
-    fn simulate_outcome(env: BallGameTestEnvironment, model: &QLearningTensorflowModel<BallGameTestEnvironment, BATCH_SIZE>) -> f32 {
+    fn simulate_outcome(
+        env: BallGameTestEnvironment,
+        model: &QLearningTensorflowModel<BallGameTestEnvironment, BATCH_SIZE>,
+    ) -> f32 {
         let mut env = env;
         loop {
             let action = model.predict_action(env.state());
             let (_, reward, done) = env.step(action);
             if done {
-                break reward
+                break reward;
             }
         }
     }
@@ -31,7 +34,7 @@ fn check_cases() -> Result<()> {
     }
     let stdout = std::io::stdout();
     writeln!(&stdout, "All cases final reward: {}", cluster_analysis(&rewards, 0.3, 3))?;
-    
+
     Ok(())
 }
 
@@ -50,12 +53,13 @@ fn render_unsuccessful_case() -> Result<()> {
 fn load_model() -> Result<QLearningTensorflowModel<BallGameTestEnvironment, BATCH_SIZE>> {
     if !CHECKPOINT_FILE_BASE.with_extension("index").exists() {
         return Err(QlError::from(
-            "Model checkpoint file does not yet exist. You might consider running testcase `test_learn_ballgame_until_mastered` first",
+            "Model checkpoint file does not yet exist. You might consider running testcase 'learn_ballgame' first",
         ))?;
     }
 
-    let model = QLearningTensorflowModel::<BallGameTestEnvironment, BATCH_SIZE>::load(&QL_MODEL_BALLGAME_3x3x4_5_512_PATH);
-    model.read_checkpoint(CHECKPOINT_FILE_BASE.to_str().unwrap());
+    let model = QLearningTensorflowModel::<BallGameTestEnvironment, BATCH_SIZE>::load_model(&QL_MODEL_BALLGAME_3x3x4_5_512_PATH)?;
+    model.read_checkpoint(CHECKPOINT_FILE_BASE.to_str().unwrap())?;
+    // TODO some kind of init missing - because it does not seem to be the trained model here
     Ok(model)
 }
 

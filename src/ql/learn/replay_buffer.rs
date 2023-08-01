@@ -16,11 +16,12 @@ impl<T> Buffer<T> {
         }
     }
 
-    pub fn len(&self) -> usize {
-        self.buffer.len()
-    }
+    pub fn len(&self) -> usize { self.buffer.len() }
 
-    pub fn add(&mut self, element: T) {
+    pub fn add(
+        &mut self,
+        element: T,
+    ) {
         if self.buffer.len() >= self.max_buffer_len {
             self.buffer.pop_front().unwrap();
         }
@@ -28,7 +29,10 @@ impl<T> Buffer<T> {
     }
 
     /// returns a slice of references to values of `slice` at the specified `indices`
-    pub fn get_many<const N: usize>(&self, indices: &[usize; N]) -> [&T; N] {
+    pub fn get_many<const N: usize>(
+        &self,
+        indices: &[usize; N],
+    ) -> [&T; N] {
         debug_assert!(!indices.iter().any(|&e| e >= self.buffer.len()));
         indices.map(|i| &self.buffer[i])
     }
@@ -36,7 +40,10 @@ impl<T> Buffer<T> {
 
 impl<T: Copy> Buffer<T> {
     /// returns a slice of values of `slice` at the specified `indices`
-    pub fn get_many_as_val<const N: usize>(&self, indices: &[usize; N]) -> [T; N] {
+    pub fn get_many_as_val<const N: usize>(
+        &self,
+        indices: &[usize; N],
+    ) -> [T; N] {
         debug_assert!(!indices.iter().any(|&e| e >= self.buffer.len()));
         indices.map(|i| self.buffer[i])
     }
@@ -44,7 +51,8 @@ impl<T: Copy> Buffer<T> {
 
 /// Experience replay buffers
 pub struct ReplayBuffer<S, A>
-where A: Copy
+where
+    A: Copy,
 {
     action_history: Buffer<A>,
     state_history: Buffer<S>,
@@ -55,9 +63,13 @@ where A: Copy
 }
 
 impl<S, A> ReplayBuffer<S, A>
-where A: Copy
+where
+    A: Copy,
 {
-    pub fn new(step_buffer_len: usize, episode_reward_buffer_len: usize) -> Self {
+    pub fn new(
+        step_buffer_len: usize,
+        episode_reward_buffer_len: usize,
+    ) -> Self {
         Self {
             action_history: Buffer::new(step_buffer_len),
             state_history: Buffer::new(step_buffer_len),
@@ -68,11 +80,16 @@ where A: Copy
         }
     }
 
-    pub fn len(&self) -> usize {
-        self.done_history.len()
-    }
+    pub fn len(&self) -> usize { self.done_history.len() }
 
-    pub fn add(&mut self, action: A, state: S, state_next: S, reward: f32, done: bool) {
+    pub fn add(
+        &mut self,
+        action: A,
+        state: S,
+        state_next: S,
+        reward: f32,
+        done: bool,
+    ) {
         self.action_history.add(action);
         self.state_history.add(state);
         self.state_next_history.add(state_next);
@@ -80,7 +97,10 @@ where A: Copy
         self.done_history.add(done);
     }
 
-    pub fn add_episode_reward(&mut self, episode_reward: f32) {
+    pub fn add_episode_reward(
+        &mut self,
+        episode_reward: f32,
+    ) {
         self.episode_reward_history.add(episode_reward)
     }
 
@@ -95,19 +115,18 @@ where A: Copy
         match self.episode_reward_history.buffer.iter().minmax() {
             MinMaxResult::NoElements => panic!(),
             MinMaxResult::OneElement(e) => *e,
-            MinMaxResult::MinMax(min, _) => *min
+            MinMaxResult::MinMax(min, _) => *min,
         }
     }
 
-    pub fn actions(&self) -> &Buffer<A> {
-        &self.action_history
-    }
+    pub fn actions(&self) -> &Buffer<A> { &self.action_history }
 
-    pub fn episode_rewards(&self) -> Vec<f32> {
-        self.episode_reward_history.buffer.iter().copied().collect_vec()
-    }
+    pub fn episode_rewards(&self) -> Vec<f32> { self.episode_reward_history.buffer.iter().copied().collect_vec() }
 
-    pub fn get_many<const N: usize>(&self, indices: &[usize; N]) -> BufferSample<N, S, A> {
+    pub fn get_many<const N: usize>(
+        &self,
+        indices: &[usize; N],
+    ) -> BufferSample<N, S, A> {
         BufferSample {
             state: self.state_history.get_many(indices),
             state_next: self.state_next_history.get_many(indices),

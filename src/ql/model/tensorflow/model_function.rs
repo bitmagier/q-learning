@@ -1,113 +1,89 @@
 use anyhow::Result;
-use itertools::Itertools;
-use tensorflow::{Graph, Operation, SavedModelBundle, Session, SessionRunArgs, Tensor, TensorType};
+use tensorflow::{Graph, MetaGraphDef, Session, SessionRunArgs, Tensor, TensorType};
 
-pub struct ModelFunction1 {
-    name: String,
-    input1_operation: Operation,
-    output_operation: Operation,
+pub struct ModelFunction1<'a> {
+    name: &'a str,
+    p1_name: &'a str,
+    out_name: &'a str,
 }
 
-impl ModelFunction1 {
+impl<'a> ModelFunction1<'a> {
     pub fn new(
-        graph: &Graph,
-        bundle: &SavedModelBundle,
-        name: &str,
-        input1_name: &str,
-        output_name: &str,
-    ) -> Self {
-        let signature = bundle.meta_graph_def().get_signature(name).unwrap();
-        Self {
-            name: String::from(name),
-            input1_operation: graph
-                .operation_by_name_required(&signature.get_input(input1_name).unwrap().name().name)
-                .unwrap(),
-            output_operation: graph
-                .operation_by_name_required(&signature.get_output(output_name).unwrap().name().name)
-                .unwrap(),
-        }
+        name: &'a str,
+        p1_name: &'a str,
+        out_name: &'a str,
+    ) -> Result<Self> {
+        Ok(Self { name, p1_name, out_name })
     }
 
     pub fn apply<I1: TensorType, O: TensorType>(
         &self,
+        graph: &Graph,
+        meta_graph_def: &MetaGraphDef,
         session: &Session,
-        arg1: &Tensor<I1>,
-    ) -> Tensor<O> {
-        let mut args = SessionRunArgs::new();
-        args.add_feed(&self.input1_operation, 0, arg1);
-        let out = args.request_fetch(&self.output_operation, 0);
+        p1: &Tensor<I1>,
+    ) -> Result<Tensor<O>> {
+        let signature = meta_graph_def.get_signature(self.name)?;
+        let input1_operation = graph.operation_by_name_required(&signature.get_input(self.p1_name).unwrap().name().name)?;
+        let output_operation = graph.operation_by_name_required(&signature.get_output(self.out_name).unwrap().name().name)?;
 
-        session
-            .run(&mut args)
-            .unwrap_or_else(|_| panic!("error occurred while calling '{}'", self.name));
-        args.fetch(out).unwrap()
+        let mut args = SessionRunArgs::new();
+        args.add_feed(&input1_operation, 0, p1);
+        let out = args.request_fetch(&output_operation, 0);
+
+        session.run(&mut args)?;
+        Ok(args.fetch(out)?)
     }
 }
 
-pub struct ModelFunction3<const OUTPUTS: usize = 1> {
-    input1_operation: Operation,
-    input2_operation: Operation,
-    input3_operation: Operation,
-    output_operations: [Operation; OUTPUTS],
+pub struct ModelFunction3<'a> {
+    name: &'a str,
+    p1_name: &'a str,
+    p2_name: &'a str,
+    p3_name: &'a str,
+    out_name: &'a str,
 }
 
-impl<const OUTPUTS: usize> ModelFunction3<OUTPUTS> {
+impl<'a> ModelFunction3<'a> {
     pub fn new(
-        graph: &Graph,
-        bundle: &SavedModelBundle,
-        name: &str,
-        input1_name: &str,
-        input2_name: &str,
-        input3_name: &str,
-        output_names: [&str; OUTPUTS],
-    ) -> Self {
-        let signature = bundle.meta_graph_def().get_signature(name).unwrap();
-        let output_operations = output_names.map(|e| {
-            graph
-                .operation_by_name_required(&signature.get_output(e).unwrap().name().name)
-                .unwrap()
-        });
-
-        Self {
-            input1_operation: graph
-                .operation_by_name_required(&signature.get_input(input1_name).unwrap().name().name)
-                .unwrap(),
-            input2_operation: graph
-                .operation_by_name_required(&signature.get_input(input2_name).unwrap().name().name)
-                .unwrap(),
-            input3_operation: graph
-                .operation_by_name_required(&signature.get_input(input3_name).unwrap().name().name)
-                .unwrap(),
-            output_operations,
-        }
+        name: &'a str,
+        p1_name: &'a str,
+        p2_name: &'a str,
+        p3_name: &'a str,
+        out_name: &'a str,
+    ) -> Result<Self> {
+        Ok(Self {
+            name,
+            p1_name,
+            p2_name,
+            p3_name,
+            out_name,
+        })
     }
 
     pub fn apply<I1: TensorType, I2: TensorType, I3: TensorType, O: TensorType>(
         &self,
+        graph: &Graph,
+        meta_graph_def: &MetaGraphDef,
         session: &Session,
         arg1: &Tensor<I1>,
         arg2: &Tensor<I2>,
         arg3: &Tensor<I3>,
-    ) -> Result<[Tensor<O>; OUTPUTS]> {
-        let mut args = SessionRunArgs::new();
-        args.add_feed(&self.input1_operation, 0, arg1);
-        args.add_feed(&self.input2_operation, 0, arg2);
-        args.add_feed(&self.input3_operation, 0, arg3);
+    ) -> Result<Tensor<O>> {
+        let signature = meta_graph_def.get_signature(self.name)?;
+        let input1_operation = graph.operation_by_name_required(&signature.get_input(self.p1_name).unwrap().name().name)?;
+        let input2_operation = graph.operation_by_name_required(&signature.get_input(self.p2_name).unwrap().name().name)?;
+        let input3_operation = graph.operation_by_name_required(&signature.get_input(self.p3_name).unwrap().name().name)?;
 
-        let out_fetch_tokens = self
-            .output_operations
-            .iter()
-            .enumerate()
-            .map(|(i, e)| args.request_fetch(e, i as i32))
-            .collect::<Vec<_>>();
+        let mut args = SessionRunArgs::new();
+        args.add_feed(&input1_operation, 0, arg1);
+        args.add_feed(&input2_operation, 0, arg2);
+        args.add_feed(&input3_operation, 0, arg3);
+
+        let output_operation = graph.operation_by_name_required(&signature.get_output(self.out_name).unwrap().name().name)?;
+        let out = args.request_fetch(&output_operation, 0);
 
         session.run(&mut args)?;
-
-        Ok(out_fetch_tokens
-            .into_iter()
-            .map(|e| args.fetch(e).unwrap())
-            .collect_vec()
-            .try_into()
-            .unwrap())
+        Ok(args.fetch(out)?)
     }
 }

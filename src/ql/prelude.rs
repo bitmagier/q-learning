@@ -1,5 +1,6 @@
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
+use std::path::Path;
 use std::rc::Rc;
 
 use anyhow::Result;
@@ -64,7 +65,6 @@ pub trait Environment {
     fn episode_reward_goal_mean(&self) -> f32;
 }
 
-
 pub const DEFAULT_BATCH_SIZE: usize = 32;
 
 /// 'Physical' AI model abstraction
@@ -109,29 +109,23 @@ pub trait DeepQLearningModel<const BATCH_SIZE: usize = DEFAULT_BATCH_SIZE> {
     fn write_checkpoint(
         &self,
         file: &str,
-    ) -> String;
-
+    ) -> Result<String>;
+    
     fn read_checkpoint(
         &self,
         file: &str,
-    );
+    ) -> Result<()>;
+    
+    fn save_graph(
+        &self,
+        path: &Path,
+    ) -> Result<()>;
+
+    fn load_graph(
+        &mut self,
+        path: &Path,
+    ) -> Result<()>;
 }
-// DONE: think about decoupling Model from Environment,
-//  so that State-Tensors are passed via type T: ToMultiDimArray<Tensor<f32>> instead of Environment::State.
-//  Does it make more sense that way?
-//  Advantage: We don't need to pass/handle a full Environment::State object reference from Environment to Model.
-//      Especially the learning algorithm, which need to maintain a state-history buffer, could store less information!
-//      It seems logical to reduce the storage requirements of a AI model state object to a minimum.
-//  Disadvantage: We loose the automatic type inference from Environment::State -> Environment::Action when we call Model functions
-//  Details:
-//      Two options for passing the state to the model seem possible here:
-//          A: use <T> T: ToMultiDimArray<Tensor<f32>> instead of Environment::State
-//          B: store and use a Tensor<f32> object to pass state, but
-//              Q: is it possible to transform a randomly picked set of stored states to a tensor batch object efficiently?
-//              A: No. When creating a Tensor struct in Rust (usually via Tensor::from()), it always copies each single value into the tensor structure one by one.
-//  So what remains to think about is Decoupling Model from Environment and use
-//  - `T: ToMultiDimArray<Tensor<f32>>` for state values
-//  - `T: From<u8>, To<u8>` for action values
 
 pub trait DebugVisualizer {
     fn one_line_info(&self) -> String;
@@ -161,9 +155,7 @@ pub trait ToMultiDimArray<D> {
 pub struct QlError(pub String);
 
 impl QlError {
-    pub fn from(msg: &str) -> Self {
-        QlError(msg.to_string())
-    }
+    pub fn from(msg: &str) -> Self { QlError(msg.to_string()) }
 }
 
 impl Display for QlError {

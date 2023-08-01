@@ -27,15 +27,16 @@ pub struct BreakoutState {
 }
 
 impl Debug for BreakoutState {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        f: &mut Formatter<'_>,
+    ) -> std::fmt::Result {
         write!(f, "BreakoutState with {:?}", &self.mechanics)
     }
 }
 
 impl ToMultiDimArray<Tensor<f32>> for BreakoutState {
-    fn dims(&self) -> &[u64] {
-        &self.model_dims
-    }
+    fn dims(&self) -> &[u64] { &self.model_dims }
 
     fn to_multi_dim_array(&self) -> Tensor<f32> {
         let mut tensor = Tensor::new(&self.model_dims);
@@ -77,13 +78,16 @@ impl ToMultiDimArray<Tensor<f32>> for BreakoutState {
 
 impl DebugVisualizer for BreakoutState {
     fn one_line_info(&self) -> String {
-        format!("Breakout [{} bricks, ball_pos: {:?}, panel_pos: {:?}]",
-                self.mechanics.bricks.len(), self.mechanics.ball.shape.center, self.mechanics.panel.shape.center()).to_string()
+        format!(
+            "Breakout [{} bricks, ball_pos: {:?}, panel_pos: {:?}]",
+            self.mechanics.bricks.len(),
+            self.mechanics.ball.shape.center,
+            self.mechanics.panel.shape.center()
+        )
+        .to_string()
     }
 
-    fn render_to_console(&self) -> Screen {
-        todo!()
-    }
+    fn render_to_console(&self) -> Screen { todo!() }
 }
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
@@ -109,17 +113,19 @@ impl Action for BreakoutAction {
             0 => Ok(BreakoutAction::None),
             1 => Ok(BreakoutAction::Left),
             2 => Ok(BreakoutAction::Right),
-            _ => Err(QlError("value out of range".to_string()))?
+            _ => Err(QlError("value out of range".to_string()))?,
         }
     }
 }
 
 impl Display for BreakoutAction {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        f: &mut Formatter<'_>,
+    ) -> std::fmt::Result {
         write!(f, "{:?}", self)
     }
 }
-
 
 pub struct BreakoutEnvironment {
     frame_size_x: usize,
@@ -129,7 +135,10 @@ pub struct BreakoutEnvironment {
 }
 
 impl BreakoutEnvironment {
-    pub fn new(frame_size_x: usize, frame_size_y: usize) -> Self {
+    pub fn new(
+        frame_size_x: usize,
+        frame_size_y: usize,
+    ) -> Self {
         Self {
             frame_size_x,
             frame_size_y,
@@ -143,12 +152,11 @@ impl BreakoutEnvironment {
     }
 
     fn map_model_action_to_game_input(model_action: BreakoutAction) -> GameInput {
-        GameInput::action(
-            match model_action {
-                BreakoutAction::None => PanelControl::None,
-                BreakoutAction::Left => PanelControl::AccelerateLeft,
-                BreakoutAction::Right => PanelControl::AccelerateRight
-            })
+        GameInput::action(match model_action {
+            BreakoutAction::None => PanelControl::None,
+            BreakoutAction::Left => PanelControl::AccelerateLeft,
+            BreakoutAction::Right => PanelControl::AccelerateRight,
+        })
     }
 
     #[allow(dead_code)]
@@ -156,7 +164,7 @@ impl BreakoutEnvironment {
         match game_input.control {
             PanelControl::None => BreakoutAction::None,
             PanelControl::AccelerateLeft => BreakoutAction::Left,
-            PanelControl::AccelerateRight => BreakoutAction::Right
+            PanelControl::AccelerateRight => BreakoutAction::Right,
         }
     }
 }
@@ -170,11 +178,12 @@ impl Environment for BreakoutEnvironment {
         self.state.frame_buffer = FrameRingBuffer::new(self.frame_size_x, self.frame_size_y)
     }
 
-    fn state(&self) -> &Self::S {
-        &self.state
-    }
+    fn state(&self) -> &Self::S { &self.state }
 
-    fn step(&mut self, action: BreakoutAction) -> (&BreakoutState, f32, bool) {
+    fn step(
+        &mut self,
+        action: BreakoutAction,
+    ) -> (&BreakoutState, f32, bool) {
         let prev_score = self.state.mechanics.score;
         let game_input: GameInput = Self::map_model_action_to_game_input(action);
         self.state.mechanics.time_step(game_input);

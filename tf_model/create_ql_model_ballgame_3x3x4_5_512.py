@@ -27,21 +27,13 @@ class QLearningModel_BallGame_3x3x4_5_512(tf.keras.Sequential):
         # activation function should be linear, to provide a value-range matching the Q-value-range
         self.add(layers.Dense(ACTION_SPACE, activation='linear', name='action_layer'))
 
-        # learning_rate = keras.optimizers.learning_rate_schedule.PolynomialDecay(
-        #       initial_learning_rate=0.001,
-        #       decay_steps=1_000_000,
-        #       end_learning_rate=0.0002,
-        #       power=2.0)
-
         self.compile(
             optimizer=keras.optimizers.Adam(learning_rate=0.00025, clipnorm=1.0),
-            # loss=keras.losses.Huber(),
             loss=keras.losses.MeanSquaredError(),
             metrics=['accuracy'],
+            run_eagerly=False,
             jit_compile=True
         )
-
-        self.checkpoint = tf.train.Checkpoint(self)
 
     # Predict action from environment state
     @tf.function(input_signature=[
@@ -88,17 +80,31 @@ class QLearningModel_BallGame_3x3x4_5_512(tf.keras.Sequential):
 
     @tf.function(input_signature=[tf.TensorSpec(shape=None, dtype=tf.string, name='file')])
     def write_checkpoint(self, file):
-        out = self.checkpoint.write(file)
+        cp = tf.train.Checkpoint(root=self)
+        out = cp.write(file)
         return {'file': tf.convert_to_tensor(out)}
+
+    # @tf.function(input_signature=[tf.TensorSpec(shape=None, dtype=tf.string, name='file')])
+    # def write_weights(self, file):
+    #     file = '/tmp/x'
+    #     # TODO problem here (during model.save()): 
+    #     #   RuntimeError: Cannot get session inside Tensorflow graph function.
+    #     self.save_weights(file, save_format='tf')
+    #     return {'dummy': tf.constant("")}
 
     # TODO Houston: reading a model from a checkpoint does not restore what we wrote in another process before
 
     @tf.function(input_signature=[tf.TensorSpec(shape=None, dtype=tf.string, name='file')])
     def read_checkpoint(self, file):
         file = tf.get_static_value(file)
-        status = self.checkpoint.read(file)
+        cp = tf.train.Checkpoint(root=self)
+        status = cp.read(file)
         if file is not None:
             status.assert_consumed()
+            status.initialize_or_restore()
+            print("checkpoint read")
+        else:
+            print("no checkpoint read. 'file' was None")
         return {'dummy': tf.constant("")}
 
 
@@ -112,5 +118,5 @@ model.save('saved/ql_model_ballgame_3x3x4_5_512',
                'batch_predict_max_future_reward': model.batch_predict_max_future_reward,
                'train_model': model.train_model,
                'write_checkpoint': model.write_checkpoint,
-               'read_checkpoint': model.read_checkpoint,
+               'read_checkpoint': model.read_checkpoint
            })

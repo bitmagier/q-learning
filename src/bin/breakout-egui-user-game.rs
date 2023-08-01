@@ -6,7 +6,6 @@ use std::time::Instant;
 
 use eframe::glow;
 use egui::{Context, Id, LayerId, Order, Painter, Vec2};
-
 use q_learning_breakout::environment::breakout::app_game_drawer::AppGameDrawer;
 use q_learning_breakout::environment::breakout::mechanics::*;
 use q_learning_breakout::util::log::init_logging;
@@ -49,7 +48,10 @@ impl BreakoutApp {
         GameInput { control, exit }
     }
 
-    fn draw_game_content(&self, painter: &Painter) {
+    fn draw_game_content(
+        &self,
+        painter: &Painter,
+    ) {
         let paint_offset = painter.clip_rect().min;
         let canvas_size = painter.clip_rect().size();
 
@@ -102,11 +104,18 @@ impl eframe::App for BreakoutApp {
         &mut self,
         _: Option<&glow::Context>,
     ) {
-        *self.game_input.write().unwrap() = GameInput { control: PanelControl::None, exit: true };
+        *self.game_input.write().unwrap() = GameInput {
+            control: PanelControl::None,
+            exit: true,
+        };
     }
 }
 
-fn mechanics_thread(game_input: Arc<RwLock<GameInput>>, game_state: Arc<RwLock<BreakoutMechanics>>, egui_ctx: Context) {
+fn mechanics_thread(
+    game_input: Arc<RwLock<GameInput>>,
+    game_state: Arc<RwLock<BreakoutMechanics>>,
+    egui_ctx: Context,
+) {
     let read_input = || -> GameInput {
         let read_handle = game_input.read().unwrap();
         let input = *read_handle;
@@ -150,12 +159,19 @@ fn breakout_user_game() -> eframe::Result<()> {
     let m_game_input = Arc::clone(&game_input);
     let m_game_state = Arc::clone(&game_state);
 
-    let native_options = eframe::NativeOptions { default_theme: eframe::Theme::Dark, ..Default::default() };
-    eframe::run_native("Breakout", native_options, Box::new(|cc| {
-        let egui_ctx = cc.egui_ctx.clone();
-        let mechanics_join_handle = thread::spawn(move || mechanics_thread(m_game_input, m_game_state, egui_ctx));
-        Box::new(BreakoutApp::new(cc, game_input, game_state, mechanics_join_handle))
-    }))
+    let native_options = eframe::NativeOptions {
+        default_theme: eframe::Theme::Dark,
+        ..Default::default()
+    };
+    eframe::run_native(
+        "Breakout",
+        native_options,
+        Box::new(|cc| {
+            let egui_ctx = cc.egui_ctx.clone();
+            let mechanics_join_handle = thread::spawn(move || mechanics_thread(m_game_input, m_game_state, egui_ctx));
+            Box::new(BreakoutApp::new(cc, game_input, game_state, mechanics_join_handle))
+        }),
+    )
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -163,4 +179,3 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     breakout_user_game()?;
     Ok(())
 }
-

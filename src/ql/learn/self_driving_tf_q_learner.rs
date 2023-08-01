@@ -1,5 +1,5 @@
 use std::ops::Range;
-use std::path::Path;
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 
@@ -76,7 +76,7 @@ where
     model: M,
     // "target_model"
     stabilized_model: M,
-    checkpoint_file: String,
+    checkpoint_file: PathBuf,
     replay_buffer: ReplayBuffer<Rc<E::S>, E::A>,
     step_count: usize,
     episode_count: usize,
@@ -95,12 +95,8 @@ where
         param: Parameter,
         model_instance1: M,
         model_instance2: M,
-        checkpoint_file: &Path,
+        checkpoint_file: PathBuf,
     ) -> Self {
-        let checkpoint_file = checkpoint_file
-            .to_str()
-            .expect("file name should have a UTF-8 compatible path")
-            .to_owned();
         let replay_buffer = ReplayBuffer::new(param.history_buffer_len, param.episode_reward_history_buffer_len);
         let epsilon = param.epsilon_max;
 
@@ -119,14 +115,14 @@ where
         }
     }
 
-    pub fn load_model_checkpoint(
-        &mut self,
-        checkpoint_file: &Path,
-    ) {
-        let checkpoint_file = checkpoint_file.to_str().expect("file name should have a UTF-8 compatible path");
-        self.model.read_checkpoint(checkpoint_file);
-        self.stabilized_model.read_checkpoint(checkpoint_file);
-    }
+    // pub fn load_model_checkpoint(
+    //     &mut self,
+    //     checkpoint_file: &Path,
+    // ) {
+    //     let checkpoint_file = checkpoint_file.to_str().expect("file name should have a UTF-8 compatible path");
+    //     self.model.read_checkpoint(checkpoint_file);
+    //     self.stabilized_model.read_checkpoint(checkpoint_file);
+    // }
 
     pub fn learn_till_mastered(&mut self) -> Result<()> {
         while !self.solved() {
@@ -212,8 +208,9 @@ where
 
             if self.step_count % self.param.stats_after_steps == 0 {
                 // update the target network with new weights
-                self.model.write_checkpoint(&self.checkpoint_file);
-                self.stabilized_model.read_checkpoint(&self.checkpoint_file);
+                self.model.write_checkpoint(self.checkpoint_file.to_str().unwrap())?;
+                // TODO we are not experiencing a difference here with calling that function - unfortunately it seems to have no effect!
+                self.stabilized_model.read_checkpoint(self.checkpoint_file.to_str().unwrap())?;
                 self.learning_update_log();
             }
 
@@ -230,7 +227,7 @@ where
         self.episode_count += 1;
 
         if self.solved() {
-            self.model.write_checkpoint(&self.checkpoint_file);
+            self.model.write_checkpoint(self.checkpoint_file.to_str().unwrap())?;
             self.learning_update_log()
         }
 
@@ -329,13 +326,15 @@ mod tests {
 
     #[test]
     fn test_learner_single_episode() -> Result<()> {
+        fn model_init() -> Result<QLearningTensorflowModel<BallGameTestEnvironment>> {
+            QLearningTensorflowModel::<BallGameTestEnvironment>::load_model(&QL_MODEL_BALLGAME_3x3x4_5_512_PATH)
+        }
         let param = Parameter::default();
-        let model_init = || QLearningTensorflowModel::<BallGameTestEnvironment>::load(&QL_MODEL_BALLGAME_3x3x4_5_512_PATH);
-        let model_instance1 = model_init();
-        let model_instance2 = model_init();
+        let model_instance1 = model_init()?;
+        let model_instance2 = model_init()?;
         let checkpoint_file = tempfile::tempdir().unwrap().into_path().join("test_learner_ckpt");
         let environment = Arc::new(RwLock::new(BallGameTestEnvironment::default()));
-        let mut learner = SelfDrivingQLearner::new(environment, param, model_instance1, model_instance2, &checkpoint_file);
+        let mut learner = SelfDrivingQLearner::new(environment, param, model_instance1, model_instance2, checkpoint_file);
         assert!(!learner.solved());
 
         learner.learn_episode()?;

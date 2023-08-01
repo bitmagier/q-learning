@@ -1,4 +1,5 @@
 [package]
+# TODO rename to "q-learning"
 name = "q-learning-breakout"
 version = "0.4.0"
 edition = "2021"
@@ -32,8 +33,9 @@ eframe = "0.22.0"
 parry2d = "0.13"
 nalgebra = "0.32"
 image = "0.24"
-tensorflow = { version = "0.20.0", features = ["tensorflow_gpu"] }
-tensorflow-sys = { version = "0.23.0", features = ["tensorflow_gpu"] }
+# tensorflow = { version = "0.20.0", features = ["tensorflow_gpu"] }
+tensorflow = { git = "https://github.com/tensorflow/rust.git", branch = "master", features = ["tensorflow_gpu"] }
+# tensorflow-sys = { version = "0.23.0", features = ["tensorflow_gpu"] }
 plotters = "0.3"
 console_engine = "2.6"
 
@@ -48,3 +50,11 @@ name = "go-5x5-machine-learning"
 
 #[[bin]]
 #name = "go-5x5-user-ai-game.rs"
+
+[[test]]
+name = "learn_ballgame"
+test = false
+
+[[test]]
+name = "render_ballgame_cases"
+test = false

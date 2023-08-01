@@ -6,7 +6,7 @@ use egui::{Pos2, Vec2};
 use itertools::Itertools;
 use rand::Rng;
 
-use crate::environment::breakout::algebra_2d::{AaBB, Circle, contact_test_circle_aabb, ContactSurface, reflected_vector, vector_angle};
+use crate::environment::breakout::algebra_2d::{contact_test_circle_aabb, reflected_vector, vector_angle, AaBB, Circle, ContactSurface};
 
 /// TOP / LEFT corner is 0/0
 pub const MODEL_GRID_LEN_X: f32 = 600.0;
@@ -539,9 +539,7 @@ impl ContactCandidates {
 }
 
 impl Default for ContactCandidates {
-    fn default() -> Self {
-        ContactCandidates::new()
-    }
+    fn default() -> Self { ContactCandidates::new() }
 }
 
 #[derive(Clone, Debug)]
@@ -709,12 +707,12 @@ mod tests {
 
     #[rstest]
     #[case(
-    Pos2::new(100.0, 100.0),
-    5.0,
-    Vec2::new(10.0, 0.0),
-    Pos2::new(150.0, 90.0),
-    Pos2::new(170.0, 110.0),
-    None
+        Pos2::new(100.0, 100.0),
+        5.0,
+        Vec2::new(10.0, 0.0),
+        Pos2::new(150.0, 90.0),
+        Pos2::new(170.0, 110.0),
+        None
     )]
     #[case(Pos2::new(100.0, 100.0), 5.0, Vec2::new(5.0, 0.0), Pos2::new(110.0, 90.0), Pos2::new(130.0, 110.0), Some(ContactSurface{ way: 5.0, approximation: 0.0, surface_normal: Vec2::new(- 1.0, 0.0)}))]
     #[case(Pos2::new(100.0, 100.0), 5.0, Vec2::new(3.0, - 3.0), Pos2::new(100.0, 70.0), Pos2::new(120.0, 93.0), Some(ContactSurface{ way: 2.83, approximation: 0.0, surface_normal: Vec2::new(0.0, 1.0)}))]
