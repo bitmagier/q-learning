@@ -1,0 +1,6 @@
+/saved/*
+!/saved/.gitkeep
+!/saved/ql_model_ballgame_3x3x4_5_512
+
+/checkpoints/*
+!/checkpoints/.gitkeep

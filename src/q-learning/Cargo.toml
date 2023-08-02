@@ -1,0 +1,37 @@
+[package]
+name = "q-learning"
+version = "0.4.0"
+edition = "2021"
+authors = ["Roman Krüger<bitmagier@mailbox.org>"]
+description = "Reinforcement Learning | Deep-Q-Learning | Tensorflow"
+repository = "git@github.com:bitmagier/q-learning.git"
+
+[badges]
+maintenance = { status = "as-is" }
+
+[dev-dependencies]
+rstest = "0"
+ctor = "0.2"
+
+[dependencies]
+rustc-hash = "1.1"
+log = "0.4"
+env_logger = "0.10"
+itertools = "0.11"
+anyhow = "1"
+num-traits = "0.2"
+num-format = "0.4"
+lazy_static = "1.4"
+rand = "0"
+tempfile = "3"
+glob = "0.3"
+tensorflow = { version = "0.20", features = ["tensorflow_gpu"] }
+console_engine = "2.6"
+
+[[test]]
+name = "learn_ballgame"
+test = false
+
+[[test]]
+name = "render_ballgame_cases"
+test = false

@@ -5,7 +5,7 @@ use anyhow::Result;
 use common::{BATCH_SIZE, CHECKPOINT_FILE_BASE};
 use q_learning_breakout::environment::ballgame_test_environment::BallGameTestEnvironment;
 use q_learning_breakout::ql::learn::self_driving_tf_q_learner::{Parameter, SelfDrivingQLearner};
-use q_learning_breakout::ql::model::tensorflow::q_learning_model::{QL_MODEL_BALLGAME_3x3x4_5_512_PATH, QLearningTensorflowModel};
+use q_learning_breakout::ql::model::tensorflow_python::q_learning_model::{QL_MODEL_BALLGAME_3x3x4_5_512_PATH, QLearningTensorflowModel};
 use q_learning_breakout::ql::prelude::QlError;
 use q_learning_breakout::util::log::init_logging;
 

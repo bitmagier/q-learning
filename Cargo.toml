@@ -1,60 +1,6 @@
-[package]
-# TODO rename to "q-learning"
-name = "q-learning-breakout"
-version = "0.4.0"
-edition = "2021"
-authors = ["Roman Krüger<bitmagier@mailbox.org>"]
-description = "Reinforcement Learning | Deep-Q-Learning | Tensorflow | Breakout"
-repository = "git@github.com:bitmagier/q-learning-breakout.git"
-default-run = "breakout-egui-user-game"
+[workspace]
 
-[badges]
-maintenance = { status = "as-is" }
-
-
-[dev-dependencies]
-rstest = "0"
-ctor = "0.2"
-
-[dependencies]
-rustc-hash = "1.1"
-log = "0.4"
-env_logger = "0.10"
-itertools = "0.11.0"
-anyhow = "1"
-num-traits = "0.2"
-num-format = "0.4"
-lazy_static = "1.4"
-rand = "0"
-tempfile = "3"
-glob = "0.3"
-egui = "0.22.0"
-eframe = "0.22.0"
-parry2d = "0.13"
-nalgebra = "0.32"
-image = "0.24"
-# tensorflow = { version = "0.20.0", features = ["tensorflow_gpu"] }
-tensorflow = { git = "https://github.com/tensorflow/rust.git", branch = "master", features = ["tensorflow_gpu"] }
-# tensorflow-sys = { version = "0.23.0", features = ["tensorflow_gpu"] }
-plotters = "0.3"
-console_engine = "2.6"
-
-[[bin]]
-name = "breakout-egui-user-game"
-
-#[[bin]]
-#name = "breakout-console-user-game"
-
-[[bin]]
-name = "go-5x5-machine-learning"
-
-#[[bin]]
-#name = "go-5x5-user-ai-game.rs"
-
-[[test]]
-name = "learn_ballgame"
-test = false
-
-[[test]]
-name = "render_ballgame_cases"
-test = false
+members = [
+    "src/q-learning",
+]
+resolver = "2"

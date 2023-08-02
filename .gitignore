@@ -6,9 +6,3 @@
 **/*.rs.bk
 
 /.idea/
-
-/tf_model/saved/*
-!/tf_model/saved/.gitkeep
-
-/tf_model/checkpoints/*
-!/tf_model/checkpoints/.gitkeep

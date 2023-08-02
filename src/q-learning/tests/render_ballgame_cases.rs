@@ -2,7 +2,7 @@ use anyhow::Result;
 
 use common::{BATCH_SIZE, CHECKPOINT_FILE_BASE};
 use q_learning_breakout::environment::ballgame_test_environment::{BallGameState, BallGameTestEnvironment};
-use q_learning_breakout::ql::model::tensorflow::q_learning_model::{QL_MODEL_BALLGAME_3x3x4_5_512_PATH, QLearningTensorflowModel};
+use q_learning_breakout::ql::model::tensorflow_python::q_learning_model::{QL_MODEL_BALLGAME_3x3x4_5_512_PATH, QLearningTensorflowModel};
 use q_learning_breakout::ql::prelude::{DebugVisualizer, DeepQLearningModel, Environment, QlError};
 use q_learning_breakout::util::dbscan::cluster_analysis;
 
@@ -51,14 +51,15 @@ fn render_unsuccessful_case() -> Result<()> {
 }
 
 fn load_model() -> Result<QLearningTensorflowModel<BallGameTestEnvironment, BATCH_SIZE>> {
-    if !CHECKPOINT_FILE_BASE.with_extension("index").exists() {
-        return Err(QlError::from(
-            "Model checkpoint file does not yet exist. You might consider running testcase 'learn_ballgame' first",
-        ))?;
-    }
+    // if !CHECKPOINT_FILE_BASE.with_extension("index").exists() {
+    //     return Err(QlError::from(
+    //         "Model checkpoint file does not yet exist. You might consider running testcase 'learn_ballgame' first",
+    //     ))?;
+    // }
 
-    let model = QLearningTensorflowModel::<BallGameTestEnvironment, BATCH_SIZE>::load_model(&QL_MODEL_BALLGAME_3x3x4_5_512_PATH)?;
-    model.read_checkpoint(CHECKPOINT_FILE_BASE.to_str().unwrap())?;
+    let mut model = QLearningTensorflowModel::<BallGameTestEnvironment, BATCH_SIZE>::load_model(&QL_MODEL_BALLGAME_3x3x4_5_512_PATH)?;
+    //model.read_checkpoint(CHECKPOINT_FILE_BASE.to_str().unwrap())?;
+    model.load_graph(&CHECKPOINT_FILE_BASE)?;
     // TODO some kind of init missing - because it does not seem to be the trained model here
     Ok(model)
 }

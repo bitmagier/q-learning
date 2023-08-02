@@ -1,0 +1,17 @@
+[package]
+name = "q-learning-breakout"
+version = "0.4.0"
+edition = "2021"
+authors = ["Roman Krüger<bitmagier@mailbox.org>"]
+description = "Reinforcement Learning | Deep-Q-Learning | Tensorflow | Breakout"
+repository = "git@github.com:bitmagier/q-learning.git"
+default-run = "breakout-egui-user-game"
+
+[dependencies]
+q-learning = { path = "../q-learning" }
+egui = "0.22"
+eframe = "0.22"
+parry2d = "0.13"
+nalgebra = "0.32"
+image = "0.24"
+plotters = "0.3"

@@ -1,5 +1,0 @@
-- find the flaw in the learning algorithm - it seems to do something useful, but (no matter which net configuration) it does not solve the integration test task
-- separate crates:
-  - q-learning lib (incl. tensorflow model)
-  - breakout game binaries
-  - go game binaries

@@ -8,14 +8,14 @@ use std::rc::Rc;
 use anyhow::Result;
 use itertools::Itertools;
 use lazy_static::lazy_static;
-use tensorflow::{Graph, ImportGraphDefOptions, SavedModelBundle, Session, SessionOptions, Tensor};
+use tensorflow::{Graph, ImportGraphDefOptions, SavedModelBundle, SessionOptions, Tensor};
 
-use crate::ql::model::tensorflow::model_function::{ModelFunction1, ModelFunction3};
+use crate::ql::model::tensorflow_python::model_function::{ModelFunction1, ModelFunction3};
 use crate::ql::prelude::{Action, DeepQLearningModel, DEFAULT_BATCH_SIZE, Environment, ModelActionType, QlError, ToMultiDimArray};
 
 lazy_static! {
     pub static ref QL_MODEL_BALLGAME_3x3x4_5_512_PATH: PathBuf =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tf_model/saved/ql_model_ballgame_3x3x4_5_512");
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("python_model/saved/ql_model_ballgame_3x3x4_5_512");
 }
 
 pub struct QLearningTensorflowModel<E, const BATCH_SIZE: usize = DEFAULT_BATCH_SIZE> {
@@ -93,6 +93,9 @@ where
     //     saver.save(&self.bundle.session, &self.scope.graph(), path).map_err(|e| QlError(e.to_string()))?;
     //     Ok(())
     // }
+    
+    // save_model next try:
+    // https://stackoverflow.com/questions/37508771/how-to-save-and-restore-a-tensorflow-graph-and-its-state-in-c
 }
 
 impl<E, const BATCH_SIZE: usize> DeepQLearningModel<BATCH_SIZE> for QLearningTensorflowModel<E, BATCH_SIZE>
@@ -226,7 +229,6 @@ where
      ) -> Result<()> {
         let serialized_graph = fs::read(path)?;
 
-        self.bundle.session.close()?;
         // TODO A: if we use the existing graph, we get Error: InvalidArgument: Node name 'Adam/action_layer/bias/v' already exists in the Graph
         // TODO B: if we use a fresh graph, we get a runtime error while using `batch_predict_max_future_reward` 
         //   (0) FAILED_PRECONDITION: Could not find variable dense/kernel. This could mean that the variable has been deleted. In TF1, it can also mean the variable is uninitialized. Debug info: container=localhost, status error message=Container localhost does not exist. (Could not find resource: localhost/dense/kernel)
@@ -234,8 +236,14 @@ where
         //     [[StatefulPartitionedCall/_3]]
         //
         // => Note: going back to try making use of SavedModelBuilder in order to save the model 
-        self.graph = Graph::new();
-        let result = self.graph.import_graph_def_with_results(&serialized_graph, &ImportGraphDefOptions::default())?;
+        
+        // TODO prune graph before importing
+        
+        let import_options = ImportGraphDefOptions::new();
+        // check if that helps and works
+       
+        let result = self.graph.import_graph_def_with_results(&serialized_graph, &import_options)?;
+        
         let m = result.missing_unused_input_mappings()?;
         if !m.is_empty() {
             return Err(QlError(format!(
@@ -243,7 +251,6 @@ where
                 m.iter().map(|&(s, _)| s).join(", ")
             )))?;
         }
-        self.bundle.session = Session::new(&SessionOptions::new(), &self.graph)?;
         
         // TODO initialize variables
         // HOW? 
@@ -257,13 +264,13 @@ where
 mod tests {
     use rand::prelude::*;
 
-    use crate::environment::ballgame_test_environment::{BallGameAction, BallGameTestEnvironment};
     use crate::ql::prelude::Action;
+    use crate::test::ballgame_test_environment::{BallGameAction, BallGameTestEnvironment};
 
     use super::*;
 
     const BATCH_SIZE: usize = 512;
-
+    
     fn load_model() -> Result<QLearningTensorflowModel<BallGameTestEnvironment, BATCH_SIZE>> {
         QLearningTensorflowModel::<BallGameTestEnvironment, BATCH_SIZE>::load_model(&QL_MODEL_BALLGAME_3x3x4_5_512_PATH)
     }

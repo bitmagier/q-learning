@@ -208,9 +208,11 @@ where
 
             if self.step_count % self.param.stats_after_steps == 0 {
                 // update the target network with new weights
-                self.model.write_checkpoint(self.checkpoint_file.to_str().unwrap())?;
+                // self.model.write_checkpoint(self.checkpoint_file.to_str().unwrap())?;
+                self.model.save_graph(&self.checkpoint_file)?;
                 // TODO we are not experiencing a difference here with calling that function - unfortunately it seems to have no effect!
-                self.stabilized_model.read_checkpoint(self.checkpoint_file.to_str().unwrap())?;
+                //self.stabilized_model.read_checkpoint(self.checkpoint_file.to_str().unwrap())?;
+                self.stabilized_model.load_graph(&self.checkpoint_file)?;
                 self.learning_update_log();
             }
 
@@ -227,7 +229,8 @@ where
         self.episode_count += 1;
 
         if self.solved() {
-            self.model.write_checkpoint(self.checkpoint_file.to_str().unwrap())?;
+            //self.model.write_checkpoint(self.checkpoint_file.to_str().unwrap())?;
+            self.model.save_graph(&self.checkpoint_file)?;
             self.learning_update_log()
         }
 
@@ -321,8 +324,8 @@ mod tests {
     use std::sync::{Arc, RwLock};
 
     use super::*;
-    use crate::environment::ballgame_test_environment::BallGameTestEnvironment;
-    use crate::ql::model::tensorflow::q_learning_model::{QL_MODEL_BALLGAME_3x3x4_5_512_PATH, QLearningTensorflowModel};
+    use crate::test::ballgame_test_environment::BallGameTestEnvironment;
+    use crate::ql::model::tensorflow_python::q_learning_model::{QL_MODEL_BALLGAME_3x3x4_5_512_PATH, QLearningTensorflowModel};
 
     #[test]
     fn test_learner_single_episode() -> Result<()> {
