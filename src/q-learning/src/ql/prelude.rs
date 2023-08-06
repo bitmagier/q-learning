@@ -110,20 +110,11 @@ pub trait DeepQLearningModel<const BATCH_SIZE: usize = DEFAULT_BATCH_SIZE> {
         file: &str,
     ) -> Result<String>;
     
+    /// That function is currently more like a wish than a doable thing - at least with Tensorflow
     fn read_checkpoint(
         &self,
         file: &str,
     ) -> Result<()>;
-    // 
-    // fn save_graph(
-    //     &self,
-    //     path: &Path,
-    // ) -> Result<()>;
-    // 
-    // fn load_graph(
-    //     &mut self,
-    //     path: &Path,
-    // ) -> Result<()>;
 }
 
 pub trait DebugVisualizer {

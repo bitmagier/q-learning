@@ -79,25 +79,6 @@ where
         assert_eq!(tensor.dims()[0], state_batch.len() as u64);
         assert_eq!(tensor.dims().split_first().unwrap().1, declared_state_dims());
     }
-    
-    // pub fn save_model(&mut self, path: &Path) -> Result<()> {
-    //     let mut b = SavedModelBuilder::new();
-    //     b.add_tag("serve");
-    //     
-    //     for (name, sig) in self.bundle.meta_graph_def().signatures() {
-    //         b.add_signature(name, sig.clone());
-    //     }
-    //     
-    //     // TODO how to get variables?
-    //     // b.add_collection()
-    //     
-    //     let saver = b.inject(&mut self.scope)?;
-    //     saver.save(&self.bundle.session, &self.scope.graph(), path).map_err(|e| QlError(e.to_string()))?;
-    //     Ok(())
-    // }
-    
-    // save_model next try:
-    // https://stackoverflow.com/questions/37508771/how-to-save-and-restore-a-tensorflow-graph-and-its-state-in-c
 }
 
 impl<E, const BATCH_SIZE: usize> DeepQLearningModel<BATCH_SIZE> for QLearningTensorflowModel<E, BATCH_SIZE>
@@ -208,6 +189,7 @@ where
         Ok(r[0].clone())
     }
 
+    /// Beware: Restoring a checkpoint in a Tensorflow graph function does not seem to have any impact to the weights of the model 
     fn read_checkpoint(
         &self,
         file: &str,
@@ -216,68 +198,6 @@ where
             .apply::<_, i32>(&self.graph, self.bundle.meta_graph_def(), &self.bundle.session, &Tensor::from(file.to_string()))?;
         Ok(())
     }
-    
-    // fn save_graph(
-    //     &self,
-    //     path: &Path,
-    // ) -> Result<()> {
-    //     let serialized_graph = self.graph.graph_def()?;
-    //     fs::write(path, &serialized_graph)?;
-    //     Ok(())
-    // }
-    // 
-    // fn load_graph(
-    //      &mut self,
-    //      path: &Path,
-    //  ) -> Result<()> {
-    //     let serialized_graph = fs::read(path)?;
-    // 
-    //     // TODO A: if we use the existing graph, we get Error: InvalidArgument: Node name 'Adam/action_layer/bias/v' already exists in the Graph
-    //     // TODO B: if we use a fresh graph, we get a runtime error while using `batch_predict_max_future_reward` 
-    //     //   (0) FAILED_PRECONDITION: Could not find variable dense/kernel. This could mean that the variable has been deleted. In TF1, it can also mean the variable is uninitialized. Debug info: container=localhost, status error message=Container localhost does not exist. (Could not find resource: localhost/dense/kernel)
-    //     //     [[{{function_node __inference_batch_predict_max_future_reward_245}}{{node dense/MatMul/ReadVariableOp}}]]
-    //     //     [[StatefulPartitionedCall/_3]]
-    //     //
-    //     // => Note: going back to try making use of SavedModelBuilder in order to save the model 
-    //     
-    //     // TODO prune graph before importing
-    //     
-    //     let import_options = ImportGraphDefOptions::new();
-    //     // check if that helps and works
-    //     self.graph = Graph::new();
-    //     let result = self.graph.import_graph_def_with_results(&serialized_graph, &import_options)?;
-    //     let m = result.missing_unused_input_mappings()?;
-    //     if !m.is_empty() {
-    //         return Err(QlError(format!(
-    //             "loaded graph does not seem to be consistent. We have missing unused mappings: {}",
-    //             m.iter().map(|&(s, _)| s).join(", ")
-    //         )))?;
-    //     }
-    // 
-    //     self.bundle.session = Session::new(&SessionOptions::new(), &self.graph)?;
-    //     // TODO initialize variables
-    //     // HOW? 
-    //     //   - maybe using a @tf.function calling  
-    //     
-    //     // TODO: call '__saved_model_init_op'
-    // 
-    //     // signature_def['__saved_model_init_op']:
-    //     //   The given SavedModel SignatureDef contains the following input(s):
-    //     //   The given SavedModel SignatureDef contains the following output(s):
-    //     //     outputs['__saved_model_init_op'] tensor_info:
-    //     //         dtype: DT_INVALID
-    //     //         shape: unknown_rank
-    //     //         name: NoOp
-    //     //   Method name is:
-    //     log::info!("available operations: {}", self.graph.operation_iter().map(|o| o.name().unwrap()).join(","));
-    //     log::info!("functions: {}", self.graph.get_functions()?.iter().map(|f|f.get_name().unwrap()).join(" ,"));
-    //     
-    //     // let op_init = self.graph.operation_by_name_required("__saved_model_init_op")?;
-    //     // let mut init_step = SessionRunArgs::new();
-    //     // init_step.add_target(&op_init);
-    //     // self.bundle.session.run(&mut init_step)?;
-    //     Ok(())
-    // }
 }
 
 #[cfg(test)]
@@ -338,9 +258,6 @@ mod tests {
         Ok(())
     }
 
-    // TODO add a test function for train, which trains an expected output for a very small set of input (maybe 2)
-
-
     // TODO check that we really restored what we saved before! (but how?)
     #[test]
     fn test_save_and_load_model_ckpt() -> Result<()> {
@@ -352,29 +269,6 @@ mod tests {
         model.read_checkpoint(&keras_model_checkpoint_file.to_str().unwrap())?;
         Ok(())
     }
-
-    // #[test]
-    // fn test_save_and_load_model() -> Result<()> {
-    //     let mut model = load_model()?;
-    //     let temp_dir = tempfile::tempdir()?;
-    //     let tf_graph_file = temp_dir.path().join("saved_model");
-    //     model.save_graph(&tf_graph_file)?;
-    //     log::info!("saved model to '{}'", &tf_graph_file.to_string_lossy());
-    //     model.load_graph(&tf_graph_file)?;
-    // 
-    //     // make sure the temp directory is not dropped and removed before
-    //     temp_dir.close()?;
-    //     Ok(())
-    // }
-    
-    // #[test]
-    // fn test_save_and_load_via_saved_model_builder() -> Result<()>{
-    //     let mut model = load_model()?;
-    //     let tf_graph_file = Path::new("/tmp/tf").join("saved_model");
-    //     model.save(&tf_graph_file)?;
-    //     
-    //     Ok(())
-    // }
 }
 
 // One way to get output names via saved_model_cli:

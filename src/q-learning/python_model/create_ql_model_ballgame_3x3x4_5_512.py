@@ -83,7 +83,7 @@ class QLearningModel_BallGame_3x3x4_5_512(tf.keras.Sequential):
         return {'file': tf.convert_to_tensor(out)}
 
     # TODO problem: read_checkpoint called from Rust does not restore what we wrote in another process before
-    #               (but it does work, if called in init before model.save()) 
+    #               (but it does work, if called during init before model.save())
     @tf.function(input_signature=[tf.TensorSpec(shape=None, dtype=tf.string, name='file')])
     def read_checkpoint(self, file):
         filename = tf.get_static_value(file)

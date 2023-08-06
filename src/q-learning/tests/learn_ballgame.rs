@@ -2,6 +2,7 @@ use std::fs;
 use std::sync::{Arc, RwLock};
 
 use anyhow::Result;
+
 use common::{BATCH_SIZE, CHECKPOINT_FILE_BASE};
 use q_learning::ql::learn::self_driving_tf_q_learner::{Parameter, SelfDrivingQLearner};
 use q_learning::ql::model::tensorflow_python::q_learning_model::{QL_MODEL_BALLGAME_3x3x4_5_512_PATH, QLearningTensorflowModel};
@@ -11,16 +12,6 @@ use q_learning::util::log::init_logging;
 
 mod common;
 
-// We are close, but not done yet:
-// [2023-07-29T11:08:00Z INFO ]
-//    episode: 211_057, steps: 1_920_000, 𝛾=0.90, 𝜀=0.18, reward_goal: {mean >= 9.5, low >= 9.0}, current_rewards: {mean: 9.6, low: -14.2}
-//    reward_distribution: 24x(7.9..8.0), 100x(8.8..9.0), 369x(9.8..10.0), 7x(noise)
-//    action_distribution (of last 200_000): o 8.6%, ↑ 44.0%, ↓ 5.0%, ← 21.2%, → 21.2%
-// ...
-// [2023-07-29T11:43:44Z INFO ]
-//    episode: 1_356_318, steps: 6_840_000, 𝛾=0.90, 𝜀=0.15, reward_goal: {mean >= 9.5, low >= 9.0}, current_rewards: {mean: 9.6, low: -13.2}
-//    reward_distribution: 14x(7.9..8.0), 89x(8.8..9.0), 392x(9.7..10.0), 5x(noise)
-//    action_distribution (of last 200_000): o 4.3%, ↑ 49.3%, ↓ 3.4%, ← 21.4%, → 21.6%
 
 #[test]
 fn test_learn_ballgame_until_mastered() -> Result<()> {
