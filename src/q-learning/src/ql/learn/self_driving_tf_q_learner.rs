@@ -93,26 +93,25 @@ where
     pub fn new(
         environment: Arc<RwLock<E>>,
         param: Parameter,
-        model_instance1: M,
-        model_instance2: M,
+        load_model_fn: fn() -> Result<M>,
         checkpoint_file: PathBuf,
-    ) -> Self {
+    ) -> Result<Self> {
         let replay_buffer = ReplayBuffer::new(param.history_buffer_len, param.episode_reward_history_buffer_len);
         let epsilon = param.epsilon_max;
 
-        Self {
+        Ok(Self {
             environment,
             param: Immutable::new(param),
             rng: rand::thread_rng(),
-            model: model_instance1,
-            stabilized_model: model_instance2,
+            model: load_model_fn()?,
+            stabilized_model: load_model_fn()?,
             checkpoint_file,
             replay_buffer,
             step_count: 0,
             episode_count: 0,
             running_reward: 0.0,
             epsilon,
-        }
+        })
     }
 
     // pub fn load_model_checkpoint(
@@ -203,16 +202,16 @@ where
                     }
                 }
 
-                let _loss = self.model.train(replay_samples.state, replay_samples.action, updated_q_values)?;
+                self.model.train(replay_samples.state, replay_samples.action, updated_q_values)?;
             }
 
             if self.step_count % self.param.stats_after_steps == 0 {
                 // update the target network with new weights
-                // self.model.write_checkpoint(self.checkpoint_file.to_str().unwrap())?;
-                self.model.save_graph(&self.checkpoint_file)?;
+                self.model.write_checkpoint(self.checkpoint_file.to_str().unwrap())?;
+                // self.model.save_graph(&self.checkpoint_file)?;
                 // TODO we are not experiencing a difference here with calling that function - unfortunately it seems to have no effect!
-                //self.stabilized_model.read_checkpoint(self.checkpoint_file.to_str().unwrap())?;
-                self.stabilized_model.load_graph(&self.checkpoint_file)?;
+                self.stabilized_model.read_checkpoint(self.checkpoint_file.to_str().unwrap())?;
+                // self.stabilized_model.load_graph(&self.checkpoint_file)?;
                 self.learning_update_log();
             }
 
@@ -229,8 +228,8 @@ where
         self.episode_count += 1;
 
         if self.solved() {
-            //self.model.write_checkpoint(self.checkpoint_file.to_str().unwrap())?;
-            self.model.save_graph(&self.checkpoint_file)?;
+            self.model.write_checkpoint(self.checkpoint_file.to_str().unwrap())?;
+            // self.model.save_graph(&self.checkpoint_file)?;
             self.learning_update_log()
         }
 
@@ -242,7 +241,7 @@ where
 
         let num_rewards = self.replay_buffer.episode_rewards().len();
         let episode_rewards = self.replay_buffer.episode_rewards();
-        let reward_distribution = dbscan::cluster_analysis(&episode_rewards, 0.35, num_rewards / 50);
+        let reward_distribution = dbscan::cluster_analysis(&episode_rewards, 0.35, num_rewards / 30);
 
         let mut action_counts = FxHashMap::<E::A, usize>::default();
         for &a in &self.replay_buffer.actions().buffer {
@@ -333,11 +332,9 @@ mod tests {
             QLearningTensorflowModel::<BallGameTestEnvironment>::load_model(&QL_MODEL_BALLGAME_3x3x4_5_512_PATH)
         }
         let param = Parameter::default();
-        let model_instance1 = model_init()?;
-        let model_instance2 = model_init()?;
         let checkpoint_file = tempfile::tempdir().unwrap().into_path().join("test_learner_ckpt");
         let environment = Arc::new(RwLock::new(BallGameTestEnvironment::default()));
-        let mut learner = SelfDrivingQLearner::new(environment, param, model_instance1, model_instance2, checkpoint_file);
+        let mut learner = SelfDrivingQLearner::new(environment, param, || model_init(), checkpoint_file)?;
         assert!(!learner.solved());
 
         learner.learn_episode()?;

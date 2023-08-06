@@ -1,6 +1,5 @@
 #![allow(non_upper_case_globals)]
 
-use std::fs;
 use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -8,10 +7,10 @@ use std::rc::Rc;
 use anyhow::Result;
 use itertools::Itertools;
 use lazy_static::lazy_static;
-use tensorflow::{Graph, ImportGraphDefOptions, SavedModelBundle, SessionOptions, Tensor};
+use tensorflow::{Graph, SavedModelBundle, SessionOptions, Tensor};
 
 use crate::ql::model::tensorflow_python::model_function::{ModelFunction1, ModelFunction3};
-use crate::ql::prelude::{Action, DeepQLearningModel, DEFAULT_BATCH_SIZE, Environment, ModelActionType, QlError, ToMultiDimArray};
+use crate::ql::prelude::{Action, DeepQLearningModel, DEFAULT_BATCH_SIZE, Environment, ModelActionType, ToMultiDimArray};
 
 lazy_static! {
     pub static ref QL_MODEL_BALLGAME_3x3x4_5_512_PATH: PathBuf =
@@ -49,11 +48,14 @@ where
             model_dir.to_str().expect("should have UTF-8 compatible path"),
         )?;
 
+        log::debug!("available operations: {}", graph.operation_iter().map(|o| o.name().unwrap()).join(","));
+        log::debug!("functions: {}", graph.get_functions()?.iter().map(|f|f.get_name().unwrap()).join(" ,"));
+        
         let fn_predict_single = ModelFunction1::new("predict_action", "state", "action")?;
         let fn_batch_predict_max_future_reward = ModelFunction1::new("batch_predict_max_future_reward", "state_batch", "reward_batch")?;
-        let fn_train_model = ModelFunction3::new("train_model", "state_batch", "action_batch_one_hot", "updated_q_values", "loss")?;
+        let fn_train_model = ModelFunction3::new("train_model", "state_batch", "action_batch_one_hot", "updated_q_values", "i")?;
         let fn_write_checkpoint = ModelFunction1::new("write_checkpoint", "file", "file")?;
-        let fn_read_checkpoint = ModelFunction1::new("read_checkpoint", "file", "dummy")?;
+        let fn_read_checkpoint = ModelFunction1::new("read_checkpoint", "file", "status")?;
 
         Ok(QLearningTensorflowModel {
             graph,
@@ -175,7 +177,7 @@ where
         state_batch: [&Rc<E::S>; BATCH_SIZE],
         action_batch: [E::A; BATCH_SIZE],
         updated_q_values: [f32; BATCH_SIZE],
-    ) -> Result<f32> {
+    ) -> Result<()> {
         let state_batch_tensor = E::S::batch_to_multi_dim_array(&state_batch);
         Self::check_state_batch_dims(&state_batch, &state_batch_tensor);
         
@@ -184,7 +186,7 @@ where
             action_batch_tensor.set(&[i as u64, action.numeric() as u64], 1.0);
         }
 
-        let r = self.fn_train_model.apply::<_, _, _, f32>(
+        let _ = self.fn_train_model.apply::<_, _, _, i64>(
             &self.graph,
             self.bundle.meta_graph_def(),
             &self.bundle.session,
@@ -192,7 +194,8 @@ where
             &action_batch_tensor,
             &Tensor::from(updated_q_values),
         )?;
-        Ok(r[0])
+        // r[0] = returned 'number of iterations' (to return something from the graph, which is required) 
+        Ok(())
     }
 
     fn write_checkpoint(
@@ -209,55 +212,72 @@ where
         &self,
         file: &str,
     ) -> Result<()> {
-        self.fn_read_checkpoint
-            .apply::<_, String>(&self.graph, self.bundle.meta_graph_def(), &self.bundle.session, &Tensor::from(file.to_string()))?;
+        let _ = self.fn_read_checkpoint
+            .apply::<_, i32>(&self.graph, self.bundle.meta_graph_def(), &self.bundle.session, &Tensor::from(file.to_string()))?;
         Ok(())
     }
-
-    fn save_graph(
-        &self,
-        path: &Path,
-    ) -> Result<()> {
-        let serialized_graph = self.graph.graph_def()?;
-        fs::write(path, &serialized_graph)?;
-        Ok(())
-    }
-
-    fn load_graph(
-         &mut self,
-         path: &Path,
-     ) -> Result<()> {
-        let serialized_graph = fs::read(path)?;
-
-        // TODO A: if we use the existing graph, we get Error: InvalidArgument: Node name 'Adam/action_layer/bias/v' already exists in the Graph
-        // TODO B: if we use a fresh graph, we get a runtime error while using `batch_predict_max_future_reward` 
-        //   (0) FAILED_PRECONDITION: Could not find variable dense/kernel. This could mean that the variable has been deleted. In TF1, it can also mean the variable is uninitialized. Debug info: container=localhost, status error message=Container localhost does not exist. (Could not find resource: localhost/dense/kernel)
-        //     [[{{function_node __inference_batch_predict_max_future_reward_245}}{{node dense/MatMul/ReadVariableOp}}]]
-        //     [[StatefulPartitionedCall/_3]]
-        //
-        // => Note: going back to try making use of SavedModelBuilder in order to save the model 
-        
-        // TODO prune graph before importing
-        
-        let import_options = ImportGraphDefOptions::new();
-        // check if that helps and works
-       
-        let result = self.graph.import_graph_def_with_results(&serialized_graph, &import_options)?;
-        
-        let m = result.missing_unused_input_mappings()?;
-        if !m.is_empty() {
-            return Err(QlError(format!(
-                "loaded graph does not seem to be consistent. We have missing unused mappings: {}",
-                m.iter().map(|&(s, _)| s).join(", ")
-            )))?;
-        }
-        
-        // TODO initialize variables
-        // HOW? 
-        //   - maybe using a @tf.function calling  
-        
-        Ok(())
-    }
+    
+    // fn save_graph(
+    //     &self,
+    //     path: &Path,
+    // ) -> Result<()> {
+    //     let serialized_graph = self.graph.graph_def()?;
+    //     fs::write(path, &serialized_graph)?;
+    //     Ok(())
+    // }
+    // 
+    // fn load_graph(
+    //      &mut self,
+    //      path: &Path,
+    //  ) -> Result<()> {
+    //     let serialized_graph = fs::read(path)?;
+    // 
+    //     // TODO A: if we use the existing graph, we get Error: InvalidArgument: Node name 'Adam/action_layer/bias/v' already exists in the Graph
+    //     // TODO B: if we use a fresh graph, we get a runtime error while using `batch_predict_max_future_reward` 
+    //     //   (0) FAILED_PRECONDITION: Could not find variable dense/kernel. This could mean that the variable has been deleted. In TF1, it can also mean the variable is uninitialized. Debug info: container=localhost, status error message=Container localhost does not exist. (Could not find resource: localhost/dense/kernel)
+    //     //     [[{{function_node __inference_batch_predict_max_future_reward_245}}{{node dense/MatMul/ReadVariableOp}}]]
+    //     //     [[StatefulPartitionedCall/_3]]
+    //     //
+    //     // => Note: going back to try making use of SavedModelBuilder in order to save the model 
+    //     
+    //     // TODO prune graph before importing
+    //     
+    //     let import_options = ImportGraphDefOptions::new();
+    //     // check if that helps and works
+    //     self.graph = Graph::new();
+    //     let result = self.graph.import_graph_def_with_results(&serialized_graph, &import_options)?;
+    //     let m = result.missing_unused_input_mappings()?;
+    //     if !m.is_empty() {
+    //         return Err(QlError(format!(
+    //             "loaded graph does not seem to be consistent. We have missing unused mappings: {}",
+    //             m.iter().map(|&(s, _)| s).join(", ")
+    //         )))?;
+    //     }
+    // 
+    //     self.bundle.session = Session::new(&SessionOptions::new(), &self.graph)?;
+    //     // TODO initialize variables
+    //     // HOW? 
+    //     //   - maybe using a @tf.function calling  
+    //     
+    //     // TODO: call '__saved_model_init_op'
+    // 
+    //     // signature_def['__saved_model_init_op']:
+    //     //   The given SavedModel SignatureDef contains the following input(s):
+    //     //   The given SavedModel SignatureDef contains the following output(s):
+    //     //     outputs['__saved_model_init_op'] tensor_info:
+    //     //         dtype: DT_INVALID
+    //     //         shape: unknown_rank
+    //     //         name: NoOp
+    //     //   Method name is:
+    //     log::info!("available operations: {}", self.graph.operation_iter().map(|o| o.name().unwrap()).join(","));
+    //     log::info!("functions: {}", self.graph.get_functions()?.iter().map(|f|f.get_name().unwrap()).join(" ,"));
+    //     
+    //     // let op_init = self.graph.operation_by_name_required("__saved_model_init_op")?;
+    //     // let mut init_step = SessionRunArgs::new();
+    //     // init_step.add_target(&op_init);
+    //     // self.bundle.session.run(&mut init_step)?;
+    //     Ok(())
+    // }
 }
 
 #[cfg(test)]
@@ -314,8 +334,7 @@ mod tests {
             .map(|_| thread_rng().gen_range(0..BallGameAction::ACTION_SPACE))
             .map(|v| BallGameAction::try_from_numeric(v).unwrap());
         let updated_q_values = [0; BATCH_SIZE].map(|_| thread_rng().gen_range(0.0..1.5));
-        let loss = model.train(states_batch.each_ref(), action_batch, updated_q_values)?;
-        log::info!("loss: {}", loss);
+        model.train(states_batch.each_ref(), action_batch, updated_q_values)?;
         Ok(())
     }
 

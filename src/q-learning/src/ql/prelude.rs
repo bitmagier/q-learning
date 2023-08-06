@@ -1,6 +1,5 @@
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
-use std::path::Path;
 use std::rc::Rc;
 
 use anyhow::Result;
@@ -104,7 +103,7 @@ pub trait DeepQLearningModel<const BATCH_SIZE: usize = DEFAULT_BATCH_SIZE> {
         state_batch: [&Rc<<Self::E as Environment>::S>; BATCH_SIZE],
         action_batch: [<Self::E as Environment>::A; BATCH_SIZE],
         updated_q_values: [f32; BATCH_SIZE],
-    ) -> Result<f32>;
+    ) -> Result<()>;
 
     fn write_checkpoint(
         &self,
@@ -115,16 +114,16 @@ pub trait DeepQLearningModel<const BATCH_SIZE: usize = DEFAULT_BATCH_SIZE> {
         &self,
         file: &str,
     ) -> Result<()>;
-    
-    fn save_graph(
-        &self,
-        path: &Path,
-    ) -> Result<()>;
-
-    fn load_graph(
-        &mut self,
-        path: &Path,
-    ) -> Result<()>;
+    // 
+    // fn save_graph(
+    //     &self,
+    //     path: &Path,
+    // ) -> Result<()>;
+    // 
+    // fn load_graph(
+    //     &mut self,
+    //     path: &Path,
+    // ) -> Result<()>;
 }
 
 pub trait DebugVisualizer {

@@ -15,10 +15,6 @@ class QLearningModel_BallGame_3x3x4_5_512(tf.keras.Sequential):
         super(QLearningModel_BallGame_3x3x4_5_512, self).__init__(*args, **kwargs)
         self.add(tf.keras.Input(shape=(INPUT_SIZE_X, INPUT_SIZE_Y, INPUT_CHANNELS,)))
 
-        # self.add(layers.Dense(128, activation='sigmoid'))
-        # self.add(layers.Dense(128, activation='sigmoid'))
-        # self.add(layers.Dense(128, activation='sigmoid'))
-
         self.add(layers.Conv2D(filters=32, kernel_size=(2, 2), strides=1, padding="same", activation="relu"))
         self.add(layers.Conv2D(filters=32, kernel_size=1, activation="relu"))
         self.add(layers.Flatten(name='flatten'))
@@ -26,6 +22,8 @@ class QLearningModel_BallGame_3x3x4_5_512(tf.keras.Sequential):
 
         # activation function should be linear, to provide a value-range matching the Q-value-range
         self.add(layers.Dense(ACTION_SPACE, activation='linear', name='action_layer'))
+
+        self.checkpoint = tf.train.Checkpoint(self)
 
         self.compile(
             optimizer=keras.optimizers.Adam(learning_rate=0.00025, clipnorm=1.0),
@@ -74,42 +72,34 @@ class QLearningModel_BallGame_3x3x4_5_512(tf.keras.Sequential):
 
         # Backpropagation
         grads = tape.gradient(loss, self.trainable_variables)
-        _ = self.optimizer.apply_gradients(zip(grads, self.trainable_variables))
+        self.optimizer.apply_gradients(zip(grads, self.trainable_variables))
+        i = self.optimizer.iterations
 
-        return {'loss': loss}
+        return {'i': i}
 
     @tf.function(input_signature=[tf.TensorSpec(shape=None, dtype=tf.string, name='file')])
     def write_checkpoint(self, file):
-        cp = tf.train.Checkpoint(root=self)
-        out = cp.write(file)
+        out = self.checkpoint.write(file)
         return {'file': tf.convert_to_tensor(out)}
 
-    # @tf.function(input_signature=[tf.TensorSpec(shape=None, dtype=tf.string, name='file')])
-    # def write_weights(self, file):
-    #     file = '/tmp/x'
-    #     # TODO problem here (during model.save()): 
-    #     #   RuntimeError: Cannot get session inside Tensorflow graph function.
-    #     self.save_weights(file, save_format='tf')
-    #     return {'dummy': tf.constant("")}
-
-    # TODO Houston: reading a model from a checkpoint does not restore what we wrote in another process before
-
+    # TODO problem: read_checkpoint called from Rust does not restore what we wrote in another process before
+    #               (but it does work, if called in init before model.save()) 
     @tf.function(input_signature=[tf.TensorSpec(shape=None, dtype=tf.string, name='file')])
     def read_checkpoint(self, file):
-        file = tf.get_static_value(file)
-        cp = tf.train.Checkpoint(root=self)
-        status = cp.read(file)
-        if file is not None:
+        filename = tf.get_static_value(file)
+        status = self.checkpoint.read(filename)
+        if filename is not None:
             status.assert_consumed()
             status.initialize_or_restore()
-            print("checkpoint read")
+            ret = len(status._gather_saveable_objects())
         else:
-            print("no checkpoint read. 'file' was None")
-        return {'dummy': tf.constant("")}
+            ret = 0
+        return {'status': tf.convert_to_tensor(ret)}
 
 
 model = QLearningModel_BallGame_3x3x4_5_512()
 model.summary()
+# init = tf.variables_initializer(tf.global_variables(), name='init')
 
 model.save('saved/ql_model_ballgame_3x3x4_5_512',
            save_format='tf',

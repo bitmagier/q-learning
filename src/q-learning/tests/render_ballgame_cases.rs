@@ -1,10 +1,10 @@
 use anyhow::Result;
 
 use common::{BATCH_SIZE, CHECKPOINT_FILE_BASE};
-use q_learning_breakout::environment::ballgame_test_environment::{BallGameState, BallGameTestEnvironment};
-use q_learning_breakout::ql::model::tensorflow_python::q_learning_model::{QL_MODEL_BALLGAME_3x3x4_5_512_PATH, QLearningTensorflowModel};
-use q_learning_breakout::ql::prelude::{DebugVisualizer, DeepQLearningModel, Environment, QlError};
-use q_learning_breakout::util::dbscan::cluster_analysis;
+use q_learning::ql::model::tensorflow_python::q_learning_model::{QL_MODEL_BALLGAME_3x3x4_5_512_PATH, QLearningTensorflowModel};
+use q_learning::ql::prelude::{DebugVisualizer, DeepQLearningModel, Environment, QlError};
+use q_learning::test::ballgame_test_environment::{BallGameState, BallGameTestEnvironment};
+use q_learning::util::dbscan::cluster_analysis;
 
 mod common;
 
@@ -57,19 +57,20 @@ fn load_model() -> Result<QLearningTensorflowModel<BallGameTestEnvironment, BATC
     //     ))?;
     // }
 
-    let mut model = QLearningTensorflowModel::<BallGameTestEnvironment, BATCH_SIZE>::load_model(&QL_MODEL_BALLGAME_3x3x4_5_512_PATH)?;
-    //model.read_checkpoint(CHECKPOINT_FILE_BASE.to_str().unwrap())?;
-    model.load_graph(&CHECKPOINT_FILE_BASE)?;
+    let model = QLearningTensorflowModel::<BallGameTestEnvironment, BATCH_SIZE>::load_model(&QL_MODEL_BALLGAME_3x3x4_5_512_PATH)?;
+    model.read_checkpoint(CHECKPOINT_FILE_BASE.to_str().unwrap())?;
+    //model.load_graph(&CHECKPOINT_FILE_BASE)?;
     // TODO some kind of init missing - because it does not seem to be the trained model here
     Ok(model)
 }
 
 fn render_case(
-    case_select_fn: fn(&QLearningTensorflowModel<BallGameTestEnvironment, BATCH_SIZE>) -> Result<BallGameTestEnvironment>
+    case_initial_state_select_fn: fn(&QLearningTensorflowModel<BallGameTestEnvironment, BATCH_SIZE>) -> Result<BallGameState>
 ) -> Result<()> {
     let model = load_model()?;
 
-    let mut env = case_select_fn(&model)?;
+    let initial_state = case_initial_state_select_fn(&model)?;
+    let mut env = BallGameTestEnvironment::from(initial_state);
     render(env.state())?;
 
     loop {
@@ -85,56 +86,40 @@ fn render_case(
     Ok(())
 }
 
-fn find_successful_case(model: &QLearningTensorflowModel<BallGameTestEnvironment, BATCH_SIZE>) -> Result<BallGameTestEnvironment> {
-    let mut episodes_left = 10_000;
-    let mut candidate = BallGameTestEnvironment::default();
-
-    loop {
-        episodes_left -= 1;
-        if episodes_left <= 0 {
-            return Err(QlError::from("could not find successful case"))?;
-        }
-
-        let mut env = candidate.clone();
-        loop {
-            let action = model.predict_action(env.state());
-            let (_, r, done) = env.step(action);
-            if done && r >= env.episode_reward_goal_mean() {
-                return Ok(candidate);
-            }
-            if done {
-                break;
-            }
-        }
-        candidate.reset();
-    }
-}
-
-fn find_unsuccessful_case(model: &QLearningTensorflowModel<BallGameTestEnvironment, BATCH_SIZE>) -> Result<BallGameTestEnvironment> {
-    let mut episodes_left = 10_000;
-    let mut candidate = BallGameTestEnvironment::default();
-
-    loop {
-        episodes_left -= 1;
-        if episodes_left <= 0 {
-            return Err(QlError::from("could not find unsuccessful case"))?;
-        }
-
-        let mut env = candidate.clone();
+fn find_successful_case(model: &QLearningTensorflowModel<BallGameTestEnvironment, BATCH_SIZE>) -> Result<BallGameState> {
+    for initial_state in BallGameState::all_possible_initial_states() {
+        let mut env = BallGameTestEnvironment::from(initial_state.clone());
         loop {
             let action = model.predict_action(env.state());
             let (_, r, done) = env.step(action);
             if done {
                 if r >= env.episode_reward_goal_mean() {
-                    break;
+                    return Ok(initial_state)
                 } else {
-                    return Ok(candidate);
+                    break    
                 }
             }
         }
-
-        candidate.reset();
     }
+    Err(QlError::from("could not find successful case"))?
+}
+
+fn find_unsuccessful_case(model: &QLearningTensorflowModel<BallGameTestEnvironment, BATCH_SIZE>) -> Result<BallGameState> {
+    for initial_state in BallGameState::all_possible_initial_states() {
+        let mut env = BallGameTestEnvironment::from(initial_state.clone());
+        loop {
+            let action = model.predict_action(env.state());
+            let (_, r, done) = env.step(action);
+            if done {
+                if r < env.episode_reward_goal_mean() {
+                    return Ok(initial_state)
+                } else {
+                    break
+                }
+            }
+        }
+    }
+    Err(QlError::from("could not find unsuccessful case"))?
 }
 
 fn render(state: &BallGameState) -> Result<()> {

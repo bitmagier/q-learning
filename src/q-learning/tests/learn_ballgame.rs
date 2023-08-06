@@ -3,11 +3,11 @@ use std::sync::{Arc, RwLock};
 
 use anyhow::Result;
 use common::{BATCH_SIZE, CHECKPOINT_FILE_BASE};
-use q_learning_breakout::environment::ballgame_test_environment::BallGameTestEnvironment;
-use q_learning_breakout::ql::learn::self_driving_tf_q_learner::{Parameter, SelfDrivingQLearner};
-use q_learning_breakout::ql::model::tensorflow_python::q_learning_model::{QL_MODEL_BALLGAME_3x3x4_5_512_PATH, QLearningTensorflowModel};
-use q_learning_breakout::ql::prelude::QlError;
-use q_learning_breakout::util::log::init_logging;
+use q_learning::ql::learn::self_driving_tf_q_learner::{Parameter, SelfDrivingQLearner};
+use q_learning::ql::model::tensorflow_python::q_learning_model::{QL_MODEL_BALLGAME_3x3x4_5_512_PATH, QLearningTensorflowModel};
+use q_learning::ql::prelude::QlError;
+use q_learning::test::ballgame_test_environment::BallGameTestEnvironment;
+use q_learning::util::log::init_logging;
 
 mod common;
 
@@ -31,8 +31,7 @@ fn test_learn_ballgame_until_mastered() -> Result<()> {
     let mut param = Parameter::default();
     param.max_steps_per_episode = usize::MAX;
     param.gamma = 0.95;
-    //  TODO 2_000
-    param.update_target_network_after_num_steps = 20_000;
+    param.update_target_network_after_num_steps = 5_000;
     param.update_after_actions = 4;
     param.history_buffer_len = 200_000;
     param.epsilon_pure_random_steps = 100_000;
@@ -43,8 +42,6 @@ fn test_learn_ballgame_until_mastered() -> Result<()> {
     param.lowest_episode_reward_goal_threshold_pct = 0.75;
 
     let model_init = || QLearningTensorflowModel::<BallGameTestEnvironment, BATCH_SIZE>::load_model(&QL_MODEL_BALLGAME_3x3x4_5_512_PATH);
-    let model_instance1 = model_init()?;
-    let model_instance2 = model_init()?;
 
     let environment = Arc::new(RwLock::new(BallGameTestEnvironment::default()));
 
@@ -58,10 +55,9 @@ fn test_learn_ballgame_until_mastered() -> Result<()> {
     let mut learner = SelfDrivingQLearner::new(
         Arc::clone(&environment),
         param,
-        model_instance1,
-        model_instance2,
+        model_init,
         CHECKPOINT_FILE_BASE.clone(),
-    );
+    )?;
     assert!(!learner.solved());
 
     let mut episodes_left = 1_500_000;

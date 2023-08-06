@@ -25,7 +25,9 @@ lazy_static = "1.4"
 rand = "0"
 tempfile = "3"
 glob = "0.3"
-tensorflow = { version = "0.20", features = ["tensorflow_gpu"] }
+# tensorflow = { git = "https://github.com/bitmagier/tensorflow-rust.git", features = ["tensorflow_gpu"] }
+# tensorflow = { git = "https://github.com/tensorflow/rust.git", branch = "master", features = ["tensorflow_gpu"] }
+tensorflow = { version = "0.20.0", features = ["tensorflow_gpu"] }
 console_engine = "2.6"
 
 [[test]]
