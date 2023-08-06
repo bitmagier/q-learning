@@ -13,8 +13,8 @@ use rustc_hash::FxHashMap;
 
 use crate::ql::learn::replay_buffer::ReplayBuffer;
 use crate::ql::prelude::{Action, DebugVisualizer, DeepQLearningModel, Environment};
-use crate::util::immutable::Immutable;
 use crate::util::{dbscan, format};
+use crate::util::immutable::Immutable;
 
 pub struct Parameter {
     /// Discount rete; (0 <= 𝛾 <= 1) represents the value of future rewards. The bigger, the more farsighted the agent becomes
@@ -132,14 +132,9 @@ where
 
     pub fn solved(&self) -> bool {
         let env = self.environment.read().unwrap();
-        if self.running_reward >= env.episode_reward_goal_mean()
+        self.running_reward >= env.episode_reward_goal_mean()
             && self.replay_buffer.min_episode_reward()
                 >= env.episode_reward_goal_mean() * self.param.lowest_episode_reward_goal_threshold_pct
-        {
-            true
-        } else {
-            false
-        }
     }
 
     pub fn learn_episode(&mut self) -> Result<()> {
@@ -322,9 +317,10 @@ fn array_mul<const N: usize>(
 mod tests {
     use std::sync::{Arc, RwLock};
 
-    use super::*;
-    use crate::test::ballgame_test_environment::BallGameTestEnvironment;
     use crate::ql::model::tensorflow_python::q_learning_model::{QL_MODEL_BALLGAME_3x3x4_5_512_PATH, QLearningTensorflowModel};
+    use crate::test::ballgame_test_environment::BallGameTestEnvironment;
+
+    use super::*;
 
     #[test]
     fn test_learner_single_episode() -> Result<()> {

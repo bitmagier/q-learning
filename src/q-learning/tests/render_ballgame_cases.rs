@@ -1,5 +1,4 @@
 use anyhow::Result;
-
 use common::{BATCH_SIZE, CHECKPOINT_FILE_BASE};
 use q_learning::ql::model::tensorflow_python::q_learning_model::{QL_MODEL_BALLGAME_3x3x4_5_512_PATH, QLearningTensorflowModel};
 use q_learning::ql::prelude::{DebugVisualizer, DeepQLearningModel, Environment, QlError};
@@ -92,9 +91,9 @@ fn find_successful_case(model: &QLearningTensorflowModel<BallGameTestEnvironment
             let (_, r, done) = env.step(action);
             if done {
                 if r >= env.episode_reward_goal_mean() {
-                    return Ok(initial_state)
+                    return Ok(initial_state);
                 } else {
-                    break    
+                    break;
                 }
             }
         }
@@ -110,9 +109,9 @@ fn find_unsuccessful_case(model: &QLearningTensorflowModel<BallGameTestEnvironme
             let (_, r, done) = env.step(action);
             if done {
                 if r < env.episode_reward_goal_mean() {
-                    return Ok(initial_state)
+                    return Ok(initial_state);
                 } else {
-                    break
+                    break;
                 }
             }
         }

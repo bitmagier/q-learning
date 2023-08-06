@@ -2,7 +2,6 @@ use std::fs;
 use std::sync::{Arc, RwLock};
 
 use anyhow::Result;
-
 use common::{BATCH_SIZE, CHECKPOINT_FILE_BASE};
 use q_learning::ql::learn::self_driving_tf_q_learner::{Parameter, SelfDrivingQLearner};
 use q_learning::ql::model::tensorflow_python::q_learning_model::{QL_MODEL_BALLGAME_3x3x4_5_512_PATH, QLearningTensorflowModel};
@@ -11,7 +10,6 @@ use q_learning::test::ballgame_test_environment::BallGameTestEnvironment;
 use q_learning::util::log::init_logging;
 
 mod common;
-
 
 #[test]
 fn test_learn_ballgame_until_mastered() -> Result<()> {
@@ -43,12 +41,7 @@ fn test_learn_ballgame_until_mastered() -> Result<()> {
         }
     }
 
-    let mut learner = SelfDrivingQLearner::new(
-        Arc::clone(&environment),
-        param,
-        model_init,
-        CHECKPOINT_FILE_BASE.clone(),
-    )?;
+    let mut learner = SelfDrivingQLearner::new(Arc::clone(&environment), param, model_init, CHECKPOINT_FILE_BASE.clone())?;
     assert!(!learner.solved());
 
     let mut episodes_left = 1_500_000;

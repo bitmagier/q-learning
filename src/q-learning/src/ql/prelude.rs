@@ -109,7 +109,7 @@ pub trait DeepQLearningModel<const BATCH_SIZE: usize = DEFAULT_BATCH_SIZE> {
         &self,
         file: &str,
     ) -> Result<String>;
-    
+
     /// That function is currently more like a wish than a doable thing - at least with Tensorflow
     fn read_checkpoint(
         &self,

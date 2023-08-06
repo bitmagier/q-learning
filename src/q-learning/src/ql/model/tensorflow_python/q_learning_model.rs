@@ -10,7 +10,7 @@ use lazy_static::lazy_static;
 use tensorflow::{Graph, SavedModelBundle, SessionOptions, Tensor};
 
 use crate::ql::model::tensorflow_python::model_function::{ModelFunction1, ModelFunction3};
-use crate::ql::prelude::{Action, DeepQLearningModel, DEFAULT_BATCH_SIZE, Environment, ModelActionType, ToMultiDimArray};
+use crate::ql::prelude::{Action, DeepQLearningModel, Environment, ModelActionType, ToMultiDimArray, DEFAULT_BATCH_SIZE};
 
 lazy_static! {
     pub static ref QL_MODEL_BALLGAME_3x3x4_5_512_PATH: PathBuf =
@@ -48,9 +48,15 @@ where
             model_dir.to_str().expect("should have UTF-8 compatible path"),
         )?;
 
-        log::debug!("available operations: {}", graph.operation_iter().map(|o| o.name().unwrap()).join(","));
-        log::debug!("functions: {}", graph.get_functions()?.iter().map(|f|f.get_name().unwrap()).join(" ,"));
-        
+        log::debug!(
+            "available operations: {}",
+            graph.operation_iter().map(|o| o.name().unwrap()).join(",")
+        );
+        log::debug!(
+            "functions: {}",
+            graph.get_functions()?.iter().map(|f| f.get_name().unwrap()).join(" ,")
+        );
+
         let fn_predict_single = ModelFunction1::new("predict_action", "state", "action")?;
         let fn_batch_predict_max_future_reward = ModelFunction1::new("batch_predict_max_future_reward", "state_batch", "reward_batch")?;
         let fn_train_model = ModelFunction3::new("train_model", "state_batch", "action_batch_one_hot", "updated_q_values", "i")?;
@@ -161,7 +167,7 @@ where
     ) -> Result<()> {
         let state_batch_tensor = E::S::batch_to_multi_dim_array(&state_batch);
         Self::check_state_batch_dims(&state_batch, &state_batch_tensor);
-        
+
         let mut action_batch_tensor = Tensor::<f32>::new(&[BATCH_SIZE as u64, E::A::ACTION_SPACE as u64]);
         for (i, action) in action_batch.into_iter().enumerate() {
             action_batch_tensor.set(&[i as u64, action.numeric() as u64], 1.0);
@@ -175,7 +181,7 @@ where
             &action_batch_tensor,
             &Tensor::from(updated_q_values),
         )?;
-        // r[0] = returned 'number of iterations' (to return something from the graph, which is required) 
+        // r[0] = returned 'number of iterations' (to return something from the graph, which is required)
         Ok(())
     }
 
@@ -183,19 +189,26 @@ where
         &self,
         file: &str,
     ) -> Result<String> {
-        let r = self
-            .fn_write_checkpoint
-            .apply::<String, String>(&self.graph, self.bundle.meta_graph_def(), &self.bundle.session, &Tensor::from(file.to_string()))?;
+        let r = self.fn_write_checkpoint.apply::<String, String>(
+            &self.graph,
+            self.bundle.meta_graph_def(),
+            &self.bundle.session,
+            &Tensor::from(file.to_string()),
+        )?;
         Ok(r[0].clone())
     }
 
-    /// Beware: Restoring a checkpoint in a Tensorflow graph function does not seem to have any impact to the weights of the model 
+    /// Beware: Restoring a checkpoint in a Tensorflow graph function does not seem to have any impact to the weights of the model
     fn read_checkpoint(
         &self,
         file: &str,
     ) -> Result<()> {
-        let _ = self.fn_read_checkpoint
-            .apply::<_, i32>(&self.graph, self.bundle.meta_graph_def(), &self.bundle.session, &Tensor::from(file.to_string()))?;
+        let _ = self.fn_read_checkpoint.apply::<_, i32>(
+            &self.graph,
+            self.bundle.meta_graph_def(),
+            &self.bundle.session,
+            &Tensor::from(file.to_string()),
+        )?;
         Ok(())
     }
 }
@@ -204,13 +217,12 @@ where
 mod tests {
     use rand::prelude::*;
 
+    use super::*;
     use crate::ql::prelude::Action;
     use crate::test::ballgame_test_environment::{BallGameAction, BallGameTestEnvironment};
 
-    use super::*;
-
     const BATCH_SIZE: usize = 512;
-    
+
     fn load_model() -> Result<QLearningTensorflowModel<BallGameTestEnvironment, BATCH_SIZE>> {
         QLearningTensorflowModel::<BallGameTestEnvironment, BATCH_SIZE>::load_model(&QL_MODEL_BALLGAME_3x3x4_5_512_PATH)
     }

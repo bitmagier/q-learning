@@ -4,5 +4,5 @@
 extern crate tensorflow;
 
 pub mod ql;
-pub mod util;
 pub mod test;
+pub mod util;
