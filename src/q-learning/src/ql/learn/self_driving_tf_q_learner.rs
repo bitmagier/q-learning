@@ -12,7 +12,8 @@ use rand::Rng;
 use rustc_hash::FxHashMap;
 
 use crate::ql::learn::replay_buffer::ReplayBuffer;
-use crate::ql::prelude::{Action, DebugVisualizer, DeepQLearningModel, Environment};
+use crate::ql::ml_model::model::DeepQLearningModel;
+use crate::ql::prelude::{Action, DebugVisualizer, Environment};
 use crate::util::{dbscan, format};
 use crate::util::immutable::Immutable;
 
@@ -317,7 +318,7 @@ fn array_mul<const N: usize>(
 mod tests {
     use std::sync::{Arc, RwLock};
 
-    use crate::ql::model::tensorflow_python::q_learning_model::{QL_MODEL_BALLGAME_3x3x4_5_512_PATH, QLearningTensorflowModel};
+    use crate::ql::ml_model::tensorflow_python::q_learning_model::{QL_MODEL_BALLGAME_3x3x4_5_512_PATH, QLearningTensorflowModel};
     use crate::test::ballgame_test_environment::BallGameTestEnvironment;
 
     use super::*;

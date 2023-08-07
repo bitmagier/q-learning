@@ -8,9 +8,10 @@ use anyhow::Result;
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use tensorflow::{Graph, SavedModelBundle, SessionOptions, Tensor};
+use crate::ql::ml_model::model::{DeepQLearningModel, DEFAULT_BATCH_SIZE, ToMultiDimArray};
 
-use crate::ql::model::tensorflow_python::model_function::{ModelFunction1, ModelFunction3};
-use crate::ql::prelude::{Action, DeepQLearningModel, Environment, ModelActionType, ToMultiDimArray, DEFAULT_BATCH_SIZE};
+use crate::ql::ml_model::tensorflow_python::model_function::{ModelFunction1, ModelFunction3};
+use crate::ql::prelude::{Action, Environment, ModelActionType};
 
 lazy_static! {
     pub static ref QL_MODEL_BALLGAME_3x3x4_5_512_PATH: PathBuf =

@@ -8,8 +8,9 @@ use console_engine::screen::Screen;
 use rand::prelude::ThreadRng;
 use rand::Rng;
 use tensorflow::Tensor;
+use crate::ql::ml_model::model::ToMultiDimArray;
 
-use crate::ql::prelude::{Action, DebugVisualizer, Environment, ModelActionType, QlError, ToMultiDimArray};
+use crate::ql::prelude::{Action, DebugVisualizer, Environment, ModelActionType, QlError};
 
 const MAX_STEPS: usize = 16;
 

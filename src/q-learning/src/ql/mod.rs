@@ -1,3 +1,3 @@
 pub mod learn;
-pub mod model;
+pub mod ml_model;
 pub mod prelude;
