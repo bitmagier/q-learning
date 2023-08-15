@@ -2589,7 +2589,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf7e6d18738ecd0902d30d1ad232c9125985a3422929b16c65517b38adc14f96"
 
 [[package]]
-name = "q-learning"
+name = "ql"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "console_engine",
+ "itertools",
+ "num-format",
+ "num-traits",
+ "rand",
+ "rstest",
+ "rustc-hash",
+]
+
+[[package]]
+name = "ql-in-rust"
 version = "0.4.0"
 dependencies = [
  "anyhow",
@@ -2602,6 +2616,7 @@ dependencies = [
  "log",
  "num-format",
  "num-traits",
+ "ql",
  "rand",
  "rstest",
  "rustc-hash",

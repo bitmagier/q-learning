@@ -1,7 +1,8 @@
 [workspace]
 
 members = [
-    "q-learning",
-    "breakout-game"
+    "breakout-game",
+    "ql",
+    "ql-in-rust",
 ]
 resolver = "2"
