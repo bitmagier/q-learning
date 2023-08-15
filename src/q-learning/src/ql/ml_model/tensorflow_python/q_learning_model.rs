@@ -8,8 +8,8 @@ use anyhow::Result;
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use tensorflow::{Graph, SavedModelBundle, SessionOptions, Tensor};
-use crate::ql::ml_model::model::{DeepQLearningModel, DEFAULT_BATCH_SIZE, ToMultiDimArray};
 
+use crate::ql::ml_model::model::{DeepQLearningModel, ToMultiDimArray, DEFAULT_BATCH_SIZE};
 use crate::ql::ml_model::tensorflow_python::model_function::{ModelFunction1, ModelFunction3};
 use crate::ql::prelude::{Action, Environment, ModelActionType};
 

@@ -14,8 +14,8 @@ use rustc_hash::FxHashMap;
 use crate::ql::learn::replay_buffer::ReplayBuffer;
 use crate::ql::ml_model::model::DeepQLearningModel;
 use crate::ql::prelude::{Action, DebugVisualizer, Environment};
-use crate::util::{dbscan, format};
 use crate::util::immutable::Immutable;
+use crate::util::{dbscan, format};
 
 pub struct Parameter {
     /// Discount rete; (0 <= 𝛾 <= 1) represents the value of future rewards. The bigger, the more farsighted the agent becomes
@@ -318,10 +318,9 @@ fn array_mul<const N: usize>(
 mod tests {
     use std::sync::{Arc, RwLock};
 
+    use super::*;
     use crate::ql::ml_model::tensorflow_python::q_learning_model::{QL_MODEL_BALLGAME_3x3x4_5_512_PATH, QLearningTensorflowModel};
     use crate::test::ballgame_test_environment::BallGameTestEnvironment;
-
-    use super::*;
 
     #[test]
     fn test_learner_single_episode() -> Result<()> {

@@ -2,7 +2,7 @@
 
 use image::{ImageBuffer, Rgb};
 
-use crate::environment::breakout::mechanics::BreakoutMechanics;
+use super::mechanics::BreakoutMechanics;
 
 pub struct BreakoutDrawer {
     frame_size_x: usize,

@@ -4,11 +4,11 @@ use std::thread;
 use std::thread::JoinHandle;
 use std::time::Instant;
 
+use breakout_game::app_game_drawer::AppGameDrawer;
+use breakout_game::log::init_logging;
+use breakout_game::mechanics::*;
 use eframe::glow;
 use egui::{Context, Id, LayerId, Order, Painter, Vec2};
-use q_learning_breakout::environment::breakout::app_game_drawer::AppGameDrawer;
-use q_learning_breakout::environment::breakout::mechanics::*;
-use q_learning_breakout::util::log::init_logging;
 
 pub const FRAME_SIZE_X: usize = MODEL_GRID_LEN_X as usize;
 pub const FRAME_SIZE_Y: usize = MODEL_GRID_LEN_Y as usize;

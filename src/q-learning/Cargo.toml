@@ -9,10 +9,6 @@ repository = "git@github.com:bitmagier/q-learning.git"
 [badges]
 maintenance = { status = "as-is" }
 
-[dev-dependencies]
-rstest = "0"
-ctor = "0.2"
-
 [dependencies]
 rustc-hash = "1.1"
 log = "0.4"
@@ -22,11 +18,17 @@ anyhow = "1"
 num-traits = "0.2"
 num-format = "0.4"
 lazy_static = "1.4"
-rand = "0"
-tempfile = "3"
+rand = "0.8"
+tempfile = "3.7"
 glob = "0.3"
+
 tensorflow = { version = "0.20.0", features = ["tensorflow_gpu"] }
 console_engine = "2.6"
+
+[dev-dependencies]
+rstest = "0.18"
+ctor = "0.2"
+
 
 [[test]]
 name = "learn_ballgame"

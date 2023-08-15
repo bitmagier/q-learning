@@ -6,7 +6,7 @@ use egui::{Pos2, Vec2};
 use itertools::Itertools;
 use rand::Rng;
 
-use crate::environment::breakout::algebra_2d::{contact_test_circle_aabb, reflected_vector, vector_angle, AaBB, Circle, ContactSurface};
+use super::algebra_2d::{contact_test_circle_aabb, reflected_vector, vector_angle, AaBB, Circle, ContactSurface};
 
 /// TOP / LEFT corner is 0/0
 pub const MODEL_GRID_LEN_X: f32 = 600.0;

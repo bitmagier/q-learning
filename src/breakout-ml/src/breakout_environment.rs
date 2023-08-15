@@ -5,11 +5,12 @@ use anyhow::Result;
 use console_engine::screen::Screen;
 use image::{imageops, Pixel};
 use tensorflow::Tensor;
+use q_learning::ql::ml_model::model::ToMultiDimArray;
 
-use crate::environment::breakout::breakout_drawer::BreakoutDrawer;
-use crate::environment::breakout::mechanics::{BreakoutMechanics, GameInput, PanelControl};
-use crate::environment::frame_ring_buffer::FrameRingBuffer;
-use crate::ql::prelude::{Action, DebugVisualizer, Environment, ModelActionType, QlError, ToMultiDimArray};
+use crate::game::breakout_drawer::BreakoutDrawer;
+use crate::game::mechanics::{BreakoutMechanics, GameInput, PanelControl};
+use crate::util::frame_ring_buffer::FrameRingBuffer;
+use q_learning::ql::prelude::{Action, DebugVisualizer, Environment, ModelActionType, QlError};
 
 const WORLD_STATE_NUM_FRAMES: usize = 4;
 

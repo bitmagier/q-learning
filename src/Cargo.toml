@@ -1,6 +1,7 @@
 [workspace]
 
 members = [
-    "src/q-learning",
+    "q-learning",
+    "breakout-game"
 ]
 resolver = "2"

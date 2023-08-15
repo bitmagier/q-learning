@@ -6,7 +6,6 @@ use crate::ql::prelude::Environment;
 
 pub const DEFAULT_BATCH_SIZE: usize = 32;
 
-
 /// Generic capability to produce a multi dimensional array out of an object or a batch of objects.
 ///
 /// Type parameter `D` stands for the produced multi-dimensional array type (e.g. `Tensor<f32>`)
@@ -76,4 +75,3 @@ pub trait DeepQLearningModel<const BATCH_SIZE: usize = DEFAULT_BATCH_SIZE> {
         file: &str,
     ) -> Result<()>;
 }
-

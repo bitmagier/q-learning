@@ -62,15 +62,10 @@ pub trait Environment {
     fn episode_reward_goal_mean(&self) -> f32;
 }
 
-
-
 pub trait DebugVisualizer {
     fn one_line_info(&self) -> String;
     fn render_to_console(&self) -> Screen;
 }
-
-
-
 
 #[derive(Debug)]
 pub struct QlError(pub String);

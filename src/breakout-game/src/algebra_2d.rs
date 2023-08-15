@@ -4,7 +4,7 @@ use parry2d::query;
 use parry2d::query::Contact;
 use parry2d::shape::{Ball, Cuboid};
 
-use crate::environment::breakout::mechanics::CONTACT_PREDICTION;
+use super::mechanics::CONTACT_PREDICTION;
 
 /// Axis-aligned Bounding Box
 #[derive(Clone, Copy, Debug, PartialEq)]
