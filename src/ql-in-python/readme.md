@@ -1,12 +1,14 @@
-# build the 1st time
+# initial dev setup (already done) 
+Following https://pyo3.rs/v0.19.2/
+
 ```sh
 python -m venv .env
 source .env/bin/activate
 pip install maturin
-maturin develop
+maturin init
 ```
 
-# build from 2nd time on
+# build
 ```sh
 source .env/bin/activate
 maturin develop

@@ -4,5 +4,6 @@ members = [
     "breakout-game",
     "ql",
     "ql-in-rust",
+    "ql-in-python"
 ]
 resolver = "2"

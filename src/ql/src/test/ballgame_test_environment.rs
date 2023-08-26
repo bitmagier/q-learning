@@ -32,7 +32,7 @@ pub struct BallGameTestEnvironment {
 }
 
 impl BallGameTestEnvironment {
-    fn new() -> Self {
+    pub fn new() -> Self {
         let mut rng = rand::thread_rng();
         Self {
             state: BallGameState::random_initial_state(&mut rng),
