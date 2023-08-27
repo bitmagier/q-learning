@@ -62,6 +62,7 @@ pub trait Environment {
     fn episode_reward_goal_mean(&self) -> f32;
 }
 
+// TODO move DebugVisualizer trait out of prelude - maybe into crate ql-in-rust
 pub trait DebugVisualizer {
     fn one_line_info(&self) -> String;
     fn render_to_console(&self) -> Screen;

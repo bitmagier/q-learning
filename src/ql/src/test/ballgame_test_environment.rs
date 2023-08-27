@@ -4,7 +4,6 @@ use anyhow::Result;
 use console_engine::pixel;
 use console_engine::pixel::Pixel;
 use console_engine::screen::Screen;
-use rand::prelude::ThreadRng;
 use rand::Rng;
 
 use crate::prelude::{Action, DebugVisualizer, Environment, ModelActionType, QlError};
@@ -28,28 +27,23 @@ const MAX_STEPS: usize = 16;
 #[derive(Clone)]
 pub struct BallGameTestEnvironment {
     state: BallGameState,
-    rng: ThreadRng,
 }
 
 impl BallGameTestEnvironment {
     pub fn new() -> Self {
-        let mut rng = rand::thread_rng();
         Self {
-            state: BallGameState::random_initial_state(&mut rng),
-            rng,
+            state: BallGameState::random_initial_state(),
         }
     }
 
     pub fn from(state: BallGameState) -> Self {
-        let rng = rand::thread_rng();
-        Self { state, rng }
+        Self { state }
     }
 
     #[cfg(test)]
     pub fn test_state_00_01_11_22() -> Self {
         Self {
             state: BallGameState::test_state_00_01_11_22(),
-            rng: rand::thread_rng(),
         }
     }
 }
@@ -62,7 +56,7 @@ impl Environment for BallGameTestEnvironment {
     type S = BallGameState;
     type A = BallGameAction;
 
-    fn reset(&mut self) { self.state = BallGameState::random_initial_state(&mut self.rng); }
+    fn reset(&mut self) { self.state = BallGameState::random_initial_state(); }
 
     fn state(&self) -> &Self::S { &self.state }
 
@@ -97,7 +91,8 @@ pub struct BallGameState {
 }
 
 impl BallGameState {
-    fn random_initial_state(rng: &mut ThreadRng) -> Self {
+    fn random_initial_state() -> Self {
+        let mut rng = rand::thread_rng();
         let goal_coord: (usize, usize) = (rng.gen_range(0..3), 0);
         let ball_coord: (usize, usize) = (rng.gen_range(0..3), 2);
         // set one obstacle in the middle and the other one randomly

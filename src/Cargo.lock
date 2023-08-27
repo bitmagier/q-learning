@@ -2672,8 +2672,11 @@ dependencies = [
 name = "ql-in-python"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "console_engine",
  "pyo3",
  "ql",
+ "rand",
 ]
 
 [[package]]
