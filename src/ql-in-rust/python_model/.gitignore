@@ -1,5 +1,2 @@
-/saved/*
-!/saved/.gitkeep
-
 /checkpoints/*
 !/checkpoints/.gitkeep

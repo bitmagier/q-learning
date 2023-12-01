@@ -1,4 +1,8 @@
-# Setup
+# Q Learning in Rust
+
+Using a Tensorflow model created with python.
+
+## Setup
 In order to do something useful with that code here, one needs to install or self-compile tensorflow first.
 Also a python installation is required.
 You might find details in [tensorflow_install.md](doc/tensorflow_install.md) useful.
@@ -15,7 +19,6 @@ This is the procedure for running the integration-tests:
 cd python_model
 python create_ql_model_ballgame_3x3x4_5_512.py
 cargo test --test learn_ballgame --release
-python create_ql_model_ballgame_3x3x4_5_512.py
 cargo test --test render_ballgame_cases
 ```
 
