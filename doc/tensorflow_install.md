@@ -112,14 +112,3 @@ If you do so, then you can quit reading that file here.
 # Rust
 - follow https://www.rust-lang.org/tools/install
 - `sudo apt install libssl-dev libfontconfig-dev`
-
-# Run integration test
-```sh
-git clone git@github.com:bitmagier/q-learning-breakout.git
-cd q-learning-breakout
-cd tf_model
-python3 create_ql_model_ballgame_3x3x4_5_512.py
-cd ..
-
-cargo test --test learn_ballgame --release
-```
