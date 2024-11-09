@@ -8,9 +8,8 @@ cd src && cargo run -p breakout-game --release
 
 - Defining and using a model in Python with Tensorflow/Keras (see `src/q-learning/python_model`)
 - Using a SavedModel (defined and saved in Python) in Rust for inference and learning.
-  We are able to train our integration test model `ql_model_ballgame_3x3x4_5_512` in Rust so that it is able to solve the ballgame task.    
-  => Unfortunately I discovered here, that its apparently not supported by Tensorflow yet to restore the saved model weights directly using
-  Rust code).
+  __We are able to train our integration test model__ `ql_model_ballgame_3x3x4_5_512` in Rust so that it is able to solve the ballgame task.    
+  => Unfortunately I discovered, that its apparently not yet supported by Tensorflow to restore the saved model weights directly using Rust code.
   See `readme.md` and integration tests in `src/ql-in-rust`
 
 - Integration test:
