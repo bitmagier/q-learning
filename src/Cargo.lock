@@ -2892,6 +2892,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "ql-with-pytorch"
+version = "0.1.0"
+
+[[package]]
 name = "ql-with-tensorflow"
 version = "0.4.1"
 dependencies = [
