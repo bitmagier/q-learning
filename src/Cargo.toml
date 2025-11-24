@@ -3,6 +3,6 @@
 members = [
     "breakout-game",
     "ql",
-    "ql-in-rust",
+    "ql-with-tensorflow",
 ]
 resolver = "2"

@@ -1,12 +1,16 @@
 # Q Learning in Rust
 
-Using a Tensorflow model created with python.
+Reinforcement Learning in Rust - using a Tensorflow model created in python.
 
 ## Setup
-In order to do something useful with that code here, one needs to install or self-compile tensorflow first.
-Also a python installation is required.
+In order to do something useful with that code here, one needs to install or compile tensorflow first.
+Also, a python installation is required.
 You might find details in [tensorflow_install.md](doc/tensorflow_install.md) useful.
 
+# Tradeoffs
+- Python + Tensorflow MUST be used to create the initial model
+- World simulation + model learning is performed with Rust using tensorflow-bindings
+- Unfortunately it is NOT possible to save the trained model back to disk using tensorflow bindings - we can use it only in memory 
 
 This is the procedure for running the integration-tests:
 

@@ -1,10 +1,11 @@
 [package]
-name = "ql-in-rust"
-version = "0.4.0"
+name = "ql-with-tensorflow"
+version = "0.4.1"
 edition = "2021"
 authors = ["Roman Krüger<bitmagier@mailbox.org>"]
 description = "Reinforcement Learning | Deep-Q-Learning | Tensorflow"
 repository = "git@github.com:bitmagier/q-learning.git"
+rust-version = "1.82.0"
 
 [badges]
 maintenance = { status = "as-is" }
