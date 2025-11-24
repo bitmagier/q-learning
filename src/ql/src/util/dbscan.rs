@@ -64,7 +64,7 @@ impl<'a, T> ClusterAnalysisResult<'a, T>
 where
     T: Distance,
 {
-    pub fn clusters(&self) -> ClusterIterator<T> {
+    pub fn clusters(&self) -> ClusterIterator<'_, T> {
         ClusterIterator {
             analysis_result: self,
             cluster_iter: self.clusters.0.iter(),
@@ -210,7 +210,7 @@ pub fn cluster_analysis<T>(
     elements: &[T],
     max_neighbor_distance: <T as Distance>::Output,
     core_point_min_neighbors: usize,
-) -> ClusterAnalysisResult<T>
+) -> ClusterAnalysisResult<'_, T>
 where
     T: Distance,
 {

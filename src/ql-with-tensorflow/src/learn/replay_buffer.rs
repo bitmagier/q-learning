@@ -126,7 +126,7 @@ where
     pub fn get_many<const N: usize>(
         &self,
         indices: &[usize; N],
-    ) -> BufferSample<N, S, A> {
+    ) -> BufferSample<'_, N, S, A> {
         BufferSample {
             state: self.state_history.get_many(indices),
             state_next: self.state_next_history.get_many(indices),
